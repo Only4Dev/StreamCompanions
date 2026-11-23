@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { catchChance, createGame } from './game.js'
-import { xpAtLevel } from './ui/levels.js'
+import { catchChance, createGame } from '../desktop/game.js'
+import { xpAtLevel } from '../ui/levels.js'
 
 test('DNA Booster purchases affect only the selected owned variant and cap at ten', () => {
   const viewerId = 'twitch:4'

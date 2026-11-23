@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { checkForUpdate } from './update-check.js'
+import { checkForUpdate } from '../desktop/update-check.js'
 
 test('the updater reports only newer stable GitHub releases', async t => {
   const signal = new AbortController().signal

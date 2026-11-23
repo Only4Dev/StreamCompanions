@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "main": "main.js",
+  "main": "desktop/main.js",
   "scripts": {
     "start": "electron .",
     "test": "node --test",
@@ -19,16 +19,9 @@
       "output": "dist"
     },
     "files": [
-      "main.js",
-      "game.js",
+      "desktop/**",
       "ui/**",
       "package.json",
-      "progress.js",
-      "twitch.js",
-      "cloud-sync.js",
-      "update-check.js",
-      "notices.js",
-      "commands.js",
       "dev/battle.js",
       "dev/battle-vfx.js",
       "dev/battle-ui.js",

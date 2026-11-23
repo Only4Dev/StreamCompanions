@@ -1,5 +1,5 @@
 import { normalizeCommand } from './commands.js'
-import { botResponse, botSignature, defaultBot, formatBotReply } from './ui/bot-copy.js'
+import { botResponse, botSignature, defaultBot, formatBotReply } from '../ui/bot-copy.js'
 
 const oauth = 'https://id.twitch.tv/oauth2/'
 const helix = 'https://api.twitch.tv/helix/'

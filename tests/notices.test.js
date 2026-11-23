@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createEncounterNotices } from './notices.js'
+import { createEncounterNotices } from '../desktop/notices.js'
 
 test('encounter notices cross each threshold once and reset for the next encounter', async () => {
   let clock = 0

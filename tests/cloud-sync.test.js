@@ -3,8 +3,8 @@ import test from 'node:test'
 import { mkdtempSync, rmdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { openProgress } from './progress.js'
-import { startCloudSync } from './cloud-sync.js'
+import { openProgress } from '../desktop/progress.js'
+import { startCloudSync } from '../desktop/cloud-sync.js'
 
 test('pending changes survive restart and retry after a dropped connection', async t => {
   const temp = mkdtempSync(join(tmpdir(), 'stream-sync-'))

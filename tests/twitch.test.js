@@ -1,7 +1,7 @@
-import { botCopy, botResponse, validateBot } from './ui/bot-copy.js'
+import { botCopy, botResponse, validateBot } from '../ui/bot-copy.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { connectTwitch, twitchChatHandler } from './twitch.js'
+import { connectTwitch, twitchChatHandler } from '../desktop/twitch.js'
 
 test('the Twitch bot passes the stable owner identity to evolution and explains automatic unlocks', async () => {
   const replies = []

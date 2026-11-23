@@ -1,9 +1,9 @@
 import { normalizeCommand } from './commands.js'
-import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, maxDnaBoosters, nextEvolutionLevel } from './ui/evolution.js'
-import { defaultSummonXpPerSecond, level, maxLevel, maxXp, xpAtLevel } from './ui/levels.js'
-import { captureRates } from './ui/capture-rates.js'
-import { heldItems } from './ui/held-items.js'
-import { normalizeShopPrices, shopItems, validShopPrice } from './ui/shop.js'
+import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, maxDnaBoosters, nextEvolutionLevel } from '../ui/evolution.js'
+import { defaultSummonXpPerSecond, level, maxLevel, maxXp, xpAtLevel } from '../ui/levels.js'
+import { captureRates } from '../ui/capture-rates.js'
+import { heldItems } from '../ui/held-items.js'
+import { normalizeShopPrices, shopItems, validShopPrice } from '../ui/shop.js'
 
 export const creatures = ['Brasa', 'Musgo', 'Gota']
 

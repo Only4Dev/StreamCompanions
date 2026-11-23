@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { battleClip, chooseBehavior, showScene, spriteScale } from './ui/sprites.js'
+import { battleClip, chooseBehavior, showScene, spriteScale } from '../ui/sprites.js'
 
 test('large static fallback sprites shrink without changing PMD sprites or zoom behavior', () => {
   const clip = { url: '/pmd/0001/Static.png', width: 96, height: 96 }

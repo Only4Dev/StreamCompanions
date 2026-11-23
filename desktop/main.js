@@ -7,14 +7,14 @@ import { startCloudSync } from './cloud-sync.js'
 import { openProgress } from './progress.js'
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
-import { botCopy, botResponse, botSignature, defaultBot, formatBotReply, validateBot } from './ui/bot-copy.js'
+import { botCopy, botResponse, botSignature, defaultBot, formatBotReply, validateBot } from '../ui/bot-copy.js'
 import { createEncounterNotices } from './notices.js'
 import { createGame, creatures } from './game.js'
-import { level } from './ui/levels.js'
-import { spriteScale } from './ui/sprites.js'
-import { projectLinks } from './ui/about.js'
+import { level } from '../ui/levels.js'
+import { spriteScale } from '../ui/sprites.js'
+import { projectLinks } from '../ui/about.js'
 import { checkForUpdate } from './update-check.js'
-import { evolutionParent } from './ui/evolution.js'
+import { evolutionParent } from '../ui/evolution.js'
 
 if (!app.requestSingleInstanceLock()) app.exit(0)
 let mainWindow
@@ -28,8 +28,8 @@ app.on('second-instance', () => {
   mainWindow.focus()
 })
 
-const battleRules = await import('./dev/battle.js')
-const battleStats = (await import('./dev/national-stats.js')).nationalStats
+const battleRules = await import('../dev/battle.js')
+const battleStats = (await import('../dev/national-stats.js')).nationalStats
 let communityBattle
 let battleTimer
 let lastBattleEncounter = 0
@@ -599,7 +599,7 @@ const server = createServer(async (req, res) => {
       return
     }
     if (req.method === 'GET' && (pathname === '/dev/battle-vfx.js' || hasLocalControl(req) && ['/dev/battle.js', '/dev/battle-ui.js', '/dev/national-stats.js', '/dev/battle.css'].includes(pathname))) {
-      const content = await readFile(new URL('.' + pathname, import.meta.url))
+      const content = await readFile(new URL('..' + pathname, import.meta.url))
       res.writeHead(200, { 'Content-Type': pathname.endsWith('.css') ? 'text/css' : 'text/javascript', 'X-Content-Type-Options': 'nosniff' })
       res.end(content)
       return
@@ -609,7 +609,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(404).end()
       return
     }
-    const file = await readFile(new URL('./ui/' + route[0], import.meta.url))
+    const file = await readFile(new URL('../ui/' + route[0], import.meta.url))
     res.writeHead(200, { 'Content-Type': route[1], 'X-Content-Type-Options': 'nosniff' })
     res.end(file)
   } catch {
