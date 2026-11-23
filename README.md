@@ -96,7 +96,7 @@ Twitch y Kick comparten los encuentros de la comunidad. Un viewer vinculado comp
 
 El panel de control se abre en Electron y requiere una sesión local separada de las fuentes de OBS. Los espectadores usan el portal público. La tienda valida la comunidad y el precio en el servidor, y la app verifica el saldo y guarda el recibo junto al débito y la entrega. El dispositivo del streamer es la autoridad del progreso de su propia comunidad. Si el anfitrión modifica sus datos locales o alguien obtiene la credencial del dispositivo, puede alterar el progreso de esa comunidad.
 
-Stream Companions es un proyecto fan no comercial de Only4Dev, en preparación para publicarse como código abierto. Pokémon y sus recursos pertenecen a sus respectivos titulares. Los créditos y licencias de terceros son independientes de la licencia del código. Consulta [la guía de publicación](RELEASING.md) y el checklist de abajo antes de distribuir una beta.
+Stream Companions es un proyecto fan no comercial de Only4Dev, con el código disponible en GitHub. La licencia del código está pendiente. Pokémon y sus recursos pertenecen a sus respectivos titulares. Los créditos y licencias de terceros son independientes de la licencia del código. Consulta [la guía de publicación](RELEASING.md) y el checklist de abajo antes de distribuir una beta.
 
 ### Checklist del piloto
 
