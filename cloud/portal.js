@@ -6,7 +6,7 @@ import { authorizeUrl, eraseAccount, platformIdentity, providerConfig, sessionKe
 import { nationalDex } from './national-dex.js'
 import { kanto } from './kanto.js'
 import { equippedMoves, moves } from '../dev/battle.js'
-import { familyRoot } from '../ui/evolution.js'
+import { familyDnaCount, familyRoot, maxDnaBoosters } from '../ui/evolution.js'
 import { creatureMoves, parseLoadout, speciesName, validMoveset } from './movesets.js'
 import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles } from './portal-style.js'
 import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
@@ -20,6 +20,13 @@ for (const entry of nationalDex) {
   families.get(root).push(entry)
 }
 const familyLinks = id => families.get(familyRoot(id)) ?? []
+const dexByName = new Map(nationalDex.map(([id]) => [speciesName(id), id]))
+function sharedDna(boosters, key) {
+  const shiny = key.endsWith(' ✦')
+  const id = dexByName.get(key.replace(/ ✦$/, ''))
+  const keys = id ? familyLinks(id).map(([member]) => speciesName(member) + (shiny ? ' ✦' : '')) : [key]
+  return familyDnaCount(boosters, keys)
+}
 const typeNames = {
   normal: 'Normal', fighting: 'Lucha', flying: 'Volador', poison: 'Veneno', ground: 'Tierra', rock: 'Roca',
   bug: 'Bicho', ghost: 'Fantasma', steel: 'Acero', fire: 'Fuego', water: 'Agua', grass: 'Planta',
@@ -302,28 +309,29 @@ export async function portal(request, url, env) {
     if (!Object.hasOwn(shopItems, item ?? '') || !/^[a-f0-9-]{36}$/.test(orderId ?? '')) return new Response(null, { status: 400 })
     const product = shopItems[item]
     const target = product.dna ? url.searchParams.get('pokemon') : null
-    if (product.dna && (!online?.supports_dna || !Object.hasOwn(collection, target ?? '') || (dnaBoosters[target] ?? 0) >= 10)) {
+    if (product.dna && (!(online?.supports_dna >= 2) || !Object.hasOwn(collection, target ?? '') || sharedDna(dnaBoosters, target) >= maxDnaBoosters)) {
       return new Response(null, { status: 409 })
     }
+    const destination = target ? { pokemon: target } : { tab: 'shop' }
     const price = published?.[item] ?? product.price
     const quote = url.searchParams.get('price')
     if ((!published && quote === null) || quote === String(price)) {
       if ((product.held && ownedItems.includes(item)) || pokeDollars < price) return new Response(null, { status: 409 })
-    } else return redirect('/?' + new URLSearchParams({ community: selected.community_id, tab: 'shop', repriced: '1' }), [])
+    } else return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, repriced: '1' }), [])
     const now = Date.now()
     const queued = await env.DB.prepare('INSERT OR IGNORE INTO shop_orders (id, community_id, viewer_id, item, created_at, price, species_key) ' +
-      'SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM shop_online WHERE community_id = ? AND seen_at > ? AND prices IS ? AND (? IS NULL OR supports_dna = 1)) ' +
+      'SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM shop_online WHERE community_id = ? AND seen_at > ? AND prices IS ? AND (? IS NULL OR supports_dna >= 2)) ' +
       'AND EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ? AND account_id = ?) AND EXISTS (SELECT 1 FROM web_sessions WHERE id IN (?, ?) AND expires_at > ?)')
       .bind(orderId, selected.community_id, selected.viewer_id, item, now, published ? price : null, target,
         selected.community_id, now - 70_000, online?.prices ?? null, target, selected.viewer_id, identity.account_id, session, key, Date.now()).run()
-    return redirect('/?' + new URLSearchParams({ community: selected.community_id, tab: 'shop', ...(queued.meta.changes ? {} : { retry: '1' }) }), [])
+    return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, ...(queued.meta.changes ? (target ? { purchase: orderId } : {}) : { retry: '1' }) }), [])
   }
   const availableItems = [...new Set(ownedItems)].filter(item => Object.hasOwn(heldItems, item))
   const itemName = item => escape(heldItems[item][Number(language === 'en')])
   const regionQuery = url.searchParams.get('region')
   const locationParams = { community: selected.community_id, ...(regionQuery ? { region: regionQuery } : {}) }
   const speciesKey = url.searchParams.get('pokemon')
-  const dna = dnaBoosters[speciesKey] ?? 0
+  const dna = speciesKey ? sharedDna(dnaBoosters, speciesKey) : 0
   const detail = speciesKey && Object.hasOwn(collection, speciesKey) ? creatureMoves(speciesKey, collection[speciesKey], dna) : null
   if (editing) {
     if (!detail || !selected.viewer_id) return new Response(null, { status: 404 })
@@ -360,9 +368,20 @@ export async function portal(request, url, env) {
     const dnaPrice = published?.['dna-booster'] ?? shopItems['dna-booster'].price
     const dnaAction = '/shop/buy?' + new URLSearchParams({ community: selected.community_id, pokemon: speciesKey,
       item: 'dna-booster', price: dnaPrice, order: crypto.randomUUID() })
-    const dnaSection = '<div class="held-frame"><strong>DNA Booster ' + (dna >= 10 ? 'MAX' : dna + '/10') + '</strong>' +
-      (dna < 10 ? '<form method="post" action="' + escape(dnaAction) + '"><button' +
-        (!(online?.supports_dna && online.seen_at > Date.now() - 70_000) || pokeDollars < dnaPrice ? ' disabled' : '') + '>' +
+    const purchase = url.searchParams.get('purchase')
+    const dnaOrder = /^[a-f0-9-]{36}$/.test(purchase ?? '') ? await env.DB.prepare(
+      "SELECT result FROM shop_orders WHERE id = ? AND community_id = ? AND viewer_id = ? AND item = 'dna-booster'"
+    ).bind(purchase, selected.community_id, selected.viewer_id).first() : null
+    const dnaMessage = url.searchParams.has('repriced') ? (en ? 'The price changed.' : 'El precio cambió.') :
+      url.searchParams.has('retry') ? (en ? 'Purchase unavailable. Check for a pending order.' : 'Compra no disponible. Revisa si hay un pedido pendiente.') :
+      dnaOrder ? (dnaOrder.result === 'purchased' ? (en ? 'Purchase complete.' : 'Compra realizada.') :
+        dnaOrder.result ? (en ? 'Purchase could not be completed.' : 'No se pudo completar la compra.') :
+          (en ? 'Purchase pending. Refresh to check its status.' : 'Compra pendiente. Recarga para consultar el estado.')) : ''
+    const dnaSection = '<div class="held-frame"><strong>DNA Booster ' + (dna >= maxDnaBoosters ? 'MAX' : dna + '/' + maxDnaBoosters) + '</strong>' +
+      '<span>' + (en ? 'Shared across this evolution line' : 'Compartido en esta línea evolutiva') + '</span>' +
+      (dnaMessage ? '<span role="status">' + dnaMessage + '</span>' : '') +
+      (dna < maxDnaBoosters ? '<form method="post" action="' + escape(dnaAction) + '"><button' +
+        (!(online?.supports_dna >= 2 && online.seen_at > Date.now() - 70_000) || (dnaOrder && !dnaOrder.result) || pokeDollars < dnaPrice ? ' disabled' : '') + '>' +
         (en ? 'Buy · $' : 'Comprar · $') + dnaPrice + '</button></form>' : '') + '</div>'
     const saved = await env.DB.prepare('SELECT moves FROM viewer_movesets WHERE community_id = ? AND viewer_id = ? AND species_key = ?')
       .bind(selected.community_id, selected.viewer_id, speciesKey).first()
@@ -447,11 +466,9 @@ export async function portal(request, url, env) {
       (!available ? '<p class="empty">' + (en ? 'The shop opens when the streamer runs the game.' : 'La tienda abre cuando el streamer tiene el juego activo.') + '</p>' : '') +
       (pending ? '<p role="status">' + (en ? 'Purchase pending. Refresh to check its status.' : 'Compra pendiente. Recarga para consultar el estado.') + '</p>' :
         order && status[order.result] ? '<p role="status">' + status[order.result] + '</p>' : '') +
-      '<ul class="held-grid">' + Object.entries(shopItems).map(([id, product]) => {
+      '<ul class="held-grid">' + Object.entries(shopItems).filter(([, product]) => !product.dna).map(([id, product]) => {
         const owned = product.held && ownedItems.includes(id)
         const price = published?.[id] ?? product.price
-        if (product.dna) return '<li>' + itemIcon(product.icon) + '<strong>DNA Booster</strong><span>$' + price + '</span><a href="?' +
-          escape(new URLSearchParams({ community: selected.community_id, tab: 'dex' })) + '">' + (en ? 'Choose a Pokémon in the Dex' : 'Elige un Pokémon en la Dex') + '</a></li>'
         const action = '/shop/buy?' + new URLSearchParams({ community: selected.community_id, item: id, order: crypto.randomUUID(), price })
         const button = '<button' + (!available || pending || owned || pokeDollars < price ? ' disabled' : '') + '>' +
           (owned ? (en ? 'Owned' : 'Ya lo tienes') : (en ? 'Buy' : 'Comprar')) + '</button>'

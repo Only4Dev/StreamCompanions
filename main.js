@@ -1,6 +1,6 @@
 import { app, BrowserWindow, safeStorage, session, shell } from 'electron'
 import { createHash, randomBytes } from 'node:crypto'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { connectTwitch } from './twitch.js'
 import { startCloudSync } from './cloud-sync.js'
@@ -44,11 +44,19 @@ let kickConnected
 let lastKickLink = 0
 const kickAbort = new AbortController()
 
-const manifest = await readFile(new URL('./pmd/manifest.json', import.meta.url), 'utf8')
-  .then(JSON.parse, error => {
+let spriteFolder = join(app.getAppPath(), 'pmd')
+async function readSpriteManifest(folder) {
+  return readFile(join(folder, 'manifest.json'), 'utf8').then(JSON.parse, error => {
     if (error.code !== 'ENOENT') throw error
-    return { species: creatures.map(name => ({ name, normal: null, shiny: null })) }
+    return null
   })
+}
+let manifest = await readSpriteManifest(spriteFolder)
+if (!manifest && app.isPackaged) {
+  spriteFolder = join(dirname(process.execPath), 'pmd')
+  manifest = await readSpriteManifest(spriteFolder)
+}
+manifest ??= { species: creatures.map(name => ({ name, normal: null, shiny: null })) }
 let game
 let progress
 let checkpoint
@@ -116,7 +124,7 @@ async function pollShop() {
     const request = body => fetch(endpoint, {
       method: body ? 'POST' : 'GET', redirect: 'error',
       headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json',
-        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices) } : {}) },
+        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '1' } : {}) },
       body: body && JSON.stringify({ viewers: body }),
       signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(8000)])
     })
@@ -239,7 +247,7 @@ async function pollKick() {
 const sheets = new Set(manifest.species.flatMap(item => [
   item.portrait, item.shinyPortrait,
   ...[item.normal, item.shiny].filter(Boolean).flatMap(variant => Object.values(variant.animations).map(animation => animation.url))
-].filter(Boolean)))
+].filter(path => /^\/pmd\/[a-z0-9-]+\/[a-z0-9_-]+\.(?:png|webp)$/i.test(path))))
 async function startCommunityBattle(waitForBanner = false) {
   if (battleStarting || !game.config.battleEnabled) return 409
   battleStarting = true
@@ -264,7 +272,7 @@ async function runCommunityBattle(waitForBanner) {
     const form = manifest.species.find(item => Number(item.id) === id) ?? species
     const variant = viewer.active.key.endsWith(' ✦') ? form.shiny ?? form.normal : form.normal
     candidates.push({ viewerId, speciesKey: viewer.active.key, id, stats, types, final, level: rank,
-      dna: viewer.dnaBoosters?.[viewer.active.key] ?? 0,
+      dna: game.dnaCount(viewer, viewer.active.key),
       ownedHeldItems: viewer.heldItems ?? [],
       name: form.name, margin: Math.max(75, ...Object.values(variant?.animations ?? {}).map(clip => clip.width * spriteScale(clip, 3) / 2 + 18)),
       ownerName: viewer.displayName,
@@ -524,7 +532,7 @@ const server = createServer(async (req, res) => {
       return
     }
     if (req.method === 'GET' && sheets.has(pathname)) {
-      const image = await readFile(new URL('.' + pathname, import.meta.url))
+      const image = await readFile(join(spriteFolder, pathname.slice('/pmd/'.length)))
       res.writeHead(200, { 'Content-Type': pathname.endsWith('.webp') ? 'image/webp' : 'image/png', 'Cache-Control': 'public, max-age=3600' })
       res.end(image)
       return

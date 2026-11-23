@@ -35,6 +35,8 @@ The app can run without the full sprite catalog in a small demo mode. To load th
 
 Run `npm.cmd run dist:folder` to build an unsigned portable Windows x64 folder in `dist/win-unpacked/`. The standard build excludes the imported sprite catalog. Keep the executable and its accompanying files together.
 
+To use the full catalog in the portable build, run the importer from a source checkout and copy the resulting `pmd/` folder next to `Stream Companions.exe`, then restart the app. The portable app itself includes its runtime.
+
 ## Data and accounts
 
 SQLite stores game progress in the streamer's local Electron profile. The desktop app sends changes over HTTPS to a Cloudflare Worker backed by D1. Viewers can read their last synced progress when the desktop app is offline. The streamer's app must be online to process shop orders.

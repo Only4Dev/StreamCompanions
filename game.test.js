@@ -18,6 +18,23 @@ test('DNA Booster purchases affect only the selected owned variant and cap at te
   assert.equal(saved.pokeDollars, 10_000)
 })
 
+test('DNA purchases share one cap across an evolution branch and survive reconnecting', () => {
+  const id = 'kick:4'
+  const catalog = [{ id: 79, name: 'Slowpoke', shiny: true }, { id: 80, name: 'Slowbro', shiny: true }, { id: 199, name: 'Slowking', shiny: true }]
+  const game = createGame({ catalog, progress: { viewers: { [id]: {
+    collection: { Slowpoke: xpAtLevel(16), 'Slowpoke ✦': 0 },
+    dnaBoosters: { Slowpoke: 4, Slowbro: 5 }, pokeDollars: 30_000
+  } } } })
+  const buy = (idempotencyKey, speciesKey) => game.fulfillOrder({ id: idempotencyKey, viewerId: id, item: 'dna-booster', speciesKey })
+  assert.equal(buy('shared', 'Slowking'), 'purchased')
+  assert.equal(buy('cap', 'Slowpoke'), 'maxed')
+  const reopened = createGame({ catalog, progress: game.progress() })
+  const viewer = reopened.progress().viewers[id]
+  for (const key of ['Slowpoke', 'Slowbro', 'Slowking']) assert.equal(reopened.dnaCount(viewer, key), 10)
+  assert.equal(reopened.dnaCount(viewer, 'Slowpoke ✦'), 0)
+  assert.equal(viewer.pokeDollars, 20_000)
+})
+
 test('an erased viewer cannot be recreated by chat after a restart', () => {
   const game = createGame({ progress: { viewers: { 'twitch:1': { collection: { Brasa: 120 } } } } })
   const erased = { viewer_id: 'twitch:1', generation: 1, active: 0 }

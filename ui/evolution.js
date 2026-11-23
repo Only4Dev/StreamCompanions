@@ -16,6 +16,10 @@ export function familyRoot(id) {
 export const evolutionChildren = id => children.get(id) ?? []
 export const evolutionParent = id => evolutionParents[id - 1] || undefined
 
+export const maxDnaBoosters = 10
+export const familyDnaCount = (boosters, keys) => Math.min(maxDnaBoosters,
+  keys.reduce((count, key) => count + (boosters?.[key] ?? 0), 0))
+
 export function nextEvolutionLevel(id) {
   const branches = evolutionChildren(id)
   if (!branches.length) return undefined

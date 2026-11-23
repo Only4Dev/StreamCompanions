@@ -1,5 +1,5 @@
 import { normalizeCommand } from './commands.js'
-import { evolutionChildren, evolutionParent, familyRoot, nextEvolutionLevel } from './ui/evolution.js'
+import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, maxDnaBoosters, nextEvolutionLevel } from './ui/evolution.js'
 import { defaultSummonXpPerSecond, level, maxLevel, maxXp, xpAtLevel } from './ui/levels.js'
 import { captureRates } from './ui/capture-rates.js'
 import { heldItems } from './ui/held-items.js'
@@ -100,6 +100,14 @@ export function createGame({ now = Date.now, random = Math.random, progress, cat
     if (!item?.id) return viewer.collection[key] ?? 0
     const suffix = key.endsWith(' ✦') ? ' ✦' : ''
     return Math.max(0, ...families.get(familyRoot(item.id)).map(member => viewer.collection[member.name + suffix] ?? 0))
+  }
+
+  function dnaKeys(viewer, key) {
+    const suffix = key.endsWith(' ✦') ? ' ✦' : ''
+    const id = byName.get(key.replace(/ ✦$/, ''))?.id
+    if (!id) return [key]
+    return families.get(familyRoot(id)).map(member => member.name + suffix)
+      .filter(name => Object.hasOwn(viewer.collection, name)).sort()
   }
 
   for (const viewer of viewers.values()) {
@@ -267,15 +275,18 @@ export function createGame({ now = Date.now, random = Math.random, progress, cat
       let result = 'unavailable'
       const charge = price ?? product?.price
       if (viewer && product && validShopPrice(charge) && (!product.dna || Object.hasOwn(viewer.collection, speciesKey ?? ''))) {
+        const keys = product.dna ? dnaKeys(viewer, speciesKey) : []
+        const dna = familyDnaCount(viewer.dnaBoosters, keys)
         if (product.held && viewer.heldItems?.includes(item)) result = 'owned'
-        else if (product.dna && (viewer.dnaBoosters?.[speciesKey] ?? 0) >= 10) result = 'maxed'
+        else if (product.dna && dna >= maxDnaBoosters) result = 'maxed'
         else if ((viewer.pokeDollars ?? 0) < charge) result = 'funds'
         else {
           viewer.pokeDollars -= charge
           if (product.ball) viewer.balls[product.ball] = (viewer.balls[product.ball] ?? 0) + 1
           else if (product.dna) {
             viewer.dnaBoosters ??= {}
-            viewer.dnaBoosters[speciesKey] = (viewer.dnaBoosters[speciesKey] ?? 0) + 1
+            for (const key of keys) delete viewer.dnaBoosters[key]
+            viewer.dnaBoosters[keys[0]] = dna + 1
           }
           else (viewer.heldItems ??= []).push(item)
           result = 'purchased'
@@ -284,6 +295,7 @@ export function createGame({ now = Date.now, random = Math.random, progress, cat
       shopReceipts.set(id, result)
       return result
     },
+    dnaCount: (viewer, key) => familyDnaCount(viewer.dnaBoosters, dnaKeys(viewer, key)),
     acknowledgeOrders(ids) {
       for (const id of ids) shopReceipts.delete(id)
     },
@@ -345,9 +357,17 @@ export function createGame({ now = Date.now, random = Math.random, progress, cat
         target.heldItems = [...new Set([...(target.heldItems ?? []), ...(source.heldItems ?? [])])]
         target.rareCandies = Math.max(target.rareCandies ?? 0, source.rareCandies ?? 0)
         target.pokeDollars = Math.max(target.pokeDollars ?? 0, source.pokeDollars ?? 0)
-        for (const [key, count] of Object.entries(source.dnaBoosters ?? {})) {
-          target.dnaBoosters ??= {}
-          target.dnaBoosters[key] = Math.max(target.dnaBoosters[key] ?? 0, count)
+        if (source.dnaBoosters) {
+          const imported = new Set()
+          for (const key of Object.keys(source.dnaBoosters)) {
+            const keys = dnaKeys(target, key)
+            if (!keys.length || imported.has(keys[0])) continue
+            imported.add(keys[0])
+            const count = Math.max(familyDnaCount(target.dnaBoosters, keys), familyDnaCount(source.dnaBoosters, keys))
+            target.dnaBoosters ??= {}
+            for (const member of keys) delete target.dnaBoosters[member]
+            target.dnaBoosters[keys[0]] = count
+          }
         }
         target.caughtChannels = new Set([...(target.caughtChannels ?? []), ...(source.caughtChannels ?? [])])
         if (!target.active || source.active && source.active.layer < target.active.layer) target.active = source.active

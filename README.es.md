@@ -36,6 +36,8 @@ Para verificar el render en Chromium, inicia Electron con `npm.cmd start -- --re
 
 La colección, la XP, las Poké Balls y los ajustes de simulación se guardan en SQLite en el perfil local de Electron. Al reiniciar se abre una sesión nueva sin encuentros ni invocaciones activas. Para generar la carpeta portable de Windows x64 con el runtime incluido, ejecuta `npm.cmd run dist:folder`. Abre `Stream Companions.exe` dentro de `dist/win-unpacked/` y conserva los demás archivos de la carpeta.
 
+Para usar el catálogo completo en la versión portable, ejecuta el importador desde una copia del código y coloca la carpeta `pmd/` resultante junto a `Stream Companions.exe`. Reinicia la app para cargarla. La app portable incluye su runtime.
+
 ## V1
 
 ### Beta privada para Windows
