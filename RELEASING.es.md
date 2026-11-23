@@ -3,7 +3,7 @@
 [English](RELEASING.md) · **Español**
 
 - Confirma la licencia del código propio y revisa los créditos de terceros antes de publicar. El catálogo importado (`pmd/`), las hojas de referencia (`ATTACKMOVESSPRITES/`) y las compilaciones (`dist/`) quedan fuera de Git. [SpriteCollab](https://github.com/PMDCollab/SpriteCollab/blob/master/LICENSE.md) · [Sprites de PokéAPI](https://github.com/PokeAPI/sprites)
-- El paquete generado por `npm.cmd run dist:folder` usa la lista de archivos de `package.json`. Comprueba su contenido antes de adjuntarlo a Releases. El catálogo importado se prepara por separado.
+- El paquete generado por `npm.cmd run dist:folder` usa la lista de archivos de `package.json`. Comprueba su contenido antes de adjuntarlo a Releases. Ejecuta `npm.cmd run import:pmd` antes de compilar. El ZIP de Windows incluye el catálogo y sus créditos. Para usar el catálogo sin pérdida comprimido, ejecuta `python scripts/optimize-pmd.py` y configura `SC_LOSSLESS_ASSETS=1` antes de compilar.
 - Revisa también el historial Git que vaya a publicarse. Las bases de datos, los perfiles, los Client Secret de OAuth, los tokens y las claves de cifrado pertenecen a la instalación.
 - GitHub Actions ejecuta `npm ci` y `npm test` en Windows con Node.js 24.
 

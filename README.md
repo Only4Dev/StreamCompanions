@@ -9,6 +9,7 @@ Stream Companions turns Twitch and Kick chat into a game of catching, collecting
 ## Streamer setup
 
 1. Download the Windows x64 ZIP, extract it into its own folder, and open `Stream Companions.exe`.
+   The ZIP includes the full sprite catalog and runtime.
 2. In **Connections**, link Twitch or Kick to create your community. Link the second platform there any time if you stream on both.
 3. Select **Start game**. In **Sources**, copy the wild encounter URL and the companion URL into separate browser sources. Set the new companion and battle source to **1920 × 550**. Resize it from a corner to keep its proportions.
 4. Preview an encounter and a companion in **Sources** before testing with a viewer in chat.
@@ -43,9 +44,7 @@ npm.cmd start
 
 The app can run without the full sprite catalog in a small demo mode. To load the full catalog for local development, run `npm.cmd run import:pmd` before starting Electron. The importer saves assets and credits to `pmd/`. Git ignores that directory. [SpriteCollab source and credits](https://github.com/PMDCollab/SpriteCollab) · [SpriteCollab license](https://github.com/PMDCollab/SpriteCollab/blob/master/LICENSE.md)
 
-Run `npm.cmd run dist:folder` to build an unsigned portable Windows x64 folder in `dist/win-unpacked/`. The standard build excludes the imported sprite catalog. Keep the executable and its accompanying files together.
-
-To use the full catalog in the portable build, run the importer from a source checkout and copy the resulting `pmd/` folder next to `Stream Companions.exe`, then restart the app. The portable app itself includes its runtime.
+Run `npm.cmd run dist:folder` to build an unsigned portable Windows x64 folder in `dist/win-unpacked/`. Run the sprite importer before packaging. The build embeds the catalog and places the sprite credits and license next to the executable.
 
 ## Project layout
 

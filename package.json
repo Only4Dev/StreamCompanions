@@ -7,10 +7,10 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test",
-    "dist": "electron-builder --win portable",
+    "dist": "node scripts/prepare-sprite-credits.js && electron-builder --config scripts/release-build.cjs --win portable --x64 --publish never",
     "dist:beta": "electron-builder --config scripts/beta-build.cjs --win portable --x64 --publish never",
     "import:pmd": "node scripts/import-pmd.js",
-    "dist:folder": "electron-builder --win dir --x64 --publish never --config.win.signAndEditExecutable=false"
+    "dist:folder": "node scripts/prepare-sprite-credits.js && electron-builder --config scripts/release-build.cjs --win dir --x64 --publish never"
   },
   "build": {
     "appId": "community.streamcompanions.desktop",

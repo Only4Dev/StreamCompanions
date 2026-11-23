@@ -5,7 +5,7 @@
 ## Prepare a release
 
 1. Confirm the license for the project's own code and review the third-party assets allowed in the binary. The imported `pmd/` catalog, reference sheets in `ATTACKMOVESSPRITES/`, and local `dist/` builds are excluded from Git. [SpriteCollab license](https://github.com/PMDCollab/SpriteCollab/blob/master/LICENSE.md) · [PokéAPI sprites](https://github.com/PokeAPI/sprites)
-2. Update the version in `package.json` and `package-lock.json`, add its changes to [CHANGELOG.md](CHANGELOG.md), run `npm test`, and build with `npm run dist:folder`.
+2. Update the version in `package.json` and `package-lock.json`, add its changes to [CHANGELOG.md](CHANGELOG.md), run `npm test`, and import sprites with `npm run import:pmd` before building with `npm run dist:folder`. The Windows build includes the catalog and its credits. To package the lossless catalog, run `python scripts/optimize-pmd.py` and set `SC_LOSSLESS_ASSETS=1` before building.
 3. Inspect the output for local profiles, databases, or credentials. Test on Windows with a fresh profile and an existing one. Check that the app preserves the OBS URLs and settings. [Pilot checklist in Spanish](README.es.md#checklist-del-piloto)
 4. Tag the Windows build's source as `vX.Y.Z` and attach the portable Windows x64 ZIP to the GitHub release. GitHub provides its own source ZIP and tarball for the tag. [GitHub Releases documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)
 
