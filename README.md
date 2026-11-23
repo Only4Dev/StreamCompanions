@@ -4,7 +4,7 @@
 
 Stream Companions turns Twitch and Kick chat into a game of catching, collecting, and battling Pokémon. The streamer runs a portable Windows app and adds browser sources to OBS or Streamlabs. Viewers play from chat and check their progress in the web portal.
 
-[Viewer portal](https://stream-companions.developeronly4g.workers.dev/) · [Releases](https://github.com/Only4Dev/StreamCompanions/releases) · [Release guide](RELEASING.md)
+[Viewer portal](https://stream-companions.developeronly4g.workers.dev/) · [Releases](https://github.com/Only4Dev/StreamCompanions/releases) · [Changelog](CHANGELOG.md) · [Release guide](RELEASING.md)
 
 ## Streamer setup
 

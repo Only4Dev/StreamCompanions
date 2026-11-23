@@ -2,6 +2,8 @@
 
 [English](README.md) · **Español**
 
+[Historial de cambios en inglés](CHANGELOG.md)
+
 Stream Companions convierte el chat de Twitch y Kick en un juego de captura, colección y batallas. El streamer usa la app de Windows y agrega dos fuentes a OBS. Los viewers juegan desde el chat y consultan su progreso en el portal. [Portal para viewers](https://stream-companions.developeronly4g.workers.dev/)
 
 ## Primer directo con Stream Companions
