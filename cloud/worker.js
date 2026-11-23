@@ -1,6 +1,6 @@
 import { portal } from './portal.js'
 import { readMovesets } from './movesets.js'
-import { completeKickLink, kickDevice, kickWebhook } from './kick.js'
+import { completeKickLink, kickDevice, kickWebhook, startKickLink } from './kick.js'
 import { heldItems } from '../ui/held-items.js'
 import { normalizeShopPrices } from '../ui/shop.js'
 
@@ -26,9 +26,16 @@ async function registerDevice(request, db) {
   if (client !== 'm2vfvdba9flbjxhbq3nndyqx4tsdar' || !/^\d{1,24}$/.test(id ?? '') || !/^[a-z0-9_]{2,25}$/.test(login ?? '')) {
     return json({ error: 'unauthorized' }, 401)
   }
+  const linkedToken = request.headers.get('X-Community-Device')
+  if (linkedToken) {
+    const linked = await authorizedDevice(request, db, 'Bearer ' + linkedToken)
+    if (!linked || linked.key_hash !== hash) return json({ error: 'unauthorized' }, 401)
+    await db.prepare('INSERT OR IGNORE INTO community_owners SELECT ?, community_id, key_hash FROM devices WHERE key_hash = ? AND revoked_at IS NULL')
+      .bind(id, hash).run()
+  }
   await db.batch([
-    db.prepare('INSERT OR IGNORE INTO community_owners SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM devices WHERE community_id = ?)')
-      .bind(id, login, hash, login),
+    db.prepare('INSERT OR IGNORE INTO community_owners SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM devices WHERE community_id = ? OR key_hash = ?)')
+      .bind(id, login, hash, login, hash),
     db.prepare('INSERT OR IGNORE INTO devices (key_hash, community_id) SELECT key_hash, community_id FROM community_owners WHERE twitch_id = ? AND key_hash = ?')
       .bind(id, hash)
   ])
@@ -56,8 +63,8 @@ async function readBatch(request) {
   return JSON.parse(text + decoder.decode())?.viewers
 }
 
-async function authorizedDevice(request, db) {
-  const token = request.headers.get('Authorization')?.match(/^Bearer ([0-9a-f]{64})$/)?.[1]
+async function authorizedDevice(request, db, authorization = request.headers.get('Authorization')) {
+  const token = authorization?.match(/^Bearer ([0-9a-f]{64})$/)?.[1]
   if (!token) return null
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))
   const hash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
@@ -191,6 +198,15 @@ export default {
     if (path === '/webhooks/kick' && request.method === 'GET') return json({ status: 'ready' })
     if (path === '/auth/kick/callback' && request.method === 'GET' && url.searchParams.get('state')?.startsWith('sc-kick-')) {
       return completeKickLink(url, env)
+    }
+    if (path === '/api/kick/register' && request.method === 'POST') {
+      const hash = request.headers.get('X-Device-Fingerprint')
+      if (!/^[0-9a-f]{64}$/.test(hash ?? '')) return json({ error: 'invalid device' }, 400)
+      return startKickLink(url, env, hash)
+    }
+    if (path === '/api/devices/status' && request.method === 'GET') {
+      const device = await authorizedDevice(request, env.DB)
+      return device ? json({ community: device.community_id }) : json({ error: 'not paired' }, 404)
     }
     if (path.startsWith('/api/kick/')) return kickDevice(request, url, env, await authorizedDevice(request, env.DB))
     if (request.method === 'GET' && path === '/api/health') {

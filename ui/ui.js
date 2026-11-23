@@ -14,7 +14,7 @@ const labels = {
 Object.assign(labels.es, {
   language: 'Idioma', gameTab: 'Juego', previewTab: 'Pruebas', botTab: 'Bot', connectionsTab: 'Conexiones',
   linkKick: 'Vincular Kick en el portal', connectTwitch: 'Conectar Twitch', twitchReady: 'Chat conectado', twitchDisconnected: 'Chat sin conectar',
-  connectKick: 'Conectar Kick', kickStatus: 'Chat sin conectar', kickPairing: 'Primero vincula la app de escritorio con una comunidad.',
+  connectKick: 'Conectar Kick', kickStatus: 'Chat sin conectar', kickPairing: 'Termina la autorización que ya tienes abierta.', kickAuthorize: 'Autoriza el canal en Kick y vuelve a la app.',
   mode: 'Modo', demoMode: 'Demo local', clientId: 'Client ID de Twitch', webUrl: 'URL del portal',
   nickname: 'Apodo del bot', advanced: 'Configuración avanzada', clientHint: 'Identificador público de la aplicación de Twitch. El valor incluido funciona para iniciar sesión con tu cuenta.', resetReply: 'Restaurar',
   botHelp: 'Los mensajes predeterminados siguen el idioma de la app. Tus ediciones se mantienen al cambiarlo. Para enviar ambos idiomas, escribe las dos frases en un mismo campo, separadas por «|». Un campo vacío desactiva el mensaje. Conserva {url} en !web y usa {min} y {unidad} en los avisos.',
@@ -31,7 +31,7 @@ Object.assign(labels.es, {
 Object.assign(labels.en, {
   language: 'Language', gameTab: 'Game', previewTab: 'Testing', botTab: 'Bot', connectionsTab: 'Connections',
   linkKick: 'Link Kick in the portal', connectTwitch: 'Connect Twitch', twitchReady: 'Chat connected', twitchDisconnected: 'Chat not connected',
-  connectKick: 'Connect Kick', kickStatus: 'Chat not connected', kickPairing: 'Pair the desktop app with a community first.',
+  connectKick: 'Connect Kick', kickStatus: 'Chat not connected', kickPairing: 'Finish the authorization you have already started.', kickAuthorize: 'Authorize your channel in Kick, then return to the app.',
   mode: 'Mode', demoMode: 'Local demo', clientId: 'Twitch Client ID', webUrl: 'Portal URL',
   nickname: 'Bot nickname', advanced: 'Advanced settings', clientHint: 'Public identifier for the Twitch application. Use the included value to sign in with your account.', resetReply: 'Reset',
   botHelp: 'Default messages follow the app language. Your edits stay as written. To send both languages, enter both phrases in the same field, separated by “|”. Leave a field empty to disable it. Keep {url} in !web and use {min} and {unidad} in countdowns.',
@@ -508,6 +508,7 @@ if (panel) {
       })
       if (response.status === 409) { $('setup-status').textContent = copy.kickPairing; return }
       if (!response.ok) throw new Error('Could not open accounts')
+      $('setup-status').textContent = copy.kickAuthorize
     } catch {
       $('setup-status').textContent = copy.unavailable
     }
@@ -523,6 +524,7 @@ if (panel) {
       const result = await fetch('/demo', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setup, connectTwitch: platform === 'twitch' })
       })
+      if (result.status === 409) { status.textContent = labels[$('language').value].kickPairing; return }
       if (result.ok) event.target.elements.platform.value = setup.platform
       status.textContent = result.ok ? labels[document.getElementById('language').value].saved : labels[document.getElementById('language').value].invalidSetup
     } catch {

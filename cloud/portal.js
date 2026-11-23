@@ -263,10 +263,12 @@ export async function portal(request, url, env) {
   )
 
   const { results } = await env.DB.prepare(
+    'SELECT entries.*, COALESCE(k.login, entries.community_id) AS community_name FROM (' +
     'SELECT community_id, viewer_id, payload, updated_at FROM (' +
     'SELECT p.community_id, p.viewer_id, p.payload, p.updated_at, row_number() OVER (PARTITION BY p.community_id ORDER BY p.updated_at DESC, p.viewer_id) AS entry ' +
     'FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id WHERE i.account_id = ?' +
-    ') WHERE entry = 1 ORDER BY community_id'
+    ') WHERE entry = 1) entries LEFT JOIN kick_channels k ON k.community_id = entries.community_id ' +
+    "AND entries.community_id LIKE 'kick-%' ORDER BY entries.community_id"
   ).bind(identity.account_id).all()
   if (url.searchParams.has('account')) {
     const { results: linked } = await env.DB.prepare(
@@ -292,7 +294,7 @@ export async function portal(request, url, env) {
   const logout = '<form class="logout" method="post" action="/auth/logout"><button>' + t("Cerrar sesión") + '</button></form>'
   if (!selected) {
     const communities = results.map(row => '<li><a class="button" href="?' +
-      escape(new URLSearchParams({ community: row.community_id })) + '">' + escape(row.community_id) + '</a></li>').join('')
+      escape(new URLSearchParams({ community: row.community_id })) + '">' + escape(row.community_name ?? row.community_id) + '</a></li>').join('')
     return page('<div class="toolbar"><p class="meta">Viewer · ' + escape(identity.login || 'Viewer') + '</p>' + '<div class="album-actions"><a class="button" href="/?account=1">' + t("Cuentas vinculadas") + '</a>' + logout + '</div>' +
       '</div><section class="sheet"><h1>' + t("Elige un streamer") + '</h1>' +
       (communities ? '<ul class="community-list">' + communities + '</ul>' :
@@ -549,7 +551,7 @@ export async function portal(request, url, env) {
     .map(([name, label]) => '<a href="' + escape(href(name)) + '"' +
       (tab === name ? ' aria-current="page"' : '') + '>' + label + '</a>').join('')
   return page('<div class="toolbar"><div><p class="meta">Viewer · ' + escape(displayName) + '</p><h1>' + t("Tu álbum") + '</h1></div>' +
-    actions + '</div><p class="meta community-label">' + t('Comunidad · ') + escape(selected.community_id) + '</p><nav class="tabs" aria-label="Álbum">' + nav + '</nav>' +
+    actions + '</div><p class="meta community-label">' + t('Comunidad · ') + escape(selected.community_name ?? selected.community_id) + '</p><nav class="tabs" aria-label="Álbum">' + nav + '</nav>' +
     (tab === 'dex' ? borders + '<section class="sheet"><h2>Pokédex</h2><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><ol class="dex-grid">' + slots + '</ol></section>'
       : tab === 'overview' ? overview : tab === 'shop' ? shopPage : inventoryPage) +
     '<div class="toolbar"><p class="meta">' + (updated ? t('Última sincronización · ') + escape(updated) + ' (Lima)' : t('Todavía no hay progreso sincronizado')) +

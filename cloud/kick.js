@@ -84,21 +84,34 @@ const callbackPage = (message, status = 200) => new Response(
   '<!doctype html><html lang="es"><meta charset="UTF-8"><title>Stream Companions</title><main><h1>Kick</h1><p>' +
   message + '</p></main></html>', { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } })
 
+export async function startKickLink(url, env, hash, community = '') {
+  const config = providerConfig(env, 'kick')
+  if (!config || !env.KICK_TOKEN_KEY) return json({ error: 'Kick is not configured' }, 503)
+  const state = 'sc-kick-' + tokenId()
+  const verifier = tokenId()
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM kick_pairings WHERE expires_at <= ? OR device_hash = ?').bind(Date.now(), hash),
+    env.DB.prepare('INSERT INTO kick_pairings VALUES (?, ?, ?, ?, ?)').bind(state, community, hash, verifier, Date.now() + 600_000)
+  ])
+  return json({ url: await authorizeUrl('kick', config, callbackUrl(url), state, verifier, 'user:read events:subscribe chat:write') })
+}
+
 export async function completeKickLink(url, env) {
   const state = url.searchParams.get('state')
   const code = url.searchParams.get('code')
   const config = providerConfig(env, 'kick')
   if (!code || !config || !env.KICK_TOKEN_KEY) return callbackPage('La autorización no está disponible. Vuelve a la app para intentar de nuevo.', 400)
   const pairing = await env.DB.prepare('DELETE FROM kick_pairings WHERE state = ? AND expires_at > ? ' +
-    'AND EXISTS (SELECT 1 FROM devices WHERE key_hash = kick_pairings.device_hash AND revoked_at IS NULL) ' +
-    'RETURNING community_id, verifier').bind(state, Date.now()).first()
+    "AND (community_id = '' OR EXISTS (SELECT 1 FROM devices WHERE key_hash = kick_pairings.device_hash AND revoked_at IS NULL)) " +
+    'RETURNING community_id, device_hash, verifier').bind(state, Date.now()).first()
   if (!pairing) return callbackPage('El enlace venció. Pulsa Conectar Kick otra vez desde la app.', 400)
   const identity = await platformIdentity('kick', config, code, callbackUrl(url), pairing.verifier, true)
   if (!identity?.token.refresh_token) return callbackPage('Kick no autorizó el canal. Revisa los permisos e inténtalo de nuevo.', 403)
   const broadcaster = identity.viewerId.slice(5)
+  const community = pairing.community_id || 'kick-' + broadcaster
   const linked = await env.DB.prepare('SELECT community_id FROM kick_channels WHERE broadcaster_id = ? OR community_id = ?')
-    .bind(broadcaster, pairing.community_id).all()
-  if (linked.results.some(item => item.community_id !== pairing.community_id)) {
+    .bind(broadcaster, community).all()
+  if (linked.results.some(item => item.community_id !== community) || !pairing.community_id && linked.results.length) {
     return callbackPage('Este canal ya está vinculado a otra comunidad.', 409)
   }
   const headers = { Authorization: 'Bearer ' + identity.token.access_token, 'Content-Type': 'application/json' }
@@ -114,9 +127,17 @@ export async function completeKickLink(url, env) {
       return callbackPage('Kick no pudo suscribir el chat. Comprueba que el webhook y los permisos estén activos.', 502)
     }
   }
-  await env.DB.prepare('INSERT INTO kick_channels VALUES (?, ?, ?, ?) ON CONFLICT(community_id) DO UPDATE SET ' +
-    'broadcaster_id = excluded.broadcaster_id, login = excluded.login, encrypted_tokens = excluded.encrypted_tokens')
-    .bind(pairing.community_id, broadcaster, identity.login, await seal(env, pairing.community_id, identity.token)).run()
+  const statements = []
+  if (!pairing.community_id) statements.push(env.DB.prepare(
+    'INSERT OR IGNORE INTO devices (key_hash, community_id) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM devices WHERE community_id = ?) ' +
+    'AND NOT EXISTS (SELECT 1 FROM kick_channels WHERE broadcaster_id = ?)').bind(pairing.device_hash, community, community, broadcaster))
+  statements.push(env.DB.prepare('INSERT INTO kick_channels SELECT ?, ?, ?, ? WHERE EXISTS ' +
+    '(SELECT 1 FROM devices WHERE key_hash = ? AND community_id = ? AND revoked_at IS NULL) ' +
+    'AND NOT EXISTS (SELECT 1 FROM kick_channels WHERE broadcaster_id = ? AND community_id != ?) ' +
+    'ON CONFLICT(community_id) DO UPDATE SET broadcaster_id = excluded.broadcaster_id, login = excluded.login, encrypted_tokens = excluded.encrypted_tokens')
+    .bind(community, broadcaster, identity.login, await seal(env, community, identity.token), pairing.device_hash, community, broadcaster, community))
+  const results = await env.DB.batch(statements)
+  if (!results.at(-1).meta.changes) return callbackPage('Este canal ya está vinculado a otra comunidad.', 409)
   return callbackPage('Canal conectado. Puedes volver a Stream Companions.')
 }
 
@@ -139,15 +160,7 @@ export async function kickDevice(request, url, env, device) {
   if (!device) return json({ error: 'unauthorized' }, 401)
   const { community_id: community, key_hash: hash } = device
   if (request.method === 'POST' && url.pathname === '/api/kick/connect') {
-    const config = providerConfig(env, 'kick')
-    if (!config || !env.KICK_TOKEN_KEY) return json({ error: 'Kick is not configured' }, 503)
-    const state = 'sc-kick-' + tokenId()
-    const verifier = tokenId()
-    await env.DB.batch([
-      env.DB.prepare('DELETE FROM kick_pairings WHERE expires_at <= ? OR device_hash = ?').bind(Date.now(), hash),
-      env.DB.prepare('INSERT INTO kick_pairings VALUES (?, ?, ?, ?, ?)').bind(state, community, hash, verifier, Date.now() + 600_000)
-    ])
-    return json({ url: await authorizeUrl('kick', config, callbackUrl(url), state, verifier, 'user:read events:subscribe chat:write') })
+    return startKickLink(url, env, hash, community)
   }
   const channel = await env.DB.prepare('SELECT * FROM kick_channels WHERE community_id = ?').bind(community).first()
   if (!channel) return request.method === 'GET' ? json({ connected: false, events: [] }) : json({ error: 'channel not connected' }, 409)

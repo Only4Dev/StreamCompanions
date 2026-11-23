@@ -4,7 +4,7 @@
 
 First public Windows x64 release. [Downloads and setup](https://github.com/Only4Dev/StreamCompanions/releases/tag/v1.0.0)
 
-- Play through Twitch and Kick chat. Linked accounts share progress within the same community.
+- Create a community with Twitch or Kick, and optionally link both channels. Play through either chat. Linked accounts share progress within the same community.
 - Catch wild Pokémon, collect normal and shiny variants, and summon companions. Evolution forms unlock automatically and share experience within the line.
 - Add browser sources for wild encounters and companions in OBS or Streamlabs. The companion source also shows idle battle royale rounds.
 - View the Pokédex and inventory, manage move sets and held items, and shop in the bilingual viewer portal.

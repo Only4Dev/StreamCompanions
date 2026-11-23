@@ -41,6 +41,10 @@ let kickStatus = ''
 let kickCursor = 0
 let kickTimer
 let kickConnected
+let kickRegistration
+let kickRegistrationTimer
+let twitchPaired = false
+const twitchAllowed = () => !syncDevice?.community.startsWith('kick-') || twitchPaired
 let lastKickLink = 0
 const kickAbort = new AbortController()
 
@@ -152,13 +156,21 @@ async function pollShop() {
 }
 
 async function pairNewCommunity(profile, identity, accessToken) {
-  if (syncDevice || identity.client_id !== defaultClientId || !safeStorage.isEncryptionAvailable()) return
+  if (identity.client_id !== defaultClientId || !safeStorage.isEncryptionAvailable()) return
+  const existing = syncDevice
+  if (existing?.owner === identity.user_id) {
+    twitchPaired = true
+    ensureCloudSync()
+    return
+  }
+  if (existing && existing.url !== publicPortal) return
+  if (kickRegistration?.expires > Date.now() && !existing) return
   const pending = join(profile, 'cloud-registration.enc')
-  let registration
-  try { registration = JSON.parse(safeStorage.decryptString(readFileSync(pending))) } catch (error) {
+  let registration = existing
+  if (!existing) try { registration = JSON.parse(safeStorage.decryptString(readFileSync(pending))) } catch (error) {
     if (error.code !== 'ENOENT') throw error
   }
-  if (registration?.owner !== identity.user_id) {
+  if (!existing && registration?.owner !== identity.user_id) {
     registration = { owner: identity.user_id, token: randomBytes(32).toString('hex') }
     writeFileSync(pending + '.tmp', safeStorage.encryptString(JSON.stringify(registration)))
     renameSync(pending + '.tmp', pending)
@@ -166,21 +178,69 @@ async function pairNewCommunity(profile, identity, accessToken) {
   const response = await fetch(publicPortal + '/api/devices/register', {
     method: 'POST', redirect: 'error', signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(9000)]),
     headers: { Authorization: 'OAuth ' + accessToken,
-      'X-Device-Fingerprint': createHash('sha256').update(registration.token).digest('hex') }
+      'X-Device-Fingerprint': createHash('sha256').update(registration.token).digest('hex'),
+      ...(existing ? { 'X-Community-Device': existing.token } : {}) }
   })
   if (!response.ok) {
     syncStatus = response.status === 409 ? 'Comunidad ya vinculada a otro dispositivo' : 'No se pudo vincular la comunidad (HTTP ' + response.status + ')'
     return
   }
   const { community } = await response.json()
-  if (!/^[a-z0-9_]{2,25}$/.test(community ?? '')) throw new Error('Invalid community')
-  const device = { ...registration, url: publicPortal, community }
+  if (!/^(?:[a-z0-9_]{2,25}|kick-\d{1,24})$/.test(community ?? '') || (existing && existing.community !== community)) throw new Error('Invalid community')
+  const device = { ...registration, owner: identity.user_id, url: publicPortal, community }
+  saveCloudDevice(profile, device)
+  twitchPaired = true
+  ensureCloudSync()
+  if (!existing) kickTimer = setTimeout(pollKick, 100)
+}
+
+function saveCloudDevice(profile, device) {
   const file = join(profile, 'cloud-device.enc')
   writeFileSync(file + '.tmp', safeStorage.encryptString(JSON.stringify(device)))
   renameSync(file + '.tmp', file)
   syncDevice = device
-  ensureCloudSync()
-  kickTimer = setTimeout(pollKick, 100)
+}
+
+async function checkKickRegistration(profile) {
+  const pending = kickRegistration
+  if (!pending || kickAbort.signal.aborted || syncDevice) return
+  try {
+    const result = await fetch(publicPortal + '/api/devices/status', {
+      headers: { Authorization: 'Bearer ' + pending.token }, redirect: 'error',
+      signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(6000)])
+    })
+    if (kickRegistration !== pending || kickAbort.signal.aborted) return
+    if (result.ok) {
+      const { community } = await result.json()
+      if (kickRegistration !== pending || !/^kick-\d{1,24}$/.test(community ?? '') || syncDevice) return
+      const nextSetup = { ...setup, platform: 'kick' }
+      writeFileSync(setupFile + '.tmp', JSON.stringify(nextSetup))
+      renameSync(setupFile + '.tmp', setupFile)
+      saveCloudDevice(profile, { token: pending.token, url: publicPortal, community })
+      app.relaunch()
+      app.quit()
+      return
+    }
+  } catch { /* retry while authorization is pending */ }
+  if (kickRegistration === pending && pending.expires > Date.now() && !kickAbort.signal.aborted) {
+    kickRegistrationTimer = setTimeout(() => checkKickRegistration(profile), 2500)
+  }
+}
+
+async function startKickRegistration(profile) {
+  if (!safeStorage.isEncryptionAvailable()) return new Response(null, { status: 503 })
+  const pending = { token: kickRegistration?.token ?? randomBytes(32).toString('hex'), expires: Date.now() + 600_000 }
+  const file = join(profile, 'kick-registration.enc')
+  writeFileSync(file + '.tmp', safeStorage.encryptString(JSON.stringify(pending)))
+  renameSync(file + '.tmp', file)
+  kickRegistration = pending
+  clearTimeout(kickRegistrationTimer)
+  kickRegistrationTimer = setTimeout(() => checkKickRegistration(profile), 1500)
+  return fetch(publicPortal + '/api/kick/register', {
+    method: 'POST', redirect: 'error',
+    headers: { 'X-Device-Fingerprint': createHash('sha256').update(pending.token).digest('hex') },
+    signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(9000)])
+  })
 }
 
 function ensureCloudSync() {
@@ -384,7 +444,7 @@ const server = createServer(async (req, res) => {
       const state = ['encounter', 'companions'].includes(overlay)
         ? { ...game.overlay(overlay), bot: { language: bot.language } }
         : { ...game.snapshot(), twitchStatus, kickStatus, syncStatus, setup, bot, setupComplete, version: app.getVersion(), updateStatus,
-          twitchConnected: Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, live: Boolean(twitchClientId) }
+          twitchConnected: twitchAllowed() && Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, live: setup.platform !== 'demo' }
       if (overlay === 'companions') {
         state.viewers = Object.fromEntries(Object.values(state.viewers).map(viewer => [viewer.active.layer, { ...viewer, displayName: viewer.displayName || 'Viewer' }]))
         state.battleStart = battleBannerUntil > Date.now()
@@ -454,8 +514,8 @@ const server = createServer(async (req, res) => {
         return
       }
       if (action.connectKick === true) {
-        if (!syncDevice) { res.writeHead(409).end(); return }
-        const response = await kickRequest('connect', {})
+        if (!syncDevice && twitchClientId) { res.writeHead(409).end(); return }
+        const response = syncDevice ? await kickRequest('connect', {}) : await startKickRegistration(app.getPath('userData'))
         if (!response.ok) { res.writeHead(response.status).end(); return }
         const { url } = await response.json()
         const authorize = new URL(url)
@@ -466,13 +526,14 @@ const server = createServer(async (req, res) => {
       }
       if (action.setup) {
         const { platform, clientId, webUrl } = action.setup
-        if (!['demo', 'twitch'].includes(platform) || typeof clientId !== 'string' ||
+        if (!['demo', 'kick', 'twitch'].includes(platform) || typeof clientId !== 'string' ||
             (platform === 'twitch' && !/^[a-z0-9]{20,64}$/.test(clientId)) ||
             typeof webUrl !== 'string' || webUrl.length > 500 ||
             (webUrl && new URL(webUrl).protocol !== 'https:')) {
           res.writeHead(400).end()
           return
         }
+        if (platform === 'twitch' && !syncDevice && kickRegistration?.expires > Date.now()) { res.writeHead(409).end(); return }
         writeFileSync(setupFile + '.tmp', JSON.stringify({ platform, clientId, webUrl }))
         renameSync(setupFile + '.tmp', setupFile)
         const changed = platform !== setup.platform || (platform === 'twitch' && clientId !== setup.clientId) || webUrl !== setup.webUrl
@@ -581,14 +642,14 @@ app.whenReady().then(() => {
   }
   delete setup.template
   twitchClientId = setup.platform === 'twitch' ? setup.clientId : undefined
-  progress = openProgress(join(profile, twitchClientId ? 'twitch-progress.sqlite' : 'demo-progress.sqlite'))
+  progress = openProgress(join(profile, setup.platform === 'demo' ? 'demo-progress.sqlite' : 'twitch-progress.sqlite'))
   const catalog = manifest.species.map(item => ({ id: Number(item.id), name: item.name, shiny: !item.normal || Boolean(item.shiny),
     legendary: Boolean(battleStats[Number(item.id) - 1]?.[5]) }))
   const savedProgress = progress.load()
   kickCursor = savedProgress?.kickCursor ?? 0
   game = createGame({ catalog, progress: savedProgress })
   if (!savedProgress) game.setRunning(false)
-  if (twitchClientId && safeStorage.isEncryptionAvailable()) {
+  if (setup.platform !== 'demo' && safeStorage.isEncryptionAvailable()) {
     const file = join(profile, 'cloud-device.enc')
     try {
       syncDevice = JSON.parse(safeStorage.decryptString(readFileSync(file)))
@@ -611,6 +672,14 @@ app.whenReady().then(() => {
       const fingerprint = createHash('sha256').update(syncDevice.token).digest('hex')
       writeFileSync(join(profile, 'cloud-device.fingerprint'), fingerprint)
     }
+  }
+  if (!syncDevice && !twitchClientId && safeStorage.isEncryptionAvailable()) {
+    try {
+      kickRegistration = JSON.parse(safeStorage.decryptString(readFileSync(join(profile, 'kick-registration.enc'))))
+      if (/^[0-9a-f]{64}$/.test(kickRegistration?.token ?? '')) {
+        kickRegistrationTimer = setTimeout(() => checkKickRegistration(profile), 500)
+      }
+    } catch { /* the app may never have started Kick setup */ }
   }
   if (syncDevice) kickTimer = setTimeout(pollKick, 1500)
   if (twitchClientId) {
@@ -641,7 +710,7 @@ app.whenReady().then(() => {
         })
       },
       getBot: () => bot,
-      isRunning: () => game.config.running !== false,
+      isRunning: () => twitchAllowed() && game.config.running !== false,
       announceCode(url, code) {
         twitchAuthorizationUrl = url
         twitchStatus = 'Twitch: código ' + code
@@ -653,6 +722,7 @@ app.whenReady().then(() => {
         if (syncDevice && status === 'Twitch: conectado como ' + syncDevice.community) ensureCloudSync()
       },
       command(viewer, displayName, message) {
+        if (!twitchAllowed()) return
         const result = game.chat(viewer, message, displayName, 'twitch')
         if (message.startsWith('!') && game.config.running !== false) persistGame()
         if (result === 'caught' || result === 'duplicateReward') return { code: 'catchSuccess', ...game.latestCapture() }
@@ -705,6 +775,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   clearInterval(battleTimer)
   kickAbort.abort()
+  clearTimeout(kickRegistrationTimer)
   clearTimeout(kickTimer)
   clearTimeout(shopTimer)
   disconnectTwitch?.()

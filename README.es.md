@@ -4,22 +4,22 @@
 
 Stream Companions convierte el chat de Twitch y Kick en un juego de captura, colección y batallas. El streamer usa la app portable de Windows con fuentes de navegador para OBS o Streamlabs. Los viewers juegan desde el chat y consultan su progreso en la web.
 
-[Portal para viewers](https://stream-companions.developeronly4g.workers.dev/) · [Descargas](https://github.com/Only4Dev/StreamCompanions/releases) · [Historial de cambios en inglés](CHANGELOG.md) · [Guía de publicación](RELEASING.es.md)
+[Portal para viewers](https://stream-companions.developeronly4g.workers.dev/) · [Código del portal](cloud/) · [Descargas](https://github.com/Only4Dev/StreamCompanions/releases) · [Historial de cambios en inglés](CHANGELOG.md) · [Guía de publicación](RELEASING.es.md)
 
 ## Configuración para streamers
 
 1. Descarga el ZIP para Windows x64, extrae todos los archivos y abre `Stream Companions.exe`.
-2. Abre **Conexiones** y sigue los pasos de tu plataforma.
+2. En **Conexiones**, vincula Twitch o Kick para crear tu comunidad. Si haces multistream, puedes vincular la segunda plataforma ahí mismo.
 3. Pulsa **Iniciar juego**. En **Fuentes**, copia los enlaces de encuentros y compañeros en dos fuentes de navegador. Para compañeros y batallas, usa **1920 × 1080**.
 4. Prueba un encuentro y una invocación desde **Fuentes** antes del directo. Pulsa **Detener juego** para dejar el panel abierto sin encuentros ni invocaciones activas.
 
 ### Configuración de Twitch
 
-Vincula tu canal en **Conexiones** y autoriza la app para registrar la comunidad.
+Pulsa **Conectar Twitch** y aprueba la autorización en Twitch.
 
 ### Configuración de Kick
 
-Vincula tu canal en **Conexiones** una vez que la comunidad esté registrada. **En la v1.0.0, el alta de comunidades con solo Kick sigue pendiente.**
+Pulsa **Conectar Kick**, aprueba la autorización en Kick y vuelve a la app. La app se reinicia después de crear una comunidad nueva.
 
 ## Cómo jugar
 

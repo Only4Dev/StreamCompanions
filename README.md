@@ -4,23 +4,23 @@
 
 Stream Companions turns Twitch and Kick chat into a game of catching, collecting, and battling Pokémon. The streamer runs a portable Windows app and adds browser sources to OBS or Streamlabs. Viewers play from chat and check their progress in the web portal.
 
-[Viewer portal](https://stream-companions.developeronly4g.workers.dev/) · [Releases](https://github.com/Only4Dev/StreamCompanions/releases) · [Changelog](CHANGELOG.md) · [Release guide](RELEASING.md)
+[Viewer portal](https://stream-companions.developeronly4g.workers.dev/) · [Portal source](cloud/) · [Releases](https://github.com/Only4Dev/StreamCompanions/releases) · [Changelog](CHANGELOG.md) · [Release guide](RELEASING.md)
 
 ## Streamer setup
 
 1. Download the Windows x64 ZIP, extract it into its own folder, and open `Stream Companions.exe`.
-2. Open **Connections** and follow the setup for your streaming platform below.
+2. In **Connections**, link Twitch or Kick to create your community. Link the second platform there any time if you stream on both.
 3. Select **Start game**. In **Sources**, copy the wild encounter URL and the companion URL into separate browser sources. Set the companion source to **1920 × 1080**. It also displays battles.
 4. Preview an encounter and a companion in **Sources** before testing with a viewer in chat.
 5. Select **Stop game** to clear active encounters and summons while the app stays open. Close the window to exit.
 
 ### Twitch setup
 
-Link your channel in **Connections** and authorize the app to register the community.
+Select **Connect Twitch** and approve the authorization on Twitch.
 
 ### Kick setup
 
-Link your channel in **Connections** after the community is registered. **Kick-only community setup is pending in v1.0.0.**
+Select **Connect Kick**, approve the authorization on Kick, and return to the app. The app restarts after creating a new community.
 
 ## How to play
 
