@@ -1,0 +1,1 @@
+ALTER TABLE erased_viewers ADD COLUMN generation INTEGER NOT NULL DEFAULT 1;

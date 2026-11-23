@@ -1,0 +1,21 @@
+export const heldItems = {
+  'sitrus-berry': ['Baya Zidra', 'Sitrus Berry'],
+  'silk-scarf': ['Pañuelo Seda', 'Silk Scarf', 'normal'],
+  'black-belt': ['Cinturón Negro', 'Black Belt', 'fighting'],
+  'sharp-beak': ['Pico Afilado', 'Sharp Beak', 'flying'],
+  'poison-barb': ['Flecha Venenosa', 'Poison Barb', 'poison'],
+  'soft-sand': ['Arena Fina', 'Soft Sand', 'ground'],
+  'hard-stone': ['Piedra Dura', 'Hard Stone', 'rock'],
+  'silver-powder': ['Polvo Plata', 'Silver Powder', 'bug'],
+  'spell-tag': ['Hechizo', 'Spell Tag', 'ghost'],
+  'metal-coat': ['Revestimiento Metálico', 'Metal Coat', 'steel'],
+  charcoal: ['Carbón', 'Charcoal', 'fire'],
+  'mystic-water': ['Agua Mística', 'Mystic Water', 'water'],
+  'miracle-seed': ['Semilla Milagro', 'Miracle Seed', 'grass'],
+  magnet: ['Imán', 'Magnet', 'electric'],
+  'twisted-spoon': ['Cuchara Torcida', 'Twisted Spoon', 'psychic'],
+  'never-melt-ice': ['Antiderretir', 'Never-Melt Ice', 'ice'],
+  'dragon-fang': ['Colmillo Dragón', 'Dragon Fang', 'dragon'],
+  'black-glasses': ['Gafas de Sol', 'Black Glasses', 'dark'],
+  'pixie-plate': ['Tabla Duende', 'Pixie Plate', 'fairy']
+}

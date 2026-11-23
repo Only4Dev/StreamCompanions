@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https://raw.githubusercontent.com">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stream Companions</title>
+<link rel="stylesheet" href="/style.css">
+<main id="panel" hidden>
+  <header class="app-header">
+    <div class="language-picker" role="group" data-aria="language">
+    <span data-copy="language"></span><input type="hidden" id="language" value="es">
+    <button type="button" data-lang="es" aria-label="Español"><span class="flag flag-es" aria-hidden="true"></span> ES</button>
+    <button type="button" data-lang="en" aria-label="English"><span class="flag flag-us" aria-hidden="true"></span> EN</button>
+    </div><h1>Stream Companions</h1>
+  </header>
+  <p id="language-status" role="status"></p>
+  <div class="connection-strip"><strong data-copy="connectionsTab"></strong>
+    <button type="button" id="status-twitch" class="connection-chip"><span class="status-dot" aria-hidden="true"></span>Twitch</button>
+    <button type="button" id="status-kick" class="connection-chip"><span class="status-dot" aria-hidden="true"></span>Kick</button>
+    <small id="connection" role="status"></small>
+  </div>
+  <nav id="panel-navigation" aria-label="Stream Companions">
+    <button type="button" data-view="home" data-copy="homeTab"></button>
+    <button type="button" data-view="game" data-copy="config"></button>
+    <button type="button" data-view="obs" data-copy="sourcesTab"></button>
+    <button type="button" data-view="bot" data-copy="botTab"></button>
+    <button type="button" data-view="shop" data-copy="shopTab"></button>
+    <button type="button" data-view="connections" data-copy="connectionsTab"></button>
+    <button type="button" data-view="about" data-about="about"></button>
+  </nav>
+  <div data-pane="about" hidden><section>
+    <h2 data-about="about"></h2>
+    <p><strong>Stream Companions</strong> · <span data-about="version"></span> <span id="app-version"></span></p>
+    <p><span data-about="by"></span> <button type="button" data-project-link="author">Only4Dev</button></p>
+    <p data-about="project"></p>
+    <button type="button" id="check-updates" data-about="check"></button>
+    <button type="button" id="view-releases" data-project-link="releases" data-about="viewReleases" hidden></button>
+    <p id="update-status" role="status"></p>
+    <p id="about-link-status" role="status"></p>
+    <p data-about="rights"></p><p data-about="credits"></p>
+    <button type="button" data-project-link="sprites">PMDCollab / SpriteCollab</button>
+    <button type="button" data-project-link="spriteLicense" data-about="license"></button>
+    <button type="button" data-project-link="pokeapi">PokéAPI Sprites</button>
+  </section></div>
+  <div data-pane="home" hidden>
+    <section class="overview-head"><div><h2 data-copy="homeTab"></h2><p id="game-status" role="status"></p></div>
+      <div class="overview-actions"><button type="button" id="game-toggle" disabled></button><button type="button" id="start-battle" data-copy="startBattle" hidden></button></div>
+      <p id="battle-status" role="status"></p>
+    </section>
+    <dl class="overview-grid">
+      <div><dt data-copy="next"></dt><dd id="next">—</dd></div>
+      <div><dt data-copy="wildCount"></dt><dd id="wild-count">0</dd></div>
+      <div><dt data-copy="caughtCount"></dt><dd id="caught-count">0</dd></div>
+      <div><dt data-copy="totalEncounters"></dt><dd id="total-encounters">0</dd></div>
+      <div><dt data-copy="totalCaptures"></dt><dd id="total-captures">0</dd></div>
+    </dl>
+    <button type="button" id="clear-statistics" data-copy="clearStatistics"></button>
+    <button type="button" id="open-portal" data-copy="openPortal"></button>
+    <p id="portal-status" role="status"></p>
+    <p id="statistics-status" role="status"></p>
+  </div>
+  <div data-pane="shop" hidden><section><h2 data-copy="shopTab"></h2><p data-copy="shopPricesHelp"></p>
+    <form id="shop-prices"><div id="shop-price-fields"></div><button data-copy="publishShopPrices"></button></form>
+    <p id="shop-price-status" role="status"></p>
+  </section></div>
+  <div data-pane="connections" hidden>
+  <section><h2 data-copy="connectionsTab"></h2>
+    <div class="connection-cards">
+      <article><h3>Twitch</h3><p id="twitch-card-status"></p><button type="submit" form="startup-form" value="twitch" data-copy="connectTwitch"></button></article>
+      <article><h3>Kick</h3><p id="kick-card-status"></p><button type="button" id="connect-kick" data-copy="connectKick"></button></article>
+    </div>
+    <form id="startup-form">
+      <input type="hidden" name="platform" value="demo">
+      <input type="hidden" name="clientId">
+      <input type="hidden" name="webUrl">
+    </form>
+    <p class="muted" data-copy="connectionHelp"></p>
+    <p id="setup-status" role="status"></p>
+  </section></div>
+  <div data-pane="bot" hidden><section>
+    <h2 data-copy="botTab"></h2>
+    <form id="bot-form">
+      <label><span data-copy="nickname"></span><input name="nickname" maxlength="32"></label>
+
+      <p class="bot-help" data-copy="botHelp"></p>
+      <details class="bot-replies"><summary data-copy="editBotReplies"></summary><div id="bot-responses"></div></details>
+      <button data-copy="save"></button>
+    </form>
+    <p id="bot-status" role="status"></p>
+  </section></div>
+  <div data-pane="game">
+  <form id="settings" class="grouped-settings">
+  <section><h2 data-copy="encounterSettings"></h2><div class="settings-grid">
+    <label><span data-copy="interval"></span><input name="interval" type="number" min="6" max="1440" value="30" required></label>
+    <label><span data-copy="duration"></span><input name="duration" type="number" min="1" value="3" required></label>
+    <label><span data-copy="catchGraceSeconds"></span><input name="catchGraceSeconds" type="number" min="0" max="120" value="10" required></label>
+    <label><span data-copy="shiny"></span><input name="shiny" type="number" min="1" max="100000" value="128" required></label>
+    <label><span data-copy="duplicateMode"></span><select name="duplicateMode"><option value="1">XP</option><option value="2">+1 Lv.</option><option value="0" data-copy="duplicateOff"></option></select></label>
+    <label><span data-copy="duplicateXpPercent"></span><input name="duplicateXpPercent" type="number" min="1" max="100" value="25" required></label>
+  </div></section><section><h2 data-copy="companionSettings"></h2><div class="settings-grid">
+    <label><span data-copy="nameLimit"></span><input name="nameLimit" type="number" min="0" max="250" value="50" required></label>
+    <label><span data-copy="visibleLimit"></span><input name="visibleLimit" type="number" min="1" max="250" value="100" required></label>
+    <label><span data-copy="spriteScale"></span><input id="sprite-scale" name="spriteScale" type="range" min="50" max="300" step="1" value="100"><output id="sprite-scale-value" for="sprite-scale">100%</output></label>
+    <label><span data-copy="summonXpPerSecond"></span><input name="summonXpPerSecond" type="number" min="0" max="100" step="0.1" required></label>
+  </div></section><section><h2 data-copy="battleSettings"></h2><div class="settings-grid">
+    <label><span data-copy="battleXpPerOpponent"></span><input name="battleXpPerOpponent" type="number" min="0" max="10000" required></label>
+    <label><span data-copy="battleEveryEncounters"></span><input name="battleEveryEncounters" type="number" min="0" max="100" required></label>
+    <label><span data-copy="battleEnabled"></span><select name="battleEnabled"><option value="0" data-copy="battleOff"></option><option value="1" data-copy="battleOn"></option></select></label>
+    <label><span data-copy="battleHpMultiplier"></span><select name="battleHpMultiplier"><option value="1">1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>
+  </div></section><button data-copy="save"></button><p id="settings-status" role="status"></p></form>
+  </div><div data-pane="obs" hidden>
+  <section><h2 data-copy="obsTitle"></h2><p data-copy="obsHelp"></p><div id="sources"></div><p id="obs-status" role="status"></p></section>
+  <section><h2 data-copy="previewEncounter"></h2><form id="spawn">
+    <select name="creature" data-aria="creature"></select>
+    <button type="button" id="preview-encounter" data-copy="previewLocal"></button>
+    <button data-copy="spawn"></button>
+  </form><form id="legendary-event" hidden>
+    <select name="creature" aria-label="Legendary or mythical Pokémon"></select>
+    <button data-copy="queueLegendary"></button>
+  </form><p id="legendary-status" role="status"></p><canvas id="encounter" data-aria="encounter"></canvas></section>
+  <section><h2 data-copy="testSummon"></h2>
+  <form id="summon-preview">
+    <select name="creature" aria-label="Pokémon"></select>
+    <label><span>Shiny</span><input type="checkbox" name="shiny"></label>
+    <button data-copy="testSummon"></button>
+    <button type="button" id="clear-preview" data-copy="clearPreview"></button>
+  </form>
+  <canvas id="companions" data-aria="companions"></canvas></section>
+  <section><h2 data-copy="viewer"></h2><form id="chat">
+    <input name="viewer" value="Demo" required aria-label="Viewer">
+    <input name="message" value="!poke join" required data-aria="command">
+    <button data-copy="send"></button>
+  </form><button type="button" id="demo-master" data-copy="demoMaster" hidden></button><p id="notice" role="status"></p><pre id="inventory"></pre></section>
+  <div id="battle-preview-mount"></div>
+  </div>
+</main>
+<canvas id="overlay" hidden></canvas>
+<script type="module" src="/ui.js"></script>

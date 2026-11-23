@@ -1,0 +1,54 @@
+.lab-stage {
+  position: relative;
+  container-type: inline-size;
+}
+
+.battle-preview canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1920 / 550;
+  border: 1px solid #45606a;
+  border-radius: 12px;
+  background: transparent;
+}
+
+.lab-controls { padding: 6px 0 14px; }
+.lab-hint, .lab-status { color: #c4d6ce; }
+
+.lab-victory:not([hidden]) {
+  position: absolute;
+  inset: 8% 8% auto;
+  display: grid;
+  justify-items: center;
+  gap: .2em;
+  color: #fff3c1;
+  text-align: center;
+  pointer-events: none;
+  animation: lab-victory-in .45s cubic-bezier(.2, .8, .3, 1) both;
+}
+
+.lab-victory span {
+  padding: .32em 1.2em;
+  border: 1px solid #f4ce755e;
+  border-radius: 999px;
+  background: #162329;
+  color: #f4ce75;
+  font: 800 clamp(9px, 1.6cqw, 18px) / 1.1 system-ui, sans-serif;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+}
+
+.lab-victory strong {
+  font: italic 800 clamp(20px, 5.5cqw, 76px) / 1 Georgia, serif;
+  text-shadow: 0 .06em #674120, 0 .12em .3em #091014;
+}
+
+@keyframes lab-victory-in {
+  from { opacity: 0; transform: translateY(8px) scale(.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lab-victory:not([hidden]) { animation: none; }
+}

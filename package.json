@@ -1,0 +1,43 @@
+{
+  "name": "stream-companions",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "dist": "electron-builder --win portable",
+    "dist:beta": "electron-builder --config scripts/beta-build.cjs --win portable --x64 --publish never",
+    "import:pmd": "node scripts/import-pmd.js",
+    "dist:folder": "electron-builder --win dir --x64 --publish never --config.win.signAndEditExecutable=false"
+  },
+  "build": {
+    "appId": "community.streamcompanions.desktop",
+    "productName": "Stream Companions",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "game.js",
+      "ui/**",
+      "package.json",
+      "progress.js",
+      "twitch.js",
+      "cloud-sync.js",
+      "update-check.js",
+      "notices.js",
+      "commands.js",
+      "dev/battle.js",
+      "dev/battle-vfx.js",
+      "dev/battle-ui.js",
+      "dev/battle.css",
+      "dev/national-stats.js"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0"
+  }
+}

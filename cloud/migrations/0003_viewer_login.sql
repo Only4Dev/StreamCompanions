@@ -1,0 +1,1 @@
+ALTER TABLE web_sessions ADD COLUMN login TEXT NOT NULL DEFAULT '';
