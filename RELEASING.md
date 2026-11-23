@@ -1,22 +1,22 @@
-# Publicación y actualizaciones
+# Releases and updates
 
-- Confirma la licencia del código propio y revisa los créditos de terceros antes de publicar. El catálogo importado (`pmd/`), las hojas de referencia (`ATTACKMOVESSPRITES/`) y las compilaciones (`dist/`) quedan fuera de Git. [SpriteCollab](https://github.com/PMDCollab/SpriteCollab/blob/master/LICENSE.md) · [Sprites de PokéAPI](https://github.com/PokeAPI/sprites)
-- El paquete generado por `npm.cmd run dist:folder` usa la lista de archivos de `package.json`. Comprueba su contenido antes de adjuntarlo a Releases. El catálogo importado se prepara por separado.
-- Revisa también el historial Git que vaya a publicarse. Las bases de datos, los perfiles, los Client Secret de OAuth, los tokens y las claves de cifrado pertenecen a la instalación.
-- El flujo de CI preparado para GitHub Actions ejecuta `npm ci` y `npm test` en Windows con Node.js 24. Para activarlo, publica `.github/workflows/ci.yml` con una credencial autorizada a modificar workflows.
+**English** · [Español](RELEASING.es.md)
 
-## Portal propio
+## Prepare a release
 
-Copia `cloud/wrangler.example.jsonc` a `cloud/wrangler.jsonc` y sustituye los valores de ejemplo por tu Worker y tu D1. Prueba las migraciones en una base de pruebas. Configura mediante los secretos de Wrangler `TWITCH_WEB_CLIENT_ID`, `TWITCH_WEB_CLIENT_SECRET`, `KICK_WEB_CLIENT_ID`, `KICK_WEB_CLIENT_SECRET` y `KICK_TOKEN_KEY`. Registra los callbacks `/auth/twitch/callback`, `/auth/kick/callback` y el webhook `/webhooks/kick` en tu dominio HTTPS. Para apuntar a tu propio servicio, configura también el cliente de escritorio con tu URL de registro y tu Client ID de Twitch.
+1. Confirm the license for the project's own code and review the third-party assets allowed in the binary. The imported `pmd/` catalog, reference sheets in `ATTACKMOVESSPRITES/`, and local `dist/` builds are excluded from Git. [SpriteCollab license](https://github.com/PMDCollab/SpriteCollab/blob/master/LICENSE.md) · [PokéAPI sprites](https://github.com/PokeAPI/sprites)
+2. Update the version in `package.json` and `package-lock.json`, run `npm test`, and build with `npm run dist:folder`.
+3. Inspect the output for local profiles, databases, or credentials. Test on Windows with a fresh profile and an existing one. Check that the app preserves the OBS URLs and settings. [Pilot checklist in Spanish](README.es.md#checklist-del-piloto)
+4. Tag the Windows build's source as `vX.Y.Z` and attach the portable Windows x64 ZIP to the GitHub release. GitHub provides its own source ZIP and tarball for the tag. [GitHub Releases documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)
 
-## Primera versión pública
+GitHub Actions runs the test suite on Windows with Node.js 24. [CI runs](https://github.com/Only4Dev/StreamCompanions/actions)
 
-1. Actualiza la versión en `package.json` y `package-lock.json`, ejecuta las pruebas y genera la carpeta portable.
-2. Prueba la carpeta en Windows con un perfil limpio y otro existente. Comprueba que conserva sus ajustes y las URL de OBS. Verifica Twitch y Kick con el checklist del README.
-3. Publica una versión estable con la etiqueta `vX.Y.Z` en `Only4Dev/StreamCompanions` y adjunta el ZIP de la carpeta portable. **Acerca de → Buscar actualizaciones** compara la versión instalada con la última estable de GitHub y enlaza a Releases para descargarla. [API de GitHub Releases](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)
+## Run your own portal
 
-## Parche incremental
+Copy `cloud/wrangler.example.jsonc` to `cloud/wrangler.jsonc` and set your Worker name and D1 binding. Test database migrations against a test database first. Configure the Worker secrets `TWITCH_WEB_CLIENT_ID`, `TWITCH_WEB_CLIENT_SECRET`, `KICK_WEB_CLIENT_ID`, `KICK_WEB_CLIENT_SECRET`, and `KICK_TOKEN_KEY`. Register the HTTPS callbacks `/auth/twitch/callback` and `/auth/kick/callback`, and the Kick webhook `/webhooks/kick`. Configure the desktop build to use your portal and Twitch Client ID.
 
-El manifiesto firmado identificará la versión de origen y destino, la plataforma y el hash de cada archivo que cambie. La app verificará la firma con una clave pública incorporada. Descargará los cambios a una carpeta temporal y aplicará el parche al cerrar, con respaldo para volver a la versión anterior si falla el inicio.
+## Update policy
 
-El parche se limita a los archivos distribuidos. El perfil de Electron, SQLite, las credenciales, los ajustes, los recursos importados y las URL de OBS quedan fuera. Antes de habilitarlo, prueba una descarga interrumpida, una versión incompatible, archivos alterados y la restauración del respaldo.
+**About → Check for updates** compares the installed version with the latest stable GitHub release. Users open the Releases page to download a newer build.
+
+Incremental updates are planned. The app will verify a signed manifest and the hashes of the files it downloads. It will stage changes in a temporary folder and keep a rollback copy. Update packages will leave the Electron profile, SQLite, user settings, credentials, imported assets, and OBS URLs untouched.
