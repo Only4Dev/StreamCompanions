@@ -8,17 +8,25 @@ Stream Companions turns Twitch and Kick chat into a game of catching, collecting
 
 ## Streamer setup
 
-1. When a Windows x64 build is available, extract the entire ZIP into its own folder and open `Stream Companions.exe`.
-2. In **Connections**, link Twitch to register your community. You can then connect Kick to the same community.
+1. Download the Windows x64 ZIP, extract it into its own folder, and open `Stream Companions.exe`.
+2. Open **Connections** and follow the setup for your streaming platform below.
 3. Select **Start game**. In **Sources**, copy the wild encounter URL and the companion URL into separate browser sources. Set the companion source to **1920 × 1080**. It also displays battles.
 4. Preview an encounter and a companion in **Sources** before testing with a viewer in chat.
 5. Select **Stop game** to clear active encounters and summons while the app stays open. Close the window to exit.
 
+### Twitch setup
+
+Link your channel in **Connections** and authorize the app to register the community.
+
+### Kick setup
+
+Link your channel in **Connections** after the community is registered. **Kick-only community setup is pending in v1.0.0.**
+
 ## How to play
 
-- Use `!poke join` to join a community. On Twitch, follow the channel first.
+- Use `!poke join` to join a community. **Twitch** requires a follow first. **Kick** accepts the command directly.
 - Use `!catch` during a wild encounter, `!summon <name>` to summon a caught Pokémon, and `!summon out` to withdraw it. Use `!summonshiny <name>` for a shiny variant.
-- Use `!web` to find the portal. Sign in, choose a community, and open the Dex, inventory, or shop.
+- Use `!web` to find the portal. Sign in with either Twitch or Kick, choose a community, and open the Dex, inventory, or shop.
 - Link Twitch and Kick from **Linked accounts** to share progress across both chats in the same community. An account can have one active summon at a time.
 
 ## Local development
@@ -46,3 +54,7 @@ Unlinking a platform preserves progress. **Delete my data** removes the Stream C
 ## Credits and license
 
 Stream Companions is a noncommercial fan project by [Only4Dev](https://github.com/Only4Dev). Pokémon and its characters, trademarks, and assets belong to their respective rights holders. This project is unofficial and unaffiliated with them. The license for the project's own source code is pending. [SpriteCollab credits and license](https://github.com/PMDCollab/SpriteCollab/blob/master/LICENSE.md) · [PokéAPI sprites](https://github.com/PokeAPI/sprites)
+
+## Known issues
+
+The public portal runs on Cloudflare Workers Free with a D1 database. During heavy traffic, hitting the plan quotas can temporarily interrupt sign-in, portal pages, or progress sync. [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) · [D1 quotas](https://developers.cloudflare.com/d1/platform/pricing/)
