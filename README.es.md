@@ -10,7 +10,7 @@ Stream Companions convierte el chat de Twitch y Kick en un juego de captura, col
 
 1. Descarga el ZIP para Windows x64, extrae todos los archivos y abre `Stream Companions.exe`.
 2. En **Conexiones**, vincula Twitch o Kick para crear tu comunidad. Si haces multistream, puedes vincular la segunda plataforma ahí mismo.
-3. Pulsa **Iniciar juego**. En **Fuentes**, copia los enlaces de encuentros y compañeros en dos fuentes de navegador. Para compañeros y batallas, usa **1920 × 1080**.
+3. Pulsa **Iniciar juego**. En **Fuentes**, copia los enlaces de encuentros y compañeros en dos fuentes de navegador. Para la fuente nueva de compañeros y batallas, usa **1920 × 550** y cambia su tamaño desde una esquina para mantener la proporción.
 4. Prueba un encuentro y una invocación desde **Fuentes** antes del directo. Pulsa **Detener juego** para dejar el panel abierto sin encuentros ni invocaciones activas.
 
 ### Configuración de Twitch
@@ -20,6 +20,8 @@ Pulsa **Conectar Twitch** y aprueba la autorización en Twitch.
 ### Configuración de Kick
 
 Pulsa **Conectar Kick**, aprueba la autorización en Kick y vuelve a la app. La app se reinicia después de crear una comunidad nueva.
+
+La URL anterior `/companions` conserva **1920 × 1080**. Copia el enlace nuevo desde **Fuentes** para usar el formato compacto.
 
 ## Cómo jugar
 
@@ -47,6 +49,8 @@ Genera la carpeta portable con `npm.cmd run dist:folder`. El resultado queda en 
 - [ ] Prueba el registro, una captura y una invocación con una cuenta de viewer.
 - [ ] Si usas ambas plataformas, vincula las cuentas de prueba y confirma que comparten la colección en el portal.
 - [ ] Desconecta y reconecta internet. Comprueba que se recupera la sincronización sin duplicar progreso.
+
+[Reportar un problema o contribuir](CONTRIBUTING.md)
 
 ## Datos y créditos
 

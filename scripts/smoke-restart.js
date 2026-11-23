@@ -78,6 +78,20 @@ try {
     if(!document.querySelector('#shop-price-fields img')) return 'shop icons missing';
     document.querySelector('[data-view=obs]').click();
     if(!document.querySelector('.battle-preview') || document.querySelector('[data-view=battle]')) return 'battle preview missing';
+    const source = document.querySelector('#sources input[value$="?layout=strip"]')
+      || [...document.querySelectorAll('#sources input')].find(input => input.value.endsWith('/companions?layout=strip'));
+    if(!source) return 'compact overlay link missing';
+    const frame = document.createElement('iframe');
+    frame.src = source.value;
+    document.body.append(frame);
+    let canvas;
+    for(let i=0;i<24;i++) {
+      canvas = frame.contentDocument?.querySelector('#overlay');
+      if(canvas?.width === 1920) break;
+      await new Promise(r=>setTimeout(r,100));
+    }
+    if(canvas?.height !== 550) return 'compact overlay height incorrect';
+    frame.remove();
     document.querySelector('#preview-encounter').click();
     if(!(await (await fetch('/state?overlay=encounter')).json()).encounter) return 'ok';
     return 'preview leaked to overlay';

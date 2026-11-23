@@ -46,9 +46,9 @@ Object.assign(labels.en, {
   invalidSettings: 'Check the settings values.', creature: 'Creature', command: 'Command or message', encounter: 'Encounter', companions: 'Companions'
 })
 
-Object.assign(labels.es, { obsTitle: 'Fuentes de navegador para OBS', obsHelp: 'Añade una fuente de navegador por cada enlace. Para compañeros usa 1920 × 1080.',
+Object.assign(labels.es, { obsTitle: 'Fuentes de navegador para OBS', obsHelp: 'Añade una fuente de navegador por cada enlace. Para compañeros usa 1920 × 550.',
   obsEncounter: 'Encuentros salvajes', obsCompanions: 'Compañeros invocados', obsCopy: 'Copiar enlace', obsCopied: 'Enlace copiado.', obsCopyError: 'Selecciona el enlace y cópialo manualmente.' })
-Object.assign(labels.en, { obsTitle: 'OBS browser sources', obsHelp: 'Add one browser source per link. Set the companions source to 1920 × 1080.',
+Object.assign(labels.en, { obsTitle: 'OBS browser sources', obsHelp: 'Add one browser source per link. Set the companions source to 1920 × 550.',
   obsEncounter: 'Wild encounters', obsCompanions: 'Summoned companions', obsCopy: 'Copy link', obsCopied: 'Link copied.', obsCopyError: 'Select the link and copy it manually.' })
 
 Object.assign(labels.es, { summonXpPerSecond: 'XP por segundo invocado', battleXpPerOpponent: 'XP de victoria por rival' })
@@ -68,12 +68,12 @@ Object.assign(labels.en, { shopTab: 'Shop', shopPricesHelp: 'Edit prices in Pok�
 Object.assign(labels.es, { homeTab: 'Inicio', sourcesTab: 'Fuentes', next: 'Próximo encuentro', wildCount: 'Encuentros de esta sesión', caughtCount: 'Capturas de esta sesión',
   encounterSettings: 'Encuentros salvajes', companionSettings: 'Compañeros en pantalla', battleSettings: 'Batallas', interval: 'Cada cuántos minutos aparece un salvaje', duration: 'Minutos para capturar', catchGraceSeconds: 'Margen por retraso (s)',
   nameLimit: 'Ocultar nombres a partir de', visibleLimit: 'Compañeros visibles', battleEveryEncounters: 'Encuentros entre batallas', previewEncounter: 'Probar encuentro salvaje', previewLocal: 'Simular en la app', spawn: 'Lanzar en directo',
-  obsTitle: 'Fuentes de navegador', obsHelp: 'Copia cada enlace a una fuente de navegador en OBS, Streamlabs o tu programa de directo. Usa 1920 × 1080 para la fuente de compañeros y batallas.',
+  obsTitle: 'Fuentes de navegador', obsHelp: 'Copia cada enlace a una fuente de navegador en OBS, Streamlabs o tu programa de directo. Usa 1920 × 550 para compañeros y batallas. Redimensiona la fuente en la escena desde una esquina para mantener la proporción.',
   connectionHelp: 'Conecta Twitch primero para activar tu comunidad. Después puedes añadir Kick. El portal de viewers se configura automáticamente.', connected: 'Conectado', disconnected: 'Desconectado', editBotReplies: 'Personalizar respuestas del chat' })
 Object.assign(labels.en, { homeTab: 'Home', sourcesTab: 'Sources', next: 'Next encounter', wildCount: 'Encounters this session', caughtCount: 'Catches this session',
   encounterSettings: 'Wild encounters', companionSettings: 'On-screen companions', battleSettings: 'Battles', interval: 'Minutes between wild encounters', duration: 'Minutes to catch', catchGraceSeconds: 'Stream delay grace (s)',
   nameLimit: 'Hide names above this count', visibleLimit: 'Visible companions', battleEveryEncounters: 'Encounters between battles', previewEncounter: 'Wild encounter preview', previewLocal: 'Simulate in app', spawn: 'Spawn on stream',
-  obsTitle: 'Browser sources', obsHelp: 'Copy each link into a browser source in OBS, Streamlabs, or your streaming software. Set the companions and battles source to 1920 × 1080.',
+  obsTitle: 'Browser sources', obsHelp: 'Copy each link into a browser source in OBS, Streamlabs, or your streaming software. Set the companion and battle source to 1920 × 550. Resize it from a corner in your scene to keep its proportions.',
   connectionHelp: 'Connect Twitch first to activate your community. Then you can add Kick. The viewer portal is set automatically.', connected: 'Connected', disconnected: 'Disconnected', editBotReplies: 'Customize chat replies' })
 
 const tips = {
@@ -229,11 +229,13 @@ if (panel) {
       encounter: kind === 'encounter' && encounterPreview?.endsAt > Date.now() ? encounterPreview : state.encounter,
       config: { ...state.config, spriteScale: Number($('sprite-scale').value) },
       viewers: kind === 'companions' && preview ? preview : state.viewers
-    }), remaining)
+    }), remaining, { strip: kind === 'companions' })
   }
 } else {
   document.getElementById('overlay').hidden = false
-  showScene(document.getElementById('overlay'), location.pathname.slice(1), catalog, () => state, remaining)
+  showScene(document.getElementById('overlay'), location.pathname.slice(1), catalog, () => state, remaining, {
+    strip: new URLSearchParams(location.search).get('layout') === 'strip'
+  })
 }
 function updateScaleLabel() {
   document.getElementById('sprite-scale-value').value = document.getElementById('sprite-scale').value + '%'
@@ -473,7 +475,7 @@ if (panel) {
     })
   }
   translate()
-  for (const [path, name] of [['/encounter', 'obsEncounter'], ['/companions', 'obsCompanions']]) {
+  for (const [path, name] of [['/encounter', 'obsEncounter'], ['/companions?layout=strip', 'obsCompanions']]) {
     const row = document.createElement('section')
     const label = document.createElement('label')
     const title = document.createElement('strong')

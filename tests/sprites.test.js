@@ -43,7 +43,7 @@ test('walking alternates with idle, and idle can lead to sleep, jumps or attacks
   assert.equal(actor.behavior, 'Hop')
 })
 
-test('the companion canvas is Full HD independently of preview size', () => {
+test('the companion canvas retains its selected aspect ratio independently of preview size', () => {
   let frame
   const original = globalThis.requestAnimationFrame
   globalThis.requestAnimationFrame = callback => { frame = callback }
@@ -55,6 +55,12 @@ test('the companion canvas is Full HD independently of preview size', () => {
     frame(100)
     assert.equal(canvas.width, 1920)
     assert.equal(canvas.height, 1080)
+    showScene(canvas, 'companions', [], () => ({
+      viewers: {}, config: { nameLimit: 50, visibleLimit: 100 }
+    }), undefined, { strip: true })
+    frame(100)
+    assert.equal(canvas.width, 1920)
+    assert.equal(canvas.height, 550)
   } finally {
     globalThis.requestAnimationFrame = original
   }

@@ -7,6 +7,7 @@ export { level }
 
 export const companionWidth = 1920
 export const companionHeight = 1080
+export const companionStripHeight = 550
 const scales = new Map()
 
 const battleClipFallbacks = {
@@ -236,7 +237,7 @@ export function chooseBehavior(actor, animations, time, random = Math.random) {
   actor.until = time + duration
 }
 
-export function showScene(canvas, kind, catalog, getState, formatTime) {
+export function showScene(canvas, kind, catalog, getState, formatTime, { strip = false } = {}) {
   const context = canvas.getContext('2d')
   const actors = new Map()
   const battlePositions = new Map()
@@ -251,7 +252,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime) {
     const state = getState()
     if (!state) return
     const width = kind === 'companions' ? companionWidth : canvas.clientWidth
-    const height = kind === 'companions' ? companionHeight : canvas.clientHeight
+    const height = kind === 'companions' ? (strip ? companionStripHeight : companionHeight) : canvas.clientHeight
     if (!canvas.clientWidth || !canvas.clientHeight) return
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width

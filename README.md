@@ -10,7 +10,7 @@ Stream Companions turns Twitch and Kick chat into a game of catching, collecting
 
 1. Download the Windows x64 ZIP, extract it into its own folder, and open `Stream Companions.exe`.
 2. In **Connections**, link Twitch or Kick to create your community. Link the second platform there any time if you stream on both.
-3. Select **Start game**. In **Sources**, copy the wild encounter URL and the companion URL into separate browser sources. Set the companion source to **1920 × 1080**. It also displays battles.
+3. Select **Start game**. In **Sources**, copy the wild encounter URL and the companion URL into separate browser sources. Set the new companion and battle source to **1920 × 550**. Resize it from a corner to keep its proportions.
 4. Preview an encounter and a companion in **Sources** before testing with a viewer in chat.
 5. Select **Stop game** to clear active encounters and summons while the app stays open. Close the window to exit.
 
@@ -21,6 +21,8 @@ Select **Connect Twitch** and approve the authorization on Twitch.
 ### Kick setup
 
 Select **Connect Kick**, approve the authorization on Kick, and return to the app. The app restarts after creating a new community.
+
+Existing `/companions` sources still use **1920 × 1080**. Copy the new link from **Sources** to switch to the compact layout.
 
 ## How to play
 
@@ -44,6 +46,14 @@ The app can run without the full sprite catalog in a small demo mode. To load th
 Run `npm.cmd run dist:folder` to build an unsigned portable Windows x64 folder in `dist/win-unpacked/`. The standard build excludes the imported sprite catalog. Keep the executable and its accompanying files together.
 
 To use the full catalog in the portable build, run the importer from a source checkout and copy the resulting `pmd/` folder next to `Stream Companions.exe`, then restart the app. The portable app itself includes its runtime.
+
+## Project layout
+
+- `desktop/` and `ui/` hold the Windows app and browser overlays.
+- `cloud/` holds the viewer portal, Worker API, and D1 migrations.
+- `dev/` holds the battle engine and preview. `tests/` and `scripts/` hold automated tests and development tools.
+
+[Report a bug or contribute](CONTRIBUTING.md)
 
 ## Data and accounts
 
