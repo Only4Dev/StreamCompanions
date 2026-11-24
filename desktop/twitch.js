@@ -6,12 +6,12 @@ const helix = 'https://api.twitch.tv/helix/'
 const endpoint = 'wss://eventsub.wss.twitch.tv/ws'
 const scopes = 'user:read:chat user:write:chat moderator:read:followers'
 
-export function twitchChatHandler({ owner, follows, command, reply, webUrl, getBot = () => defaultBot, isRunning = () => true, now = Date.now }) {
+export function twitchChatHandler({ owner, follows, command, reply, webUrl, getBot = () => defaultBot, isRunning = () => true, allowOwner = false, commandFeedback = false, onChat = () => {}, now = Date.now }) {
   const seen = new Map()
   let lastLink = -Infinity
   let lastEvolutionReply = -Infinity
   return async event => {
-    if (event.chatter_user_id === owner || event.broadcaster_user_id !== owner ||
+    if ((!allowOwner && event.chatter_user_id === owner) || event.broadcaster_user_id !== owner ||
         !event.message_id || seen.has(event.message_id)) return
     const time = now()
     seen.set(event.message_id, time)
@@ -20,7 +20,9 @@ export function twitchChatHandler({ owner, follows, command, reply, webUrl, getB
       seen.delete(id)
     }
     const text = normalizeCommand(event.message.text)
+    onChat(event.chatter_user_name, event.message.text)
     const viewer = 'twitch:' + event.chatter_user_id
+    if (allowOwner && !isRunning()) return
     const bot = getBot()
     const send = message => reply(botSignature(bot, message).slice(0, 500))
     if (text.toLowerCase() === '!web') {
@@ -32,12 +34,17 @@ export function twitchChatHandler({ owner, follows, command, reply, webUrl, getB
       return
     }
     if (!isRunning()) return
-    if (text.toLowerCase() === '!poke join' && !(await follows(event.chatter_user_id))) {
+    if (text.toLowerCase() === '!poke join' && event.chatter_user_id !== owner && !(await follows(event.chatter_user_id))) {
       const hint = botResponse(bot, 'follow')
       if (hint) await send('@' + event.chatter_user_login + ' ' + hint)
       return
     }
     const result = await command(viewer, event.chatter_user_name, text)
+    if (commandFeedback && text.startsWith('!')) {
+      const hint = formatBotReply(bot, result?.code ?? result, result ?? {})
+      if (hint) await send(hint)
+      return
+    }
     if (/^!(?:evolve|candy)(?:\s|$)/i.test(text) || result === 'summonOtherChannel') {
       const hint = formatBotReply(bot, result?.code ?? result, result ?? {})
       if (hint && time - lastEvolutionReply >= 3000) {
@@ -52,7 +59,8 @@ export function twitchChatHandler({ owner, follows, command, reply, webUrl, getB
   }
 }
 
-export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, command, webUrl, getBot, isRunning, savedToken, saveToken = () => {} }) {
+export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, command, webUrl, getBot, isRunning, savedToken, saveToken = () => {}, sendOnly = false, sendReply, allowOwner = false, onChat }) {
+  const requestedScopes = sendOnly ? 'user:write:chat' : scopes
   const stop = new AbortController()
   let socket
   let candidate
@@ -117,7 +125,7 @@ export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, 
     return current
   }
   async function authorize() {
-    const response = await form('device', { scopes })
+    const response = await form('device', { scopes: requestedScopes })
     if (!response.ok) throw httpError('Registro de aplicación en Twitch', response.status)
     const device = await response.json()
     const verification = new URL(device.verification_uri)
@@ -128,7 +136,7 @@ export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, 
     while (!signal.aborted && Date.now() < deadline) {
       await wait(delay)
       if (signal.aborted) return
-      const result = await form('token', { scope: scopes, device_code: device.device_code,
+      const result = await form('token', { scope: requestedScopes, device_code: device.device_code,
         grant_type: 'urn:ietf:params:oauth:grant-type:device_code' })
       const data = await result.json()
       if (result.ok) {
@@ -248,12 +256,13 @@ export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, 
     }
     if (!current) throw new Error('Twitch rechazó la sesión')
     onAuthorized?.(current, token.access_token)
+    if (sendOnly) { onStatus('Twitch bot · ' + current.login); return }
     handleChat = twitchChatHandler({
-      owner: identity.user_id, command, webUrl, getBot, isRunning,
+      owner: identity.user_id, command, webUrl, getBot, isRunning, allowOwner, commandFeedback: allowOwner, onChat,
       follows: async viewer => (await api('channels/followers?' + new URLSearchParams({
         broadcaster_id: identity.user_id, user_id: viewer
       }))).data.length > 0,
-      reply: message => api('chat/messages', {
+      reply: message => sendReply ? sendReply(identity.user_id, message) : api('chat/messages', {
         broadcaster_id: identity.user_id, sender_id: identity.user_id, message
       })
     })
@@ -297,11 +306,23 @@ export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, 
     if (!chatConnected || signal.aborted) return false
     const streams = await api('streams?' + new URLSearchParams({ user_id: identity.user_id }))
     if (!streams.data.length || !chatConnected || signal.aborted) return false
+    if (sendReply) return sendReply(identity.user_id, message)
     const sent = await api('chat/messages', {
       broadcaster_id: identity.user_id, sender_id: identity.user_id, message
     })
     if (!sent.data[0]?.is_sent) throw new Error('Twitch rechazó el aviso del encuentro')
     return true
+  }
+  disconnect.identity = () => identity
+  disconnect.sendTo = async (broadcaster, message) => {
+    if (!identity || signal.aborted || identity.user_id === broadcaster) return false
+    const sent = await api('chat/messages', { broadcaster_id: broadcaster, sender_id: identity.user_id, message })
+    return Boolean(sent.data[0]?.is_sent)
+  }
+  disconnect.live = async () => {
+    if (!identity || signal.aborted) return null
+    const { data } = await api('streams?' + new URLSearchParams({ user_id: identity.user_id }))
+    return { login: identity.login, live: Boolean(data?.length), thumbnail: data?.[0]?.thumbnail_url ?? '' }
   }
   disconnect.connected = () => chatConnected && !signal.aborted
   return disconnect

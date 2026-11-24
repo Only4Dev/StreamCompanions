@@ -82,6 +82,7 @@ const tips = {
   battleSettings: ['Las batallas usan la misma fuente que las invocaciones.', 'Battles use the same source as summoned companions.'],
   interval: ['Tiempo entre apariciones automáticas.', 'Time between automatic wild spawns.'],
   duration: ['Tiempo visible para intentar capturar un salvaje normal.', 'How long a normal wild encounter is visible for catches.'],
+  legendaryChancePercent: ['Probabilidad por aparición automática. 0 desactiva los legendarios aleatorios.', 'Chance per automatic encounter. Set to 0 to disable random legendary encounters.'],
   catchGraceSeconds: ['Segundos extra para capturar después de que desaparece el retrato.', 'Extra seconds to catch after the portrait disappears.'],
   shiny: ['1 entre este número de apariciones, si existe variante shiny.', 'One in this many encounters, when a shiny variant exists.'],
   duplicateMode: ['Premio si el viewer vuelve a capturar una variante que ya tiene.', 'Reward for catching a variant the viewer already owns.'],
@@ -109,6 +110,19 @@ Object.assign(labels.en, { totalEncounters: 'All-time encounters', totalCaptures
 
 labels.es.openPortal = 'Abrir portal web'
 labels.en.openPortal = 'Open web portal'
+
+Object.assign(labels.es, { legendaryChancePercent: 'Aparición legendaria (%)', resetCancel: 'Cancelar', resetCommunity: 'Borrar progreso de la comunidad', resetPrompt: 'Esto borra los registros y el progreso de todos los viewers de esta comunidad. Escribe RESET para confirmar.', resetDone: 'Progreso borrado. Los viewers deben registrarse de nuevo.', resetPending: 'Borrado pendiente. La app volverá a intentarlo.', summonSourcePreview: 'Vista previa de invocaciones (fuente)', battleSourcePreview: 'Vista previa de batalla (fuente)', activityTab: 'Registro', liveChatTab: 'Chat', liveChatHelp: 'Mensajes recientes de los chats conectados.', connectTwitchBot: 'Vincular bot de Twitch', botAccountHelp: 'Para responder desde el bot, autoriza una cuenta de Twitch distinta a la del canal.' })
+Object.assign(labels.en, { legendaryChancePercent: 'Legendary encounter chance (%)', resetCancel: 'Cancel', resetCommunity: 'Reset community progress', resetPrompt: 'This deletes all viewer registrations and progress for this community. Type RESET to confirm.', resetDone: 'Progress deleted. Viewers must join again.', resetPending: 'Reset pending. The app will retry.', summonSourcePreview: 'Summon preview (source)', battleSourcePreview: 'Battle preview (source)', activityTab: 'Log', liveChatTab: 'Chat', liveChatHelp: 'Recent messages from connected chats.', connectTwitchBot: 'Link Twitch bot', botAccountHelp: 'Authorize a Twitch account other than the channel owner to send replies as the bot.' })
+
+function renderActivity(id, entries) {
+  const node = document.getElementById(id)
+  if (node.closest('[data-pane]').hidden) return
+  node.replaceChildren(...[...(entries ?? [])].reverse().filter(entry => !String(entry.message).startsWith('activity:')).map(entry => {
+    const row = document.createElement('li')
+    row.textContent = [new Date(entry.at).toLocaleTimeString(), entry.platform, entry.name, entry.message, entry.result].filter(Boolean).join(' · ')
+    return row
+  }))
+}
 
 function showPane(name) {
   for (const pane of document.querySelectorAll('[data-pane]')) pane.hidden = pane.dataset.pane !== name
@@ -162,7 +176,15 @@ function renderUpdateStatus() {
   $('app-version').textContent = state.version
   $('update-status').textContent = (copy[status] ?? '') + (version ? ' · ' + version : '')
   $('check-updates').disabled = status === 'checking'
-  $('view-releases').hidden = status !== 'available'
+  const available = ['available', 'installing', 'installFailed'].includes(status)
+  const installable = available && state.canInstallUpdate && Boolean(state.updateStatus.archive)
+  $('view-releases').hidden = !available
+  $('update-banner').hidden = !available
+  $('update-banner-status').textContent = $('update-status').textContent
+  for (const id of ['update-home', 'update-about']) {
+    $(id).hidden = !installable
+    $(id).disabled = status === 'installing'
+  }
 }
 let viewer = 'Demo'
 let state
@@ -254,7 +276,8 @@ function connectionMessage(message) {
 }
 
 async function refresh() {
-  const response = await fetch(panel ? '/state' : '/state?overlay=' + location.pathname.slice(1))
+  const previewMode = new URLSearchParams(location.search).get('preview')
+  const response = await fetch(panel ? '/state' : '/state?overlay=' + location.pathname.slice(1) + (previewMode ? '&preview=' + encodeURIComponent(previewMode) : ''))
   state = await response.json()
   if (!panel) {
     if (location.pathname === '/encounter') {
@@ -303,6 +326,12 @@ async function refresh() {
   $('legendary-status').textContent = state.nextLegendary ? copy.queuedLegendary + ' · ' + state.nextLegendary : ''
   $('demo-master').hidden = !state.battleLab || state.live
   $('twitch-card-status').textContent = connectionMessage(state.twitchStatus) || copy.twitchDisconnected
+  $('reset-community').hidden = !state.canReset
+  $('reset-community').disabled = Boolean(state.resettingCommunity)
+  renderActivity('activity-list', state.activityLog)
+  renderActivity('live-chat-list', state.localChat)
+  $('twitch-bot-status').textContent = state.twitchBotStatus || ''
+  $('connect-twitch-bot').disabled = state.setup?.platform !== 'twitch'
   $('kick-card-status').textContent = connectionMessage(state.kickStatus) || copy.kickStatus
   for (const [provider, name] of [['twitch', 'Twitch'], ['kick', 'Kick']]) {
     const chip = $('status-' + provider)
@@ -367,6 +396,13 @@ if (panel) {
     }
   })
   showPane('home')
+  for (const id of ['update-home', 'update-about', 'update-notes']) {
+    $(id).addEventListener('click', async () => {
+      const action = id === 'update-notes' ? { openUpdateNotes: true } : { installUpdate: true }
+      await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(action) }).catch(() => {})
+    })
+  }
   $('check-updates').addEventListener('click', async () => {
     try {
       const response = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ checkUpdates: true }) })
@@ -475,7 +511,8 @@ if (panel) {
     })
   }
   translate()
-  for (const [path, name] of [['/encounter', 'obsEncounter'], ['/companions?layout=strip', 'obsCompanions']]) {
+  for (const [path, name] of [['/encounter', 'obsEncounter'], ['/companions?layout=strip', 'obsCompanions'],
+    ['/companions?layout=strip&preview=summon', 'summonSourcePreview'], ['/companions?layout=strip&preview=battle', 'battleSourcePreview']]) {
     const row = document.createElement('section')
     const label = document.createElement('label')
     const title = document.createElement('strong')
@@ -502,6 +539,24 @@ if (panel) {
     $('sources').append(row)
   }
   translate()
+  const resetConfirm = $('reset-community-confirm')
+  $('reset-community').addEventListener('click', () => {
+    resetConfirm.returnValue = ''
+    resetConfirm.querySelector('form').reset()
+    resetConfirm.showModal()
+  })
+  resetConfirm.addEventListener('close', async () => {
+    const copy = labels[$('language').value]
+    const confirmation = resetConfirm.querySelector('[name=confirmation]').value
+    if (resetConfirm.returnValue !== 'confirm' || confirmation !== 'RESET') return
+    const result = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resetCommunity: confirmation }) }).catch(() => null)
+    $('reset-community-status').textContent = result?.ok ? copy.resetDone : copy.resetPending
+  })
+  $('connect-twitch-bot').addEventListener('click', async () => {
+    const response = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ connectTwitchBot: true }) }).catch(() => null)
+    if (!response?.ok) $('twitch-bot-status').textContent = labels[$('language').value].unavailable
+  })
   $('connect-kick').addEventListener('click', async () => {
     const copy = labels[$('language').value]
     try {

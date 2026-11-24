@@ -108,17 +108,24 @@ async function synchronize(request, db) {
         items.some(item => typeof item !== 'string' || !Object.hasOwn(heldItems, item))) return json({ error: 'invalid items' }, 400)
     const generation = viewer.generation ?? 0
     if (!Number.isSafeInteger(generation) || generation < 0) return json({ error: 'invalid generation' }, 400)
+    const log = viewer.log ?? []
+    if (!Array.isArray(log) || log.length > 30 || log.some(entry => !entry || !['kick', 'twitch'].includes(entry.platform) ||
+        typeof entry.action !== 'string' || !entry.action.startsWith('!') || entry.action.length > 120 ||
+        typeof entry.result !== 'string' || entry.result.length > 50 || !Number.isSafeInteger(entry.at) || entry.at < 0 || entry.at > 8.64e15)) {
+      return json({ error: 'invalid activity log' }, 400)
+    }
     ids.add(viewer.id)
     const balls = Object.fromEntries(types.map(type => [type, viewer.balls[type]]))
     writes.push(db.prepare(
       'INSERT INTO viewer_progress (community_id, viewer_id, revision, payload, updated_at) SELECT ?, ?, ?, ?, ? ' +
       'WHERE COALESCE((SELECT generation FROM erased_viewers WHERE viewer_id = ?), 0) = ? ' +
       'AND (? = 0 OR EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ?)) ' +
+      'AND EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL) ' +
       'ON CONFLICT(community_id, viewer_id) DO UPDATE SET revision = excluded.revision, payload = excluded.payload, updated_at = excluded.updated_at ' +
       'WHERE excluded.revision > viewer_progress.revision'
     ).bind(device.community_id, viewer.id, viewer.revision,
         JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters,
-          metrics: { wins: metrics.wins, losses: metrics.losses, summonMinutes: metrics.summonMinutes } }), Date.now(), viewer.id, generation, generation, viewer.id))
+          log: log.map(({ at, platform, action, result }) => ({ at, platform, action, result })), metrics: { wins: metrics.wins, losses: metrics.losses, summonMinutes: metrics.summonMinutes } }), Date.now(), viewer.id, generation, generation, viewer.id, device.key_hash))
     writes.push(db.prepare('INSERT OR IGNORE INTO erasure_devices SELECT ?, viewer_id FROM erased_viewers WHERE viewer_id = ?')
       .bind(device.community_id, viewer.id))
   }
@@ -205,6 +212,23 @@ export default {
       if (!/^[0-9a-f]{64}$/.test(hash ?? '')) return json({ error: 'invalid device' }, 400)
       return startKickLink(url, env, hash)
     }
+    if (path === '/api/devices/reset' && request.method === 'POST') {
+      const device = await authorizedDevice(request, env.DB)
+      const replacement = request.headers.get('X-Device-Fingerprint')
+      if (!device || !/^[0-9a-f]{64}$/.test(replacement ?? '') || replacement === device.key_hash) return json({ error: 'invalid reset' }, 400)
+      const db = env.DB
+      const active = 'EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
+      const statements = [
+        db.prepare('INSERT INTO devices (key_hash, community_id) SELECT ?, ? WHERE ' + active)
+          .bind(replacement, device.community_id, device.key_hash),
+        ...['viewer_progress', 'viewer_movesets', 'viewer_held_items', 'shop_orders', 'kick_messages', 'shop_online', 'community_stream_status']
+          .map(table => db.prepare('DELETE FROM ' + table + ' WHERE community_id = ? AND ' + active).bind(device.community_id, device.key_hash)),
+        db.prepare('UPDATE community_owners SET key_hash = ? WHERE key_hash = ? AND ' + active).bind(replacement, device.key_hash, device.key_hash),
+        db.prepare('UPDATE devices SET revoked_at = ? WHERE key_hash = ? AND revoked_at IS NULL').bind(Date.now(), device.key_hash)
+      ]
+      const results = await db.batch(statements)
+      return results[0].meta.changes ? new Response(null, { status: 204 }) : json({ error: 'device changed' }, 409)
+    }
     if (path === '/api/devices/status' && request.method === 'GET') {
       const device = await authorizedDevice(request, env.DB)
       return device ? json({ community: device.community_id }) : json({ error: 'not paired' }, 404)
@@ -213,6 +237,19 @@ export default {
     if (request.method === 'GET' && path === '/api/health') {
       const migration = await env.DB.prepare('SELECT version FROM schema_version WHERE version = 1').first()
       return json({ status: migration ? 'ok' : 'unavailable' }, migration ? 200 : 503)
+    }
+    if (request.method === 'POST' && path === '/api/stream-status') {
+      const device = await authorizedDevice(request, env.DB)
+      if (!device) return json({ error: 'unauthorized' }, 401)
+      let platforms
+      try { platforms = await readBatch(request) } catch { return json({ error: 'invalid status' }, 400) }
+      if (!Array.isArray(platforms) || platforms.length > 2 || new Set(platforms.map(item => item?.provider)).size !== platforms.length ||
+          platforms.some(item => !['twitch', 'kick'].includes(item?.provider) || !/^[a-z0-9_-]{1,30}$/i.test(item.login ?? '') ||
+            typeof item.live !== 'boolean' || typeof item.thumbnail !== 'string' || item.thumbnail.length > 500)) return json({ error: 'invalid status' }, 400)
+      await env.DB.prepare('INSERT INTO community_stream_status VALUES (?, ?, ?) ON CONFLICT(community_id) DO UPDATE SET ' +
+        'seen_at = excluded.seen_at, platforms = excluded.platforms')
+        .bind(device.community_id, Date.now(), JSON.stringify(platforms)).run()
+      return new Response(null, { status: 204 })
     }
     if (request.method === 'POST' && path === '/api/sync') return synchronize(request, env.DB)
     if (request.method === 'POST' && path === '/api/devices/register') return registerDevice(request, env.DB)

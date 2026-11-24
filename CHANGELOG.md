@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0
+
+- Streamers can play in their own channels. Gameplay commands require the channel to be live and have a three-second cooldown per viewer.
+- New viewers receive a random starter. Existing viewers with an empty collection can also claim one using `!poke join`.
+- Wild encounters announce the standard Poké Ball catch chance. Streamers can set legendary encounter odds from 0% to 100%, with a default of 0.01%.
+- The portal shows live channels and a personal activity log. The desktop app shows recent chat, encounter history, and separate OBS preview links.
+- Kick replies use the app bot identity. Twitch replies can use a separate authorized Twitch bot account.
+- Streamers can reset their own community's registrations and progress after confirming. Viewers can rejoin afterward.
+- The Windows app can download and relaunch a newer release. Install 1.1.0 manually once if upgrading from 1.0.0.
+
 ## 1.0.0
 
 First public Windows x64 release. [Downloads and setup](https://github.com/Only4Dev/StreamCompanions/releases/tag/v1.0.0)

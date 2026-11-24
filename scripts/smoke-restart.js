@@ -34,12 +34,13 @@ async function start() {
 let commandId = 0
 function cdp(method, params = {}) {
   const id = ++commandId
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     const read = ({ data }) => {
       const message = JSON.parse(data)
       if (message.id !== id) return
       socket.removeEventListener('message', read)
-      resolve(message.result)
+      if (message.error) reject(new Error(message.error.message))
+      else resolve(message.result)
     }
     socket.addEventListener('message', read)
     socket.send(JSON.stringify({ id, method, params }))
@@ -66,7 +67,15 @@ async function send(action) {
 const state = async () => (await (await fetch(base + '/state', { headers: { Cookie: cookie } })).json())
 try {
   await start()
-  const evaluate = async expression => (await cdp('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })).result.value
+  const evaluate = async expression => {
+    for (let attempt = 0; ; attempt++) {
+      try { return (await cdp('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })).result.value }
+      catch (error) {
+        if (attempt >= 3 || !/context|navigation/i.test(error.message)) throw error
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+    }
+  }
   assert.equal(await evaluate(`(async()=>{
     for(let i=0;i<24 && !document.querySelector('.battle-preview');i++) await new Promise(r=>setTimeout(r,100));
     if(document.querySelector('[data-pane=home]').hidden || !document.querySelector('[data-pane=game]').hidden) return 'wrong startup pane';

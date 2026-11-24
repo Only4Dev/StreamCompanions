@@ -3,6 +3,28 @@ import assert from 'node:assert/strict'
 import { catchChance, createGame } from '../desktop/game.js'
 import { xpAtLevel } from '../ui/levels.js'
 
+test('an existing viewer with no Pokémon can claim a starter without a community reset', () => {
+  const catalog = [{ id: 1, name: 'Bulbasaur' }, { id: 150, name: 'Mewtwo', legendary: true }]
+  const game = createGame({ catalog, streamStarters: true, random: () => 0, progress: { viewers: {
+    'kick:1': { balls: { normal: 0 }, collection: {}, pokeDollars: 42 }
+  } } })
+  assert.equal(game.chat('kick:1', '!poke join', 'Viewer', 'kick'), 'joined')
+  assert.equal(game.starterName('kick:1'), 'Bulbasaur')
+  assert.equal(game.chat('kick:1', '!poke join', 'Viewer', 'kick'), 'alreadyJoined')
+  assert.equal(game.progress().viewers['kick:1'].pokeDollars, 42)
+  assert.equal(game.progress().viewers['kick:1'].balls.normal, 0)
+})
+
+test('the legendary encounter slider supports zero and guaranteed odds', () => {
+  const catalog = [{ id: 1, name: 'Bulbasaur' }, { id: 150, name: 'Mewtwo', legendary: true }]
+  for (const [legendaryChancePercent, expected] of [[0, 'Bulbasaur'], [100, 'Mewtwo']]) {
+    let now = 0
+    const game = createGame({ catalog, now: () => now, random: () => 0, progress: { config: { legendaryChancePercent } } })
+    now += 30 * 60_000
+    assert.equal(game.snapshot().encounter.name, expected)
+  }
+})
+
 test('DNA Booster purchases affect both variants and use a shared cap', () => {
   const viewerId = 'twitch:4'
   const game = createGame({ progress: { viewers: { [viewerId]: { collection: { Brasa: 0, 'Brasa ✦': 0 },

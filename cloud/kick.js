@@ -9,6 +9,7 @@ const binary = value => Uint8Array.from(atob(value), character => character.char
 const base64 = value => btoa(String.fromCharCode(...new Uint8Array(value)))
 const tokenId = () => crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '')
 let keyCache
+let appAccess
 
 async function verificationKey(refresh = false) {
   if (!refresh && keyCache?.expires > Date.now()) return keyCache.key
@@ -65,17 +66,19 @@ export async function kickWebhook(request, db) {
   try { event = JSON.parse(body) } catch { return json({ error: 'invalid event' }, 400) }
   const broadcaster = String(event.broadcaster?.user_id ?? '')
   const sender = String(event.sender?.user_id ?? '')
-  if (!/^\d{1,24}$/.test(broadcaster) || !/^\d{1,24}$/.test(sender) || sender === broadcaster ||
+  if (!/^\d{1,24}$/.test(broadcaster) || !/^\d{1,24}$/.test(sender) || event.sender?.is_bot ||
       event.sender?.is_anonymous || typeof event.content !== 'string') return new Response(null, { status: 204 })
   let content = event.content.trim().slice(0, 500)
   if (!content) return new Response(null, { status: 204 })
+  const displayText = content
   if (!content.startsWith('!')) {
     content = 'activity:' + base64(await crypto.subtle.digest('SHA-256', text.encode(content.toLowerCase())))
   }
-  await db.prepare('INSERT OR IGNORE INTO kick_messages (message_id, community_id, viewer_id, display_name, content, received_at) ' +
-    'SELECT ?, community_id, ?, ?, ?, ? FROM kick_channels WHERE broadcaster_id = ? ' +
+  await db.prepare('INSERT OR IGNORE INTO kick_messages (message_id, community_id, viewer_id, display_name, content, received_at, display_text) ' +
+    'SELECT ?, k.community_id, ?, ?, ?, ?, CASE WHEN EXISTS (SELECT 1 FROM community_stream_status s WHERE s.community_id = k.community_id AND s.seen_at > ?) THEN ? ELSE NULL END FROM kick_channels k WHERE broadcaster_id = ? ' +
     'AND (NOT EXISTS (SELECT 1 FROM erased_viewers WHERE viewer_id = ?) OR EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ?))')
-    .bind(id, 'kick:' + sender, String(event.sender.username ?? 'Viewer').slice(0, 100), content, Date.now(), broadcaster, 'kick:' + sender, 'kick:' + sender).run()
+    .bind(id, 'kick:' + sender, String(event.sender.username ?? 'Viewer').slice(0, 100), content, Date.now(), Date.now() - 90_000, displayText, broadcaster, 'kick:' + sender, 'kick:' + sender).run()
+  await db.prepare('UPDATE kick_messages SET display_text = NULL WHERE display_text IS NOT NULL AND received_at < ?').bind(Date.now() - 90_000).run()
   return new Response(null, { status: 204 })
 }
 
@@ -141,6 +144,29 @@ export async function completeKickLink(url, env) {
   return callbackPage('Canal conectado. Puedes volver a Stream Companions.')
 }
 
+async function kickLive(env, channel) {
+  if (!appAccess || appAccess.expires <= Date.now()) {
+    const config = providerConfig(env, 'kick')
+    if (!config) return null
+    const response = await fetch('https://id.kick.com/oauth/token', {
+      method: 'POST', body: new URLSearchParams({ grant_type: 'client_credentials', client_id: config.id, client_secret: config.secret }),
+      signal: AbortSignal.timeout(5000)
+    })
+    if (!response.ok) return null
+    const token = await response.json()
+    if (!token.access_token || !Number.isFinite(token.expires_in)) return null
+    appAccess = { token: token.access_token, expires: Date.now() + Math.max(0, token.expires_in - 30) * 1000 }
+  }
+  const response = await fetch(api + 'channels?broadcaster_user_id=' + channel.broadcaster_id, {
+    headers: { Authorization: 'Bearer ' + appAccess.token }, signal: AbortSignal.timeout(5000)
+  })
+  if (!response.ok) return null
+  const { data } = await response.json()
+  const found = data?.[0]
+  if (!found || typeof found.stream?.is_live !== 'boolean') return null
+  return { login: found.slug ?? channel.login, live: found.stream.is_live, thumbnail: found.stream.thumbnail ?? '' }
+}
+
 async function channelAccess(env, channel) {
   const token = await unseal(env, channel)
   if (token.expires > Date.now() + 90_000) return token.access
@@ -164,12 +190,15 @@ export async function kickDevice(request, url, env, device) {
   }
   const channel = await env.DB.prepare('SELECT * FROM kick_channels WHERE community_id = ?').bind(community).first()
   if (!channel) return request.method === 'GET' ? json({ connected: false, events: [] }) : json({ error: 'channel not connected' }, 409)
+  if (request.method === 'GET' && url.pathname === '/api/kick/live') {
+    try { return json({ channel: await kickLive(env, channel) }) } catch { return json({ channel: null }) }
+  }
   if (request.method === 'GET' && url.pathname === '/api/kick/events') {
     const cursor = Number(url.searchParams.get('after') ?? 0)
     if (!Number.isSafeInteger(cursor) || cursor < 0) return json({ error: 'invalid cursor' }, 400)
     const modern = url.searchParams.get('privacy') === '2'
     const { results } = await env.DB.prepare(
-      "WITH messages AS (SELECT m.sequence, m.viewer_id, m.display_name, m.content, (SELECT i.viewer_id FROM account_identities k JOIN account_identities i ON i.account_id = k.account_id WHERE k.viewer_id = m.viewer_id AND k.detached_at IS NULL AND i.viewer_id LIKE 'twitch:%' AND i.detached_at IS NULL ORDER BY i.viewer_id LIMIT 1) AS twitch_id " +
+      "WITH messages AS (SELECT m.sequence, m.viewer_id, m.display_name, m.content, m.display_text, m.received_at, (SELECT i.viewer_id FROM account_identities k JOIN account_identities i ON i.account_id = k.account_id WHERE k.viewer_id = m.viewer_id AND k.detached_at IS NULL AND i.viewer_id LIKE 'twitch:%' AND i.detached_at IS NULL ORDER BY i.viewer_id LIMIT 1) AS twitch_id " +
       'FROM kick_messages m WHERE m.community_id = ? AND m.sequence > ? AND m.received_at > ?) ' +
       'SELECT m.*, COALESCE(k.generation, 0) AS kick_generation, COALESCE(t.generation, 0) AS twitch_generation ' +
       'FROM messages m LEFT JOIN erased_viewers k ON k.viewer_id = m.viewer_id LEFT JOIN erased_viewers t ON t.viewer_id = m.twitch_id ' +
@@ -190,7 +219,7 @@ export async function kickDevice(request, url, env, device) {
     try {
       const response = await fetch(api + 'chat', {
         method: 'POST', headers: { Authorization: 'Bearer ' + await channelAccess(env, channel), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ broadcaster_user_id: Number(channel.broadcaster_id), content: data.message, type: 'user' })
+        body: JSON.stringify({ broadcaster_user_id: Number(channel.broadcaster_id), content: data.message, type: 'bot' })
       })
       const { data: sent } = await response.json().catch(() => ({}))
       return response.ok && sent?.is_sent ? new Response(null, { status: 204 }) : json({ error: 'Kick rejected reply' }, 502)

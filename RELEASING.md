@@ -17,6 +17,6 @@ Copy `cloud/wrangler.example.jsonc` to `cloud/wrangler.jsonc` and set your Worke
 
 ## Update policy
 
-**About → Check for updates** compares the installed version with the latest stable GitHub release. Users open the Releases page to download a newer build.
+**About → Check for updates** compares the installed version with the latest stable GitHub release. The portable Windows app can download the release ZIP, verify the SHA-256 digest published by GitHub, and relaunch from a new folder. Install 1.1.0 manually once when upgrading from 1.0.0.
 
-Incremental updates are planned. The app will verify a signed manifest and the hashes of the files it downloads. It will stage changes in a temporary folder and keep a rollback copy. Update packages will leave the Electron profile, SQLite, user settings, credentials, imported assets, and OBS URLs untouched.
+The app stages the complete ZIP before launching it. The previous installation remains available. Incremental patches with signed manifests are planned. Update packages will leave the Electron profile, SQLite, user settings, credentials, imported assets, and OBS URLs untouched.

@@ -45,10 +45,11 @@ export function openProgress(path) {
   let last = read.get()?.snapshot
   return {
     load: () => last === undefined ? undefined : JSON.parse(last),
-    save(progress) {
+    save(progress, { clearQueue = false } = {}) {
       const snapshot = JSON.stringify(progress)
-      if (snapshot === last && initialized) return
+      if (snapshot === last && initialized && !clearQueue) return
       transaction(() => {
+        if (clearQueue) database.exec('DELETE FROM viewer_sync')
         write.run(snapshot)
         for (const [id, generation] of Object.entries(progress.viewerGenerations ?? {})) erasePrevious.run(id, generation)
         for (const id of progress.erasedViewers ?? []) erase.run(id)
@@ -59,7 +60,7 @@ export function openProgress(path) {
           const metrics = { wins, losses, summonMinutes: Math.floor(summonSeconds / 60) }
           queue.run(id, JSON.stringify({ ...(progress.viewerGenerations?.[id] ? { generation: progress.viewerGenerations[id] } : {}), displayName: viewer.displayName ?? '', balls: viewer.balls, collection, metrics,
             heldItems: viewer.heldItems ?? [], rareCandies: viewer.rareCandies ?? 0, pokeDollars: viewer.pokeDollars ?? 0,
-            dnaBoosters: viewer.dnaBoosters ?? {} }))
+            dnaBoosters: viewer.dnaBoosters ?? {}, ...(viewer.log?.length ? { log: viewer.log } : {}) }))
         }
       })
       last = snapshot

@@ -10,7 +10,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
   for (const migration of ['0001_sync', '0002_portal', '0003_viewer_login', '0004_accounts', '0005_movesets', '0006_kick',
-    '0007_held_items', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations']) {
+    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status']) {
     db.exec(await readFile(new URL('./migrations/' + migration + '.sql', import.meta.url), 'utf8'))
   }
   const D1 = {
@@ -86,4 +86,16 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.equal((await upload(2, 1)).status, 200)
   assert.equal((await upload(undefined, 99)).status, 200)
   assert.equal(db.prepare('SELECT revision FROM viewer_progress').get().revision, 1)
+  const newToken = 'c'.repeat(64)
+  const newHash = createHash('sha256').update(newToken).digest('hex')
+  const reset = await worker.fetch(new Request(base + '/api/devices/reset', { method: 'POST', headers: {
+    Authorization: 'Bearer ' + token, 'X-Device-Fingerprint': newHash
+  } }), { DB: D1 })
+  assert.equal(reset.status, 204)
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM viewer_progress').get().count, 0)
+  assert.equal((await upload(2, 99)).status, 401)
+  const recovery = await worker.fetch(new Request(base + '/api/devices/status', {
+    headers: { Authorization: 'Bearer ' + newToken }
+  }), { DB: D1 })
+  assert.deepEqual(await recovery.json(), { community: 'stream' })
 })

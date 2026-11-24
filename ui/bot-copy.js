@@ -1,6 +1,12 @@
 export const botCopy = {
   es: {
     notice: '¡Aparecerá un Pokémon salvaje en {min} {unidad}!',
+    alreadyJoined: 'Ya estás registrado en esta comunidad.',
+    joined: '¡{viewer} se registró! Su inicial es {pokemon}. Usa !summon {pokemon}.',
+    wildAppeared: '¡Apareció {pokemon}! Probabilidad con Poké Ball: {chance} %.',
+    summoned: '¡{viewer} invocó a su compañero!',
+    removed: 'Compañero retirado.',
+    missingCreature: 'No tienes ese Pokémon o esa variante.',
     follow: 'Sigue el canal antes de usar !poke join.',
     joinFirst: 'Regístrate con !poke join antes de capturar.',
     noEncounter: 'No hay un Pokémon disponible para capturar ahora.',
@@ -18,6 +24,12 @@ export const botCopy = {
   },
   en: {
     notice: 'A wild Pokémon will appear in {min} {unidad}!',
+    alreadyJoined: 'You have already joined this community.',
+    joined: '{viewer} joined! Their starter is {pokemon}. Use !summon {pokemon}.',
+    wildAppeared: 'A wild {pokemon} appeared! Poké Ball catch chance: {chance}%.',
+    summoned: '{viewer} summoned their companion!',
+    removed: 'Companion withdrawn.',
+    missingCreature: 'You do not own that Pokémon or variant.',
     follow: 'Follow the channel before using !poke join.',
     joinFirst: 'Use !poke join before catching a Pokémon.',
     noEncounter: 'There is no Pokémon available to catch right now.',

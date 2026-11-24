@@ -100,14 +100,14 @@ function renderPage(body, status, language, theme, url) {
   const themeLabel = theme === 'dark' ? (language === 'en' ? 'Light mode' : 'Modo claro') : (language === 'en' ? 'Dark mode' : 'Modo oscuro')
   const themeLink = '<a href="/?' + escape(themeQuery) + '">' + themeLabel + '</a>'
   const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'same-origin',
-    'Content-Security-Policy': "default-src 'none'; script-src 'self'; img-src https://raw.githubusercontent.com; style-src 'unsafe-inline'; form-action 'self' https://id.kick.com https://id.twitch.tv; frame-ancestors 'none'" })
+    'Content-Security-Policy': "default-src 'none'; script-src 'self'; img-src https://raw.githubusercontent.com https://static-cdn.jtvnw.net https://*.kick.com; style-src 'unsafe-inline'; form-action 'self' https://id.kick.com https://id.twitch.tv; frame-ancestors 'none'" })
   headers.append('Set-Cookie', cookie('sc_lang', language, 31_536_000))
   headers.append('Set-Cookie', cookie('sc_theme', theme, 31_536_000))
   return new Response('<!doctype html><html lang="' + language + '" data-theme="' + theme + '"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
     '<title>Stream Companions</title><style>' + portalStyles + dexStyles + providerStyles + languageStyles + helpStyles + darkStyles + '</style>' +
     '<main><header class="mast"><span class="mark" aria-hidden="true">✦</span>Stream Companions<nav class="web-language" aria-label="Language">' + '<a class="help-header" href="?' + escape(new URLSearchParams({
       tab: 'help', ...(url.searchParams.get('community') ? { community: url.searchParams.get('community') } : {})
-    })) + '">' + (language === 'en' ? 'Help' : 'Ayuda') + '</a><a href="/?tab=about">' + aboutCopy[language].about + '</a>' + themeLink + languageLinks + '</nav></header>' + body + '</main></html>', { status, headers })
+    })) + '">' + (language === 'en' ? 'Help' : 'Ayuda') + '</a><a href="/?tab=about">' + aboutCopy[language].about + '</a><a href="/?tab=live">' + (language === 'en' ? 'Live' : 'En directo') + '</a>' + themeLink + languageLinks + '</nav></header>' + body + '</main></html>', { status, headers })
 }
 
 function redirect(location, cookies) {
@@ -145,6 +145,29 @@ export async function portal(request, url, env) {
   const t = text => language === 'en' ? webEnglish[text] ?? text : text
   const theme = (url.searchParams.get('theme') ?? getCookie(request, 'sc_theme')) === 'light' ? 'light' : 'dark'
   const page = (body, status = 200) => renderPage(body, status, language, theme, url)
+  if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'live') {
+    const { results } = await env.DB.prepare('SELECT community_id, seen_at, platforms FROM community_stream_status ORDER BY seen_at DESC LIMIT 100').all()
+    const title = language === 'en' ? 'Streaming communities' : 'Comunidades de streaming'
+    const cards = results.map(({ community_id, seen_at, platforms }) => {
+      const channels = JSON.parse(platforms)
+      const live = seen_at > Date.now() - 90_000
+      const links = channels.map(channel => {
+        if (!['twitch', 'kick'].includes(channel.provider) || !/^[a-z0-9_-]{1,30}$/i.test(channel.login)) return ''
+        const name = channel.provider === 'twitch' ? 'Twitch' : 'Kick'
+        const href = (channel.provider === 'twitch' ? 'https://www.twitch.tv/' : 'https://kick.com/') + channel.login
+        let thumbnail = ''
+        if (live && channel.live) try {
+          const url = new URL(channel.thumbnail.replace('{width}', '320').replace('{height}', '180'))
+          if (url.protocol === 'https:' && (url.hostname === 'static-cdn.jtvnw.net' || url.hostname.endsWith('.kick.com'))) {
+            thumbnail = '<img width="160" height="90" loading="lazy" alt="" src="' + escape(url.href) + '">'
+          }
+        } catch { /* platform did not supply a usable thumbnail */ }
+        return '<a href="' + escape(href) + '">' + thumbnail + escape(name + ' · ' + (live && channel.live ? (language === 'en' ? 'Live' : 'En directo') : 'Offline')) + '</a>'
+      }).join(' ')
+      return '<li><strong>' + escape(channels[0]?.login ?? community_id) + '</strong><div>' + links + '</div></li>'
+    }).join('')
+    return page('<section class="sheet"><h1>' + title + '</h1><ul class="community-list">' + cards + '</ul></section>')
+  }
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'about') {
     const about = aboutCopy[language]
     return page('<section class="sheet"><h1>' + about.about + '</h1><p><strong>Stream Companions</strong> · ' + about.version + ' ' + escape(appPackage.version) +
@@ -304,7 +327,7 @@ export async function portal(request, url, env) {
         '<p class="empty">' + t("Aún no tienes comunidades sincronizadas. Usa !poke join en el chat de un streamer participante.") + '</p>') +
       '</section>')
   }
-  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, pokeDollars = 0, dnaBoosters = {} } = JSON.parse(selected.payload)
+  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, pokeDollars = 0, dnaBoosters = {}, log = [] } = JSON.parse(selected.payload)
   const online = buying || url.searchParams.get('tab') === 'shop' || !editing && url.searchParams.has('pokemon')
     ? await env.DB.prepare('SELECT seen_at, prices, supports_dna FROM shop_online WHERE community_id = ?').bind(selected.community_id).first() : null
   const published = online?.prices ? JSON.parse(online.prices) : null
@@ -473,7 +496,7 @@ export async function portal(request, url, env) {
       '</section><script src="/assets/moveset.js" defer></script>')
   }
   const requestedTab = url.searchParams.get('tab')
-  const tab = ['inventory', 'overview', 'shop'].includes(requestedTab) ? requestedTab : 'dex'
+  const tab = ['inventory', 'overview', 'shop', 'log'].includes(requestedTab) ? requestedTab : 'dex'
   const shopLabel = language === 'en' ? 'Shop' : 'Tienda'
   let shopPage = ''
   if (tab === 'shop') {
@@ -500,6 +523,9 @@ export async function portal(request, url, env) {
           '<form method="post" action="' + escape(action) + '">' + button + '</form>' + (available && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
       }).join('') + '</ul></section>'
   }
+  const outcomes = en ?
+    { joined: 'Joined', caught: 'Caught', escaped: 'Escaped', noBalls: 'Out of Poké Balls', noEncounter: 'No wild Pokémon', summoned: 'Summoned', removed: 'Withdrawn', duplicateReward: 'Earned XP', alreadyCaught: 'Already caught', candyUsed: 'Used Rare Candy' } :
+    { joined: 'Registro', caught: 'Captura', escaped: 'Se escapó', noBalls: 'Sin Poké Balls', noEncounter: 'Sin encuentro activo', summoned: 'Invocado', removed: 'Retirado', duplicateReward: 'Ganó XP', alreadyCaught: 'Ya capturado', candyUsed: 'Usó Caramelo Raro' }
   const overviewLabel = language === 'en' ? 'Overview' : 'Resumen'
   const minutes = metrics.summonMinutes ?? 0
   const overview = '<section class="sheet"><h2>' + overviewLabel + '</h2><dl class="overview-stats">' +
@@ -569,13 +595,16 @@ export async function portal(request, url, env) {
   const actions = '<div class="album-actions"><a class="button" href="/?account=1">' + t("Cuentas vinculadas") + '</a><a class="button" href="/">' + t("Cambiar streamer") + '</a>' + logout + '</div>'
   const regionNav = regions.map(([id, label]) => '<a href="' + escape(href('dex', id)) + '"' +
     (id === region[0] ? ' aria-current="page"' : '') + '>' + label + '</a>').join('')
-  const nav = [['dex', 'Dex'], ['inventory', 'Inventory'], ['shop', shopLabel], ['overview', overviewLabel], ['help', helpLabel]]
+  const nav = [['dex', 'Dex'], ['inventory', 'Inventory'], ['shop', shopLabel], ['overview', overviewLabel], ['log', en ? 'Log' : 'Registro'], ['help', helpLabel]]
     .map(([name, label]) => '<a href="' + escape(href(name)) + '"' +
       (tab === name ? ' aria-current="page"' : '') + '>' + label + '</a>').join('')
   return page('<div class="toolbar"><div><p class="meta">Viewer · ' + escape(displayName) + '</p><h1>' + t("Tu álbum") + '</h1></div>' +
     actions + '</div><p class="meta community-label">' + t('Comunidad · ') + escape(selected.community_name ?? selected.community_id) + '</p><nav class="tabs" aria-label="Álbum">' + nav + '</nav>' +
     (tab === 'dex' ? borders + '<section class="sheet"><h2>Pokédex</h2><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><ol class="dex-grid">' + slots + '</ol></section>'
-      : tab === 'overview' ? overview : tab === 'shop' ? shopPage : inventoryPage) +
+      : tab === 'overview' ? overview : tab === 'shop' ? shopPage : tab === 'log' ?
+        '<section class="sheet"><h2>' + (en ? 'Activity log' : 'Registro de actividad') + '</h2><ul>' +
+        [...log].reverse().map(entry => '<li><time>' + escape(new Date(entry.at).toLocaleString(language, { timeZone: 'America/Lima' })) +
+          '</time> · ' + escape(entry.platform + ' · ' + entry.action + (Object.hasOwn(outcomes, entry.result) ? ' · ' + outcomes[entry.result] : '')) + '</li>').join('') + '</ul></section>' : inventoryPage) +
     '<div class="toolbar"><p class="meta">' + (updated ? t('Última sincronización · ') + escape(updated) + ' (Lima)' : t('Todavía no hay progreso sincronizado')) +
     '</p></div>')
 }
