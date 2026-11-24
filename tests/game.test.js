@@ -369,3 +369,20 @@ test('Spanish aliases register, catch, summon shiny and withdraw on the same sta
   assert.equal(game.snapshot().viewers.a.active.key, 'Brasa ✦')
   assert.equal(game.chat('a', '!retirar'), 'removed')
 })
+
+test('a battle pause keeps a live encounter catchable and resets the next spawn', () => {
+  let now = 0
+  const catalog = [{ id: 1, name: 'Bulbasaur' }]
+  const game = createGame({ catalog, now: () => now, random: () => 0 })
+  game.chat('viewer', '!poke join')
+  game.spawn('Bulbasaur')
+  game.setWildPaused(true)
+  assert.equal(game.chat('viewer', '!catch ball'), 'caught')
+  assert.equal(game.ballInventory('viewer').normal, 4)
+  now += 31 * 60_000
+  assert.equal(game.schedule(), null)
+  assert.equal(game.hasEncounter(), false)
+  assert.throws(() => game.spawn('Bulbasaur'), /paused/)
+  game.setWildPaused(false)
+  assert.equal(game.schedule(), now + 30 * 60_000)
+})
