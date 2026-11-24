@@ -48,7 +48,7 @@ async function twitchAppToken(config) {
   if (twitchAccess?.client === config.id && twitchAccess.expires > Date.now()) return twitchAccess.token
   const response = await fetch('https://id.twitch.tv/oauth2/token', {
     method: 'POST', body: new URLSearchParams({ grant_type: 'client_credentials', client_id: config.id, client_secret: config.secret }),
-    signal: AbortSignal.timeout(6000), redirect: 'error'
+    signal: AbortSignal.timeout(6000), redirect: 'manual'
   })
   if (!response.ok) return null
   const { access_token: token, expires_in: ttl } = await response.json()
@@ -58,23 +58,44 @@ async function twitchAppToken(config) {
 }
 
 export async function twitchProjectReply(request, env, device) {
-  if (!device) return json({ error: 'unauthorized' }, 401)
+  if (!device) return twitchFailure('deviceUnauthorized', 401)
   const { message } = await request.json().catch(() => ({})) ?? {}
   if (typeof message !== 'string' || !message.trim() || message.length > 500) return json({ error: 'invalid message' }, 400)
   const config = providerConfig(env, 'twitch')
-  if (!config) return json({ error: 'bot unavailable' }, 503)
+  if (!config) return twitchFailure('twitchAppNotConfigured', 503)
   const identity = await env.DB.prepare("SELECT o.twitch_id AS broadcaster, b.user_id AS sender FROM community_owners o JOIN project_bots b ON b.provider = 'twitch' WHERE o.community_id = ? AND o.key_hash = ?")
     .bind(device.community_id, device.key_hash).first()
-  if (!identity || identity.broadcaster === identity.sender) return json({ error: 'bot unavailable' }, 409)
+  if (!identity) return twitchFailure('twitchChannelNotPaired', 409)
+  if (identity.broadcaster === identity.sender) return twitchFailure('twitchSameAccount', 409)
+  let phase = 'token'
   try {
     const token = await twitchAppToken(config)
-    if (!token) return json({ error: 'bot unavailable' }, 503)
+    if (!token) return twitchFailure('twitchAppTokenRejected', 503)
+    phase = 'send'
     const response = await fetch('https://api.twitch.tv/helix/chat/messages', {
       method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Client-Id': config.id, 'Content-Type': 'application/json' },
       body: JSON.stringify({ broadcaster_id: identity.broadcaster, sender_id: identity.sender, message }),
-      signal: AbortSignal.timeout(6000), redirect: 'error'
+      signal: AbortSignal.timeout(6000), redirect: 'manual'
     })
-    if (response.ok && (await response.json()).data?.[0]?.is_sent === true) return new Response(null, { status: 204 })
-    return json({ error: 'Twitch rejected bot message' }, 502)
-  } catch { return json({ error: 'Twitch bot unavailable' }, 502) }
+    const payload = await response.json().catch(() => ({}))
+    const delivery = payload?.data?.[0]
+    if (response.ok && delivery?.is_sent === true) return new Response(null, { status: 204 })
+    const drop = delivery?.drop_reason?.code
+    if (response.status === 401) {
+      const detail = typeof payload?.message === 'string' ? payload.message.toLowerCase() : ''
+      const reason = detail.includes('user:bot') || detail.includes('user:write:chat') ? 'twitchBotGrant' :
+        detail.includes('channel:bot') ? 'twitchChannelGrant' : 'twitchUnauthorized'
+      return twitchFailure(reason, 502, response.status)
+    }
+    return twitchFailure(response.status === 403 ? 'twitchChatRestricted' : response.status === 429 ? 'twitchRateLimited' :
+      drop === 'automod_held' ? 'twitchAutoMod' : 'twitchMessageRejected', 502, response.status)
+  } catch (error) {
+    console.warn('Shared Twitch bot transport failed', phase, error.name, error.cause?.code ?? '')
+    return twitchFailure('twitchUnavailable', 502)
+  }
+}
+
+function twitchFailure(reason, status, providerStatus) {
+  console.warn('Shared Twitch bot delivery failed', reason, providerStatus ?? '')
+  return json({ error: 'Twitch bot delivery failed', reason, providerStatus }, status)
 }
