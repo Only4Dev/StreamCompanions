@@ -38,11 +38,13 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   if (!savedConfig.summonXpTuned && config.summonXpPerSecond === 1) config.summonXpPerSecond = defaultSummonXpPerSecond
   config.summonXpPerSecond ??= defaultSummonXpPerSecond
   config.battleXpPerOpponent ??= 120
+  config.summonMoneyPerMinute ??= 50
   config.battleEveryEncounters ??= 5
   config.battleEnabled ??= 0
   config.battleHpMultiplier ??= 1
   config.shopPrices = normalizeShopPrices(config.shopPrices ?? {}) ?? normalizeShopPrices({})
   let encounter = null
+  let wildPaused = false
   let encounterCount = 0
   let savedEncounters = progress?.statistics?.encounters ?? 0
   let savedCaptures = progress?.statistics?.captures ?? 0
@@ -116,6 +118,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   }
 
   function spawn(name) {
+    if (wildPaused) throw new Error("Wild encounters are paused for battle")
     const entry = byName.get(name)
     if (!entry || evolutionParent(entry.id)) throw new Error('Invalid wild creature')
     const time = now()
@@ -132,7 +135,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     if (config.running === false) return
     const time = now()
     if (encounter?.catchUntil <= time) encounter = null
-    if (!encounter && nextAt <= time) {
+    if (!wildPaused && !encounter && nextAt <= time) {
       if (nextLegendary) {
         spawn(nextLegendary)
         nextLegendary = undefined
@@ -154,7 +157,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       const after = Math.floor(viewer.metrics.summonSeconds / 60)
       for (let minute = before; minute < after; minute++) {
         const candy = random() < .05
-        const money = 50
+        const money = config.summonMoneyPerMinute
         if (candy) viewer.rareCandies = (viewer.rareCandies ?? 0) + 1
         if (money) viewer.pokeDollars = (viewer.pokeDollars ?? 0) + money
         if (candy || money) active.pickup = { at: until, candy, money }
@@ -314,7 +317,12 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       viewer.balls.master++
       return true
     },
-    hasEncounter: () => Boolean(encounter),
+    hasEncounter: () => Boolean(encounter && encounter.catchUntil > now()),
+    ballInventory: id => viewers.get(id)?.balls,
+    setWildPaused(paused) {
+      if (wildPaused && !paused) nextAt = now() + config.interval * 60_000
+      wildPaused = paused
+    },
     spawn,
     setRunning(running) {
       if ((config.running !== false) === running) return
@@ -330,7 +338,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     },
     schedule() {
       tick()
-      return nextAt
+      return wildPaused ? null : nextAt
     },
     chat(id, message, displayName, channel = 'local') {
       const result = chat(id, message, displayName, channel)
@@ -390,7 +398,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     snapshot() {
       tick()
       const visibleEncounter = encounter && now() < encounter.endsAt ? encounter : null
-      return structuredClone({ config, encounter: visibleEncounter, nextAt, nextLegendary, notice, recentCaptures,
+      return structuredClone({ config, encounter: visibleEncounter, nextAt: wildPaused ? null : nextAt, nextLegendary, notice, recentCaptures,
         encounterCount: encounterCount - encounterBaseline, captureCount: captureSequence - captureBaseline,
         statistics: statistics(), viewers: Object.fromEntries(viewers) })
     },
@@ -434,7 +442,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       }
     },
     configure(values) {
-      const { summonXpPerSecond = config.summonXpPerSecond, battleXpPerOpponent = config.battleXpPerOpponent } = values
+      const { summonMoneyPerMinute = config.summonMoneyPerMinute, summonXpPerSecond = config.summonXpPerSecond, battleXpPerOpponent = config.battleXpPerOpponent } = values
       const { battleEveryEncounters = config.battleEveryEncounters } = values
       const { battleEnabled = config.battleEnabled, battleHpMultiplier = config.battleHpMultiplier } = values
       const { interval, duration, catchGraceSeconds = config.catchGraceSeconds, legendaryChancePercent = config.legendaryChancePercent, shiny, nameLimit = config.nameLimit, visibleLimit = config.visibleLimit, spriteScale = config.spriteScale, duplicateMode = config.duplicateMode, duplicateXpPercent = config.duplicateXpPercent } = values
@@ -448,12 +456,13 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
           !Number.isInteger(spriteScale) || spriteScale < 50 || spriteScale > 300 ||
           ![0, 1, 2].includes(duplicateMode) ||
           !Number.isInteger(duplicateXpPercent) || duplicateXpPercent < 1 || duplicateXpPercent > 100 ||
+          !Number.isInteger(summonMoneyPerMinute) || summonMoneyPerMinute < 0 || summonMoneyPerMinute > 100_000 ||
           !Number.isFinite(summonXpPerSecond) || summonXpPerSecond < 0 || summonXpPerSecond > 100 ||
           !Number.isSafeInteger(battleXpPerOpponent) || battleXpPerOpponent < 0 || battleXpPerOpponent > 10000 ||
           !Number.isSafeInteger(battleEveryEncounters) || battleEveryEncounters < 0 || battleEveryEncounters > 100 ||
           ![0, 1].includes(battleEnabled) || ![1, 1.5, 2].includes(battleHpMultiplier)) throw new Error('Invalid configuration')
       Object.assign(config, { interval, duration, catchGraceSeconds, legendaryChancePercent, shiny, nameLimit, visibleLimit, spriteScale, duplicateMode, duplicateXpPercent })
-      Object.assign(config, { summonXpPerSecond, battleXpPerOpponent, battleEveryEncounters, battleEnabled, battleHpMultiplier })
+      Object.assign(config, { summonMoneyPerMinute, summonXpPerSecond, battleXpPerOpponent, battleEveryEncounters, battleEnabled, battleHpMultiplier })
       if (Object.hasOwn(values, 'summonXpPerSecond')) config.summonXpTuned = true
       nextAt = Math.max(now() + interval * 60_000, encounter?.catchUntil ?? 0)
     }

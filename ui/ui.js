@@ -51,10 +51,10 @@ Object.assign(labels.es, { obsTitle: 'Fuentes de navegador para OBS', obsHelp: '
 Object.assign(labels.en, { obsTitle: 'OBS browser sources', obsHelp: 'Add one browser source per link. Set the companions source to 1920 × 550.',
   obsEncounter: 'Wild encounters', obsCompanions: 'Summoned companions', obsCopy: 'Copy link', obsCopied: 'Link copied.', obsCopyError: 'Select the link and copy it manually.' })
 
-Object.assign(labels.es, { summonXpPerSecond: 'XP por segundo invocado', battleXpPerOpponent: 'XP de victoria por rival' })
-Object.assign(labels.en, { summonXpPerSecond: 'Summon XP per second', battleXpPerOpponent: 'Victory XP per opponent' })
-Object.assign(labels.es, { battleEveryEncounters: 'Salvajes por batalla (0 = manual)', startBattle: 'Iniciar batalla', battleNeedsPlayers: 'Necesitas dos compañeros activos.', battleUnavailable: 'Inicia el juego y espera a que termine la batalla anterior.', battleStarted: 'Batalla iniciada.' })
-Object.assign(labels.en, { battleEveryEncounters: 'Wild encounters per battle (0 = manual)', startBattle: 'Start battle', battleNeedsPlayers: 'At least two companions must be active.', battleUnavailable: 'Start the game and wait for the current battle to finish.', battleStarted: 'Battle started.' })
+Object.assign(labels.es, { summonMoneyPerMinute: 'Pokédólares por minuto invocado', summonXpPerSecond: 'XP por segundo invocado', battleXpPerOpponent: 'XP de victoria por rival' })
+Object.assign(labels.en, { summonMoneyPerMinute: 'Pokédollars per summon minute', summonXpPerSecond: 'Summon XP per second', battleXpPerOpponent: 'Victory XP per opponent' })
+Object.assign(labels.es, { battleEveryEncounters: 'Salvajes por batalla (0 = manual)', startBattle: 'Iniciar batalla', battleNeedsPlayers: 'Necesitas dos compañeros activos.', battleUnavailable: 'Inicia el juego y espera a que termine la batalla anterior.', battleStarted: 'Batalla programada. Se esperará a que termine cualquier encuentro activo.' })
+Object.assign(labels.en, { battleEveryEncounters: 'Wild encounters per battle (0 = manual)', startBattle: 'Start battle', battleNeedsPlayers: 'At least two companions must be active.', battleUnavailable: 'Start the game and wait for the current battle to finish.', battleStarted: 'Battle queued. Any active encounter will finish first.' })
 
 Object.assign(labels.es, { battleEnabled: 'Batallas', battleOff: 'Deshabilitadas', battleOn: 'Habilitadas', battleHpMultiplier: 'Multiplicador de PS', battleUnavailable: 'Habilita las batallas, inicia el juego y espera a que termine la ronda anterior.' })
 Object.assign(labels.en, { battleEnabled: 'Battles', battleOff: 'Disabled', battleOn: 'Enabled', battleHpMultiplier: 'HP multiplier', battleUnavailable: 'Enable battles, start the game, and wait for the previous round to finish.' })
@@ -90,6 +90,7 @@ const tips = {
   spriteScale: ['Escala general de los compañeros en la fuente.', 'Overall companion size in the browser source.'],
   nameLimit: ['Oculta las etiquetas cuando hay más compañeros que este número.', 'Hides name labels when more companions are on screen than this number.'],
   visibleLimit: ['Máximo a la vez. Tienen prioridad las invocaciones recientes.', 'Maximum at once. Most recent summons appear first.'],
+  summonMoneyPerMinute: ["Pokédólares por cada minuto con un compañero invocado.", "Pokédollars per minute with a summoned companion."],
   summonXpPerSecond: ['XP por segundo de invocación activa.', 'XP per second while summoned and active.'],
   battleXpPerOpponent: ['El Pokémon ganador recibe esta XP por cada rival.', 'The winner receives this much XP for each opponent.'],
   battleEveryEncounters: ['Intenta iniciar tras este número de encuentros si hay dos compañeros. Usa 0 para inicio manual.', 'Tries to start after this many encounters with two companions. Use 0 for manual only.'],
@@ -114,8 +115,8 @@ labels.en.openPortal = 'Open web portal'
 Object.assign(labels.es, { legendaryChancePercent: 'Aparición legendaria (%)', resetCancel: 'Cancelar', resetCommunity: 'Borrar progreso de la comunidad', resetPrompt: 'Esto borra los registros y el progreso de todos los viewers de esta comunidad. Escribe RESET para confirmar.', resetDone: 'Progreso borrado. Los viewers deben registrarse de nuevo.', resetPending: 'Borrado pendiente. La app volverá a intentarlo.', summonSourcePreview: 'Vista previa de invocaciones (fuente)', battleSourcePreview: 'Vista previa de batalla (fuente)', activityTab: 'Registro', liveChatTab: 'Chat', liveChatHelp: 'Mensajes recientes de los chats conectados.', connectTwitchBot: 'Vincular bot de Twitch', botAccountHelp: 'Por defecto Twitch responde desde la cuenta del canal. Para usar un nombre de usuario distinto, vincula una cuenta de bot.' })
 Object.assign(labels.en, { legendaryChancePercent: 'Legendary encounter chance (%)', resetCancel: 'Cancel', resetCommunity: 'Reset community progress', resetPrompt: 'This deletes all viewer registrations and progress for this community. Type RESET to confirm.', resetDone: 'Progress deleted. Viewers must join again.', resetPending: 'Reset pending. The app will retry.', summonSourcePreview: 'Summon preview (source)', battleSourcePreview: 'Battle preview (source)', activityTab: 'Log', liveChatTab: 'Chat', liveChatHelp: 'Recent messages from connected chats.', connectTwitchBot: 'Link Twitch bot', botAccountHelp: 'Twitch uses the channel account by default. Link a separate bot account to send from a different username.' })
 
-Object.assign(labels.es, { kickBotHelp: 'Kick intenta enviar como bot de Stream Companions y usa la cuenta del canal si Kick rechaza el bot.', testTwitchBot: 'Probar Twitch', testKickBot: 'Probar Kick', botTestOffline: 'El canal no está conectado.', botTestFailed: 'No se pudo enviar. Revisa la conexión del canal y vuelve a probar.', botTestChannel: 'Mensaje enviado desde la cuenta del canal.', botTestBot: 'Mensaje enviado desde el bot.' })
-Object.assign(labels.en, { kickBotHelp: 'Kick tries to send as the Stream Companions bot and uses the channel account if Kick rejects the bot.', testTwitchBot: 'Test Twitch', testKickBot: 'Test Kick', botTestOffline: 'The channel is not connected.', botTestFailed: 'Could not send. Check the channel connection and try again.', botTestChannel: 'Message sent from the channel account.', botTestBot: 'Message sent from the bot.' })
+Object.assign(labels.es, { kickBotHelp: 'Kick envía desde el bot de Stream Companions. Vincula el canal y usa Probar Kick para comprobarlo.', testTwitchBot: 'Probar Twitch', testKickBot: 'Probar Kick', botTestOffline: 'El canal no está conectado.', botTestFailed: 'El bot no pudo enviar. Revisa su vinculación y permisos.', botTestChannel: 'Mensaje enviado desde la cuenta del canal.', botTestBot: 'Mensaje enviado desde el bot.' })
+Object.assign(labels.en, { kickBotHelp: 'Kick sends as the Stream Companions bot. Link the channel and use Test Kick to check it.', testTwitchBot: 'Test Twitch', testKickBot: 'Test Kick', botTestOffline: 'The channel is not connected.', botTestFailed: 'The bot could not send. Check its connection and permissions.', botTestChannel: 'Message sent from the channel account.', botTestBot: 'Message sent from the bot.' })
 let botTestPlatform
 function renderActivity(id, entries) {
   const node = document.getElementById(id)
@@ -359,7 +360,7 @@ async function refresh() {
   $('game-status').textContent = running
     ? (english ? 'Game active. Stopping ends current encounters and summons.' : 'Juego activo. Detenerlo termina el encuentro y las invocaciones actuales.')
     : (english ? 'Game stopped. Your connected accounts stay linked.' : 'Juego detenido. Las cuentas siguen vinculadas.')
-  $('next').textContent = running ? remaining(state.nextAt) : '—'
+  $('next').textContent = running && state.nextAt ? remaining(state.nextAt) : '—'
   $('wild-count').textContent = state.encounterCount
   $('caught-count').textContent = state.captureCount
   $('total-encounters').textContent = state.statistics.encounters

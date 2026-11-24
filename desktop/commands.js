@@ -2,10 +2,10 @@ const aliases = new Map([
   ['!captura', '!catch'], ['!capturar', '!catch'],
   ['!invocar', '!summon'], ['!invocarshiny', '!summonshiny'],
   ['!retirar', '!summon out'], ['!registrar', '!poke join'],
-  ['!caramelo', '!candy'],
+  ['!caramelo', '!candy'], ['!bolas', '!balls'],
   ['!evolución', '!evolve'], ['!evolucion', '!evolve'], ['!evolucionar', '!evolve']
 ])
-const ballAliases = { normal: 'normal', super: 'great', 'súper': 'great', ultra: 'ultra', maestra: 'master' }
+const ballAliases = { ball: 'normal', normal: 'normal', super: 'great', 'súper': 'great', ultra: 'ultra', maestra: 'master' }
 
 export function normalizeCommand(raw) {
   const text = raw.trim()

@@ -60,21 +60,32 @@ const rememberChat = (platform, name, message) => remember(localChat, { platform
 const isLive = provider => liveChannels.get(provider)?.live === true
 function chatAction(viewer, displayName, text, platform) {
   if (pendingReset || !isLive(platform)) return ''
-  const action = normalizeCommand(text).split(' ')[0]
+  const [action, ball = 'normal'] = normalizeCommand(text).split(' ')
   if (action.startsWith('!')) {
-    if (!['!poke', '!catch', '!summon', '!summonshiny', '!evolve', '!candy'].includes(action)) return ''
+    if (!['!poke', '!catch', '!summon', '!summonshiny', '!evolve', '!candy', '!balls'].includes(action)) return ''
     const now = Date.now()
-    for (const [id, at] of commandTimes) if (now - at >= 3000) commandTimes.delete(id)
+    for (const [id, at] of commandTimes) if (now - at >= 5000) commandTimes.delete(id)
     if (commandTimes.has(viewer)) return ''
     commandTimes.set(viewer, now)
   }
+  const balls = game.ballInventory(viewer)
+  const en = bot.language === 'en'
+  const names = { normal: 'Poké Ball', great: en ? 'Great Ball' : 'Super Ball', ultra: 'Ultra Ball', master: 'Master Ball' }
+  if (action === '!balls') {
+    if (!balls) return { code: 'joinFirst', viewer: displayName }
+    const inventory = Object.entries(names).filter(([key]) => balls[key] > 0)
+      .map(([key, name]) => name + ' ×' + balls[key]).join(' · ')
+    return { code: 'ballInventory', viewer: displayName, inventory: inventory || (en ? 'No Poké Balls' : 'Sin Poké Balls') }
+  }
   const result = game.chat(viewer, text, displayName, platform)
+  const balance = { ball: names[ball], remaining: balls?.[ball] }
   if (action.startsWith('!')) {
     remember(activityLog, { platform, name: displayName, message: text.slice(0, 120), result })
     game.recordAction(viewer, { platform, action: normalizeCommand(text).slice(0, 120), result })
     persistGame()
   }
-  if (result === 'caught' || result === 'duplicateReward') return { code: 'catchSuccess', ...game.latestCapture() }
+  if (result === 'caught' || result === 'duplicateReward') return { code: 'catchSuccess', ...game.latestCapture(), ...balance }
+  if (result === 'escaped' || result === 'noBalls') return { code: result, viewer: displayName, ...balance }
   if (result === 'joined' && game.starterName(viewer)) return { code: 'joined', viewer: displayName, pokemon: game.starterName(viewer) }
   return result === 'joined' ? '' : { code: result, viewer: displayName }
 }
@@ -393,7 +404,7 @@ function kickRequest(path, body) {
 }
 
 async function sendKickMessage(message) {
-  const response = await kickRequest('reply', { message: message.slice(0, 500) })
+  const response = await kickRequest('reply', { message: message.slice(0, 500), botOnly: true })
   if (!response.ok) return false
   return response.headers.get('X-Chat-Identity') || 'bot'
 }
@@ -538,20 +549,22 @@ async function runCommunityBattle(waitForBanner) {
 
 function tickBattleSchedule() {
   const every = game.config.battleEveryEncounters
-  if (!game.config.battleEnabled || !every) { battleDueAt = 0; return }
-  if (!every || game.config.running === false || battleStarting || (communityBattle && !communityBattle.battle.over)) return
+  if (!game.config.battleEnabled || game.config.running === false) battleDueAt = 0
+  game.setWildPaused(Boolean(battleDueAt || battleStarting || (communityBattle && !communityBattle.battle.over)))
+  if (!game.config.battleEnabled || game.config.running === false || battleStarting || (communityBattle && !communityBattle.battle.over)) return
   if (battleDueAt) {
-    if (Date.now() < battleDueAt) return
+    if (Date.now() < battleDueAt || game.hasEncounter()) return
     battleDueAt = 0
     startCommunityBattle(true).catch(() => {})
     return
   }
-  if (game.encounterCount() - lastBattleEncounter < every || game.hasEncounter()) return
+  if (!every || game.encounterCount() - lastBattleEncounter < every || game.hasEncounter()) return
   const active = Object.keys(game.overlay('companions').viewers).filter(id => /^(twitch|kick):\d+$/.test(id))
   if (active.length < 2) return
   battleDueAt = Date.now() + 300_000
+  game.setWildPaused(true)
   const message = botSignature(bot, bot.language === 'en' ? 'Battle royale starts in 5 minutes!' : '¡La batalla campal empieza en 5 minutos!')
-  Promise.allSettled([disconnectTwitch?.announce(message), kickConnected ? sendKickMessage(message) : undefined])
+  Promise.allSettled([isLive('twitch') ? disconnectTwitch?.announce(message) : undefined, isLive('kick') ? sendKickMessage(message) : undefined])
 }
 
 const routes = new Map([
@@ -675,9 +688,15 @@ const server = createServer(async (req, res) => {
         return
       }
       if (action.startCommunityBattle === true) {
-        const status = await startCommunityBattle(true)
-        if (status === 204) battleDueAt = 0
-        res.writeHead(status).end()
+        if (!game.config.battleEnabled || game.config.running === false || battleDueAt || battleStarting ||
+            (communityBattle && !communityBattle.battle.over)) return res.writeHead(409).end()
+        const active = Object.keys(game.overlay('companions').viewers).filter(id => /^(twitch|kick):d+$/.test(id))
+        if (active.length < 2) return res.writeHead(422).end()
+        battleDueAt = Date.now() + 60_000
+        game.setWildPaused(true)
+        const message = botSignature(bot, bot.language === 'en' ? 'Battle royale starts in 1 minute!' : '¡La batalla campal empieza en 1 minuto!')
+        Promise.allSettled([isLive('twitch') ? disconnectTwitch?.announce(message) : undefined, isLive('kick') ? sendKickMessage(message) : undefined])
+        res.writeHead(204).end()
         return
       }
       if (action.bot || Object.hasOwn(action, 'language')) {
@@ -972,7 +991,9 @@ app.whenReady().then(() => {
       isRunning: () => twitchAllowed() && isLive('twitch') && game.config.running !== false,
       allowOwner: true,
       onChat: (name, message) => rememberChat('twitch', name, message),
+      botOnly: true,
       async sendReply(broadcaster, message) {
+        if (twitchBot?.identity()?.user_id === broadcaster) return false
         try { return await twitchBot?.sendTo(broadcaster, message) }
         catch (error) {
           if ([401, 403].includes(error.status)) return false
@@ -1006,6 +1027,7 @@ app.whenReady().then(() => {
     })
     noticeTimer = setInterval(() => {
       if (game.config.running === false) return
+      tickBattleSchedule()
       const wild = game.overlay('encounter').encounter
       if (wild && wild.id !== lastWild) {
         lastWild = wild.id
@@ -1021,7 +1043,6 @@ app.whenReady().then(() => {
       notices(game.schedule(), botResponse(bot, 'notice'), bot.language).catch(error => {
         console.warn('Could not send encounter notice:', error.message)
       })
-      tickBattleSchedule()
     }, 1000)
   }
   checkpoint = setInterval(persistGame, 15_000)

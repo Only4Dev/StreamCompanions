@@ -228,7 +228,7 @@ export async function kickDevice(request, url, env, device) {
       }
       const bot = await send('bot')
       if (bot.sent) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'bot' } })
-      if (bot.rejected && (await send('user')).sent) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'channel' } })
+      if (data.botOnly !== true && bot.rejected && (await send('user')).sent) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'channel' } })
       return json({ error: 'Kick rejected reply' }, 502)
     } catch { return json({ error: 'Kick reply unavailable' }, 502) }
   }

@@ -59,7 +59,7 @@ export function twitchChatHandler({ owner, follows, command, reply, webUrl, getB
   }
 }
 
-export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, command, webUrl, getBot, isRunning, savedToken, saveToken = () => {}, sendOnly = false, sendReply, allowOwner = false, onChat }) {
+export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, command, webUrl, getBot, isRunning, savedToken, saveToken = () => {}, sendOnly = false, sendReply, botOnly = false, allowOwner = false, onChat }) {
   const requestedScopes = sendOnly ? 'user:write:chat' : scopes
   const stop = new AbortController()
   let socket
@@ -303,6 +303,7 @@ export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, 
   async function sendChat(message) {
     if (!identity || signal.aborted) return false
     if (sendReply && await sendReply(identity.user_id, message)) return 'bot'
+    if (botOnly) return false
     const sent = await api('chat/messages', {
       broadcaster_id: identity.user_id, sender_id: identity.user_id, message
     })
