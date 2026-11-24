@@ -5,6 +5,7 @@
 - Restore chat replies and encounter announcements without requiring a separate bot account. Twitch can still use a linked bot account. Kick falls back to the channel account only when its bot message is rejected.
 - Add test buttons in the Bot tab to confirm delivery and sender identity.
 - Active companions earn 50 Pokédollars per minute and continue gaining XP without chat activity.
+- Fix Windows update validation when Electron represents an ASAR archive as a folder. Users on 1.1.0 need to download this corrected build once.
 
 ## 1.1.0
 

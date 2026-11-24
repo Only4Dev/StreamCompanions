@@ -22,6 +22,11 @@ export function releaseArchive(version, asset) {
   return { url, size: asset.size, digest: asset.digest.slice(7) }
 }
 
+export function isAppArchive(entry) {
+  // Electron exposes the root of a valid ASAR as a virtual directory.
+  return entry.isFile() || Boolean(process.versions.electron && entry.isDirectory())
+}
+
 export async function stageUpdate(profile, { version, archive }, shutdown) {
   if (!versionPattern.test(version ?? '') || !archive) throw new Error('Release has no verified Windows archive')
   const signal = AbortSignal.any([shutdown, AbortSignal.timeout(180_000)])
@@ -67,7 +72,7 @@ export async function stageUpdate(profile, { version, archive }, shutdown) {
     const target = join(stage, 'app')
     await mkdir(target)
     await run(tar, ['-xf', zip, '-C', target], flags)
-    if (!(await stat(join(target, executable))).isFile() || !(await stat(join(target, 'resources', 'app.asar'))).isFile()) {
+    if (!(await stat(join(target, executable))).isFile() || !isAppArchive(await stat(join(target, 'resources', 'app.asar')))) {
       throw new Error('Release is missing app files')
     }
     // Keep the existing installation intact. Each update launches from its own folder.
