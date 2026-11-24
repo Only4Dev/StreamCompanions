@@ -262,9 +262,7 @@ export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, 
       follows: async viewer => (await api('channels/followers?' + new URLSearchParams({
         broadcaster_id: identity.user_id, user_id: viewer
       }))).data.length > 0,
-      reply: message => sendReply ? sendReply(identity.user_id, message) : api('chat/messages', {
-        broadcaster_id: identity.user_id, sender_id: identity.user_id, message
-      })
+      reply: sendChat
     })
     open()
   }
@@ -302,17 +300,21 @@ export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, 
     }
   }
   start().catch(fail)
+  async function sendChat(message) {
+    if (!identity || signal.aborted) return false
+    if (sendReply && await sendReply(identity.user_id, message)) return 'bot'
+    const sent = await api('chat/messages', {
+      broadcaster_id: identity.user_id, sender_id: identity.user_id, message
+    })
+    return sent.data?.[0]?.is_sent ? 'channel' : false
+  }
   disconnect.announce = async message => {
     if (!chatConnected || signal.aborted) return false
     const streams = await api('streams?' + new URLSearchParams({ user_id: identity.user_id }))
     if (!streams.data.length || !chatConnected || signal.aborted) return false
-    if (sendReply) return sendReply(identity.user_id, message)
-    const sent = await api('chat/messages', {
-      broadcaster_id: identity.user_id, sender_id: identity.user_id, message
-    })
-    if (!sent.data[0]?.is_sent) throw new Error('Twitch rechazó el aviso del encuentro')
-    return true
+    return sendChat(message)
   }
+  disconnect.testChat = message => chatConnected ? sendChat(message) : false
   disconnect.identity = () => identity
   disconnect.sendTo = async (broadcaster, message) => {
     if (!identity || signal.aborted || identity.user_id === broadcaster) return false

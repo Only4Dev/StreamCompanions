@@ -217,12 +217,19 @@ export async function kickDevice(request, url, env, device) {
     const data = await request.json().catch(() => null)
     if (typeof data?.message !== 'string' || !data.message || data.message.length > 500) return json({ error: 'invalid message' }, 400)
     try {
-      const response = await fetch(api + 'chat', {
-        method: 'POST', headers: { Authorization: 'Bearer ' + await channelAccess(env, channel), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ broadcaster_user_id: Number(channel.broadcaster_id), content: data.message, type: 'bot' })
-      })
-      const { data: sent } = await response.json().catch(() => ({}))
-      return response.ok && sent?.is_sent ? new Response(null, { status: 204 }) : json({ error: 'Kick rejected reply' }, 502)
+      const headers = { Authorization: 'Bearer ' + await channelAccess(env, channel), 'Content-Type': 'application/json' }
+      const send = async type => {
+        const response = await fetch(api + 'chat', {
+          method: 'POST', headers, signal: AbortSignal.timeout(6000),
+          body: JSON.stringify({ broadcaster_user_id: Number(channel.broadcaster_id), content: data.message, type })
+        })
+        const payload = await response.json().catch(() => ({}))
+        return { sent: response.ok && payload.data?.is_sent === true, rejected: [400, 401, 403, 404].includes(response.status) || (response.ok && payload.data?.is_sent === false) }
+      }
+      const bot = await send('bot')
+      if (bot.sent) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'bot' } })
+      if (bot.rejected && (await send('user')).sent) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'channel' } })
+      return json({ error: 'Kick rejected reply' }, 502)
     } catch { return json({ error: 'Kick reply unavailable' }, 502) }
   }
   return json({ error: 'not found' }, 404)

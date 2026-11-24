@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1
+
+- Restore chat replies and encounter announcements without requiring a separate bot account. Twitch can still use a linked bot account. Kick falls back to the channel account only when its bot message is rejected.
+- Add test buttons in the Bot tab to confirm delivery and sender identity.
+- Active companions earn 50 Pokédollars per minute and continue gaining XP without chat activity.
+
 ## 1.1.0
 
 - Streamers can play in their own channels. Gameplay commands require the channel to be live and have a three-second cooldown per viewer.

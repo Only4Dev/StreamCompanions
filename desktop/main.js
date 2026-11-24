@@ -48,6 +48,8 @@ const openedAt = Date.now()
 let kickTimer
 let twitchBot
 let twitchBotStatus = ''
+const botTestStatus = {}
+let lastBotTest = 0
 const liveChannels = new Map()
 const activityLog = []
 const localChat = []
@@ -390,6 +392,12 @@ function kickRequest(path, body) {
   })
 }
 
+async function sendKickMessage(message) {
+  const response = await kickRequest('reply', { message: message.slice(0, 500) })
+  if (!response.ok) return false
+  return response.headers.get('X-Chat-Identity') || 'bot'
+}
+
 async function pollKick() {
   let next = 15_000
   try {
@@ -428,7 +436,7 @@ async function pollKick() {
       kickCursor = event.sequence
     }
     if (data.events.length) persistGame()
-    for (const reply of replies.filter(Boolean)) await kickRequest('reply', { message: botSignature(bot, reply).slice(0, 500) })
+    for (const reply of replies.filter(Boolean)) await sendKickMessage(botSignature(bot, reply))
   } catch {
     kickConnected = false
     if (!kickAbort.signal.aborted) kickStatus = 'Kick · reconectando'
@@ -543,7 +551,7 @@ function tickBattleSchedule() {
   if (active.length < 2) return
   battleDueAt = Date.now() + 300_000
   const message = botSignature(bot, bot.language === 'en' ? 'Battle royale starts in 5 minutes!' : '¡La batalla campal empieza en 5 minutos!')
-  Promise.allSettled([disconnectTwitch?.announce(message), kickConnected ? kickRequest('reply', { message }) : undefined])
+  Promise.allSettled([disconnectTwitch?.announce(message), kickConnected ? sendKickMessage(message) : undefined])
 }
 
 const routes = new Map([
@@ -588,7 +596,7 @@ const server = createServer(async (req, res) => {
       const state = ['encounter', 'companions'].includes(overlay)
         ? { ...game.overlay(overlay), bot: { language: bot.language } }
         : { ...game.snapshot(), twitchStatus, kickStatus, syncStatus, setup, bot, setupComplete, version: app.getVersion(), updateStatus,
-          twitchConnected: twitchAllowed() && Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, canInstallUpdate: app.isPackaged && process.platform === 'win32', activityLog, localChat, twitchBotStatus, canReset: syncDevice?.url === publicPortal, resettingCommunity: Boolean(pendingReset), live: setup.platform !== 'demo' }
+          twitchConnected: twitchAllowed() && Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, canInstallUpdate: app.isPackaged && process.platform === 'win32', activityLog, localChat, twitchBotStatus, botTestStatus, canReset: syncDevice?.url === publicPortal, resettingCommunity: Boolean(pendingReset), live: setup.platform !== 'demo' }
       if (overlay === 'companions' && ['summon', 'battle'].includes(searchParams.get('preview'))) {
         const samples = manifest.species.filter(entry => entry.normal && !evolutionParent(Number(entry.id))).slice(0, 3)
         const demo = searchParams.get('preview')
@@ -705,6 +713,24 @@ const server = createServer(async (req, res) => {
         }
         const result = await finishCommunityReset()
         res.writeHead(result ? 204 : 503).end()
+        return
+      }
+      if (['twitch', 'kick'].includes(action.testBot)) {
+        const platform = action.testBot
+        if (Date.now() - lastBotTest < 5000) { res.writeHead(429).end(); return }
+        lastBotTest = Date.now()
+        const connected = platform === 'kick' ? kickConnected : twitchAllowed() && disconnectTwitch?.connected()
+        if (!connected) {
+          botTestStatus[platform] = 'offline'
+        } else {
+          const message = bot.language === 'es' ? 'Stream Companions: mensaje de prueba.' : 'Stream Companions: test message.'
+          try {
+            const sent = platform === 'kick' ? await sendKickMessage(botSignature(bot, message)) :
+              await disconnectTwitch.testChat(botSignature(bot, message))
+            botTestStatus[platform] = sent || 'failed'
+          } catch { botTestStatus[platform] = 'failed' }
+        }
+        res.writeHead(204).end()
         return
       }
       if (action.connectTwitchBot === true && twitchClientId) {
@@ -946,7 +972,13 @@ app.whenReady().then(() => {
       isRunning: () => twitchAllowed() && isLive('twitch') && game.config.running !== false,
       allowOwner: true,
       onChat: (name, message) => rememberChat('twitch', name, message),
-      sendReply: (broadcaster, message) => twitchBot?.sendTo(broadcaster, message),
+      async sendReply(broadcaster, message) {
+        try { return await twitchBot?.sendTo(broadcaster, message) }
+        catch (error) {
+          if ([401, 403].includes(error.status)) return false
+          throw error
+        }
+      },
       announceCode(url, code) {
         twitchAuthorizationUrl = url
         twitchStatus = 'Twitch: código ' + code
@@ -969,7 +1001,7 @@ app.whenReady().then(() => {
       const text = botSignature(bot, message)
       await Promise.all([
         disconnectTwitch?.announce(text),
-        kickConnected && isLive('kick') ? kickRequest('reply', { message: text.slice(0, 500) }) : undefined
+        kickConnected && isLive('kick') ? sendKickMessage(text) : undefined
       ])
     })
     noticeTimer = setInterval(() => {
@@ -983,7 +1015,7 @@ app.whenReady().then(() => {
         const message = botSignature(bot, formatBotReply(bot, 'wildAppeared', { pokemon, chance }))
         if (message) Promise.allSettled([
           isLive('twitch') ? disconnectTwitch?.announce(message) : null,
-          isLive('kick') ? kickRequest('reply', { message }) : null
+          isLive('kick') ? sendKickMessage(message) : null
         ])
       }
       notices(game.schedule(), botResponse(bot, 'notice'), bot.language).catch(error => {

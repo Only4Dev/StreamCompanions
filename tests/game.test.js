@@ -129,11 +129,11 @@ test('roaming rewards roll once per completed active minute and survive restart'
   assert.equal(game.snapshot().viewers.A.rareCandies, undefined)
   time = 60_000
   const viewer = game.overlay('companions').viewers.A
-  assert.deepEqual(viewer.active.pickup, { at: 60_000, candy: true, money: 1 })
+  assert.deepEqual(viewer.active.pickup, { at: 60_000, candy: true, money: 50 })
   assert.equal(viewer.collection.Brasa, 480)
   const restarted = createGame({ progress: game.progress() })
   assert.equal(restarted.progress().viewers.A.rareCandies, 1)
-  assert.equal(restarted.progress().viewers.A.pokeDollars, 1)
+  assert.equal(restarted.progress().viewers.A.pokeDollars, 50)
 })
 
 test('a community battle rewards the winning variant per unique opponent', () => {
@@ -254,20 +254,17 @@ test('manual spawn resets schedule and both viewers can catch', () => {
   assert.equal(game.snapshot().viewers.A.balls.normal, 4)
 })
 
-test('activity renews a summon and expiry preserves collection and XP', () => {
+test('summons keep earning XP and money without chat activity', () => {
   let now = 0
   const game = createGame({ now: () => now, random: () => .25 })
   game.chat('A', '!poke join')
   game.spawn('Brasa')
   game.chat('A', '!catch')
   assert.equal(game.chat('A', '!summon brasa'), 'summoned')
-  now = 500_000
-  game.chat('A', 'hola')
-  now = 505_000
-  game.chat('A', 'spam')
   now = 1_100_000
   const viewer = game.snapshot().viewers.A
-  assert.equal(viewer.active, null)
+  assert.equal(viewer.active.key, 'Brasa')
+  assert.equal(viewer.pokeDollars, 900)
   assert.equal(viewer.collection.Brasa, 8800)
   assert.equal(viewer.metrics.summonSeconds, 1100)
   game.chat('A', '!summon brasa')

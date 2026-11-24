@@ -111,9 +111,12 @@ Object.assign(labels.en, { totalEncounters: 'All-time encounters', totalCaptures
 labels.es.openPortal = 'Abrir portal web'
 labels.en.openPortal = 'Open web portal'
 
-Object.assign(labels.es, { legendaryChancePercent: 'Aparición legendaria (%)', resetCancel: 'Cancelar', resetCommunity: 'Borrar progreso de la comunidad', resetPrompt: 'Esto borra los registros y el progreso de todos los viewers de esta comunidad. Escribe RESET para confirmar.', resetDone: 'Progreso borrado. Los viewers deben registrarse de nuevo.', resetPending: 'Borrado pendiente. La app volverá a intentarlo.', summonSourcePreview: 'Vista previa de invocaciones (fuente)', battleSourcePreview: 'Vista previa de batalla (fuente)', activityTab: 'Registro', liveChatTab: 'Chat', liveChatHelp: 'Mensajes recientes de los chats conectados.', connectTwitchBot: 'Vincular bot de Twitch', botAccountHelp: 'Para responder desde el bot, autoriza una cuenta de Twitch distinta a la del canal.' })
-Object.assign(labels.en, { legendaryChancePercent: 'Legendary encounter chance (%)', resetCancel: 'Cancel', resetCommunity: 'Reset community progress', resetPrompt: 'This deletes all viewer registrations and progress for this community. Type RESET to confirm.', resetDone: 'Progress deleted. Viewers must join again.', resetPending: 'Reset pending. The app will retry.', summonSourcePreview: 'Summon preview (source)', battleSourcePreview: 'Battle preview (source)', activityTab: 'Log', liveChatTab: 'Chat', liveChatHelp: 'Recent messages from connected chats.', connectTwitchBot: 'Link Twitch bot', botAccountHelp: 'Authorize a Twitch account other than the channel owner to send replies as the bot.' })
+Object.assign(labels.es, { legendaryChancePercent: 'Aparición legendaria (%)', resetCancel: 'Cancelar', resetCommunity: 'Borrar progreso de la comunidad', resetPrompt: 'Esto borra los registros y el progreso de todos los viewers de esta comunidad. Escribe RESET para confirmar.', resetDone: 'Progreso borrado. Los viewers deben registrarse de nuevo.', resetPending: 'Borrado pendiente. La app volverá a intentarlo.', summonSourcePreview: 'Vista previa de invocaciones (fuente)', battleSourcePreview: 'Vista previa de batalla (fuente)', activityTab: 'Registro', liveChatTab: 'Chat', liveChatHelp: 'Mensajes recientes de los chats conectados.', connectTwitchBot: 'Vincular bot de Twitch', botAccountHelp: 'Por defecto Twitch responde desde la cuenta del canal. Para usar un nombre de usuario distinto, vincula una cuenta de bot.' })
+Object.assign(labels.en, { legendaryChancePercent: 'Legendary encounter chance (%)', resetCancel: 'Cancel', resetCommunity: 'Reset community progress', resetPrompt: 'This deletes all viewer registrations and progress for this community. Type RESET to confirm.', resetDone: 'Progress deleted. Viewers must join again.', resetPending: 'Reset pending. The app will retry.', summonSourcePreview: 'Summon preview (source)', battleSourcePreview: 'Battle preview (source)', activityTab: 'Log', liveChatTab: 'Chat', liveChatHelp: 'Recent messages from connected chats.', connectTwitchBot: 'Link Twitch bot', botAccountHelp: 'Twitch uses the channel account by default. Link a separate bot account to send from a different username.' })
 
+Object.assign(labels.es, { kickBotHelp: 'Kick intenta enviar como bot de Stream Companions y usa la cuenta del canal si Kick rechaza el bot.', testTwitchBot: 'Probar Twitch', testKickBot: 'Probar Kick', botTestOffline: 'El canal no está conectado.', botTestFailed: 'No se pudo enviar. Revisa la conexión del canal y vuelve a probar.', botTestChannel: 'Mensaje enviado desde la cuenta del canal.', botTestBot: 'Mensaje enviado desde el bot.' })
+Object.assign(labels.en, { kickBotHelp: 'Kick tries to send as the Stream Companions bot and uses the channel account if Kick rejects the bot.', testTwitchBot: 'Test Twitch', testKickBot: 'Test Kick', botTestOffline: 'The channel is not connected.', botTestFailed: 'Could not send. Check the channel connection and try again.', botTestChannel: 'Message sent from the channel account.', botTestBot: 'Message sent from the bot.' })
+let botTestPlatform
 function renderActivity(id, entries) {
   const node = document.getElementById(id)
   if (node.closest('[data-pane]').hidden) return
@@ -331,6 +334,13 @@ async function refresh() {
   renderActivity('activity-list', state.activityLog)
   renderActivity('live-chat-list', state.localChat)
   $('twitch-bot-status').textContent = state.twitchBotStatus || ''
+  $('test-twitch-bot').disabled = !state.twitchConnected
+  $('test-kick-bot').disabled = !state.kickConnected
+  const tested = state.botTestStatus?.[botTestPlatform]
+  if (tested) {
+    const result = { bot: 'botTestBot', channel: 'botTestChannel', offline: 'botTestOffline', failed: 'botTestFailed' }[tested]
+    $('bot-test-result').textContent = copy[result] ?? ''
+  }
   $('connect-twitch-bot').disabled = state.setup?.platform !== 'twitch'
   $('kick-card-status').textContent = connectionMessage(state.kickStatus) || copy.kickStatus
   for (const [provider, name] of [['twitch', 'Twitch'], ['kick', 'Kick']]) {
@@ -553,6 +563,14 @@ if (panel) {
       body: JSON.stringify({ resetCommunity: confirmation }) }).catch(() => null)
     $('reset-community-status').textContent = result?.ok ? copy.resetDone : copy.resetPending
   })
+  for (const platform of ['twitch', 'kick']) {
+    $('test-' + platform + '-bot').addEventListener('click', async () => {
+      botTestPlatform = platform
+      const result = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ testBot: platform }) }).catch(() => null)
+      if (!result?.ok) $('bot-test-result').textContent = labels[$('language').value].botTestFailed
+    })
+  }
   $('connect-twitch-bot').addEventListener('click', async () => {
     const response = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ connectTwitchBot: true }) }).catch(() => null)
     if (!response?.ok) $('twitch-bot-status').textContent = labels[$('language').value].unavailable

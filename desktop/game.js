@@ -141,10 +141,10 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         if (pool.length) spawn(pool[Math.floor(random() * pool.length)])
       }
     }
-    for (const [id, viewer] of viewers) {
+    for (const viewer of viewers.values()) {
       const active = viewer.active
       if (!active) continue
-      const until = Math.min(time, active.expires)
+      const until = time
       const seconds = Math.max(0, until - active.last) / 1000
       const xp = viewer.collection[active.key] ?? 0
       if (seconds && config.summonXpPerSecond && xp < maxXp) shareFamily(viewer, active.key,
@@ -154,14 +154,13 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       const after = Math.floor(viewer.metrics.summonSeconds / 60)
       for (let minute = before; minute < after; minute++) {
         const candy = random() < .05
-        const money = random() < .1 ? 1 + Math.floor(random() * (streamStarters ? 150 : 100)) : 0
+        const money = 50
         if (candy) viewer.rareCandies = (viewer.rareCandies ?? 0) + 1
         if (money) viewer.pokeDollars = (viewer.pokeDollars ?? 0) + money
         if (candy || money) active.pickup = { at: until, candy, money }
         if (random() < .002) grantHeldItem(viewer)
       }
       active.last = until
-      if (time >= active.expires) viewer.active = null
     }
   }
 
@@ -236,14 +235,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       if (!name) return 'missingCreature'
       const key = name + (command === '!summonshiny' ? ' ✦' : '')
       if (!Object.hasOwn(viewer.collection, key)) return 'missingCreature'
-      viewer.active = { key, channel, expires: now() + 600_000, last: now(), layer: ++layer }
+      viewer.active = { key, channel, expires: Number.MAX_SAFE_INTEGER, last: now(), layer: ++layer }
       return 'summoned'
-    }
-    if (!message.startsWith('!') && message && viewer.active?.channel === channel &&
-      message !== viewer.lastMessage && now() - (viewer.lastActivity ?? -Infinity) >= 10_000) {
-      viewer.active.expires = now() + 600_000
-      viewer.lastActivity = now()
-      viewer.lastMessage = message
     }
     return 'ignored'
   }
