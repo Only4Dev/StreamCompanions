@@ -31,7 +31,7 @@ export const hasAppArchive = file => nativeFs.statSync(file).isFile()
 
 export async function stageUpdate(profile, { version, archive }, shutdown) {
   if (!versionPattern.test(version ?? '') || !archive) throw new Error('Release has no verified Windows archive')
-  const signal = AbortSignal.any([shutdown, AbortSignal.timeout(180_000)])
+  const signal = AbortSignal.any([shutdown, AbortSignal.timeout(10 * 60_000)])
   const root = join(profile, 'app-updates')
   await mkdir(root, { recursive: true })
   const stage = await mkdtemp(join(root, 'download-'))
@@ -47,7 +47,7 @@ export async function stageUpdate(profile, { version, archive }, shutdown) {
       if (!location) throw new Error('Release redirect missing')
       url = new URL(location, url)
     }
-    if (!response?.ok || !response.body) throw new Error('Release download unavailable')
+    if (!response?.ok || !response.body) throw new Error('Release download unavailable (HTTP ' + (response?.status ?? 'unknown') + ')')
     const zip = join(stage, 'update.zip')
     const hash = createHash('sha256')
     let size = 0

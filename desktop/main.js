@@ -683,11 +683,19 @@ const server = createServer(async (req, res) => {
         const update = updateStatus
         updateStatus = { ...update, status: 'installing' }
         try {
-          const exe = await stageUpdate(app.getPath('userData'), update, kickAbort.signal)
+          const latest = await checkForUpdate(app.getVersion(), kickAbort.signal)
+          const selected = latest.status === 'available' && latest.archive ? latest : update
+          const exe = await stageUpdate(app.getPath('userData'), selected, kickAbort.signal)
           res.once('finish', () => { app.relaunch({ execPath: exe, args: [...process.argv.slice(1), '--sc-activate-update'] }); app.quit() })
           res.writeHead(204).end()
-        } catch {
-          if (!kickAbort.signal.aborted) updateStatus = { ...update, status: 'installFailed' }
+        } catch (error) {
+          if (!kickAbort.signal.aborted) {
+            const failure = { at: new Date().toISOString(), from: app.getVersion(), to: update.version,
+              error: error.name, code: error.code ?? error.cause?.code,
+              detail: typeof error.exitCode === 'number' || error.cmd ? 'Archive utility failed' : error.message }
+            try { writeFileSync(join(app.getPath('userData'), 'update-error.json'), JSON.stringify(failure, null, 2)) } catch {}
+            updateStatus = { ...update, status: 'installFailed' }
+          }
           res.writeHead(503).end()
         } finally { installingUpdate = false }
         return
