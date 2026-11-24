@@ -87,16 +87,17 @@ const callbackPage = (message, status = 200) => new Response(
   '<!doctype html><html lang="es"><meta charset="UTF-8"><title>Stream Companions</title><main><h1>Kick</h1><p>' +
   message + '</p></main></html>', { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } })
 
-export async function startKickLink(url, env, hash, community = '') {
+export async function startKickLink(url, env, hash, community = '', bot = false) {
   const config = providerConfig(env, 'kick')
   if (!config || !env.KICK_TOKEN_KEY) return json({ error: 'Kick is not configured' }, 503)
-  const state = 'sc-kick-' + tokenId()
+  const state = (bot ? 'sc-kick-bot-' : 'sc-kick-') + tokenId()
   const verifier = tokenId()
+  const sameKind = bot ? "state LIKE 'sc-kick-bot-%'" : "state NOT LIKE 'sc-kick-bot-%'"
   await env.DB.batch([
-    env.DB.prepare('DELETE FROM kick_pairings WHERE expires_at <= ? OR device_hash = ?').bind(Date.now(), hash),
+    env.DB.prepare('DELETE FROM kick_pairings WHERE expires_at <= ? OR (device_hash = ? AND ' + sameKind + ')').bind(Date.now(), hash),
     env.DB.prepare('INSERT INTO kick_pairings VALUES (?, ?, ?, ?, ?)').bind(state, community, hash, verifier, Date.now() + 600_000)
   ])
-  return json({ url: await authorizeUrl('kick', config, callbackUrl(url), state, verifier, 'user:read events:subscribe chat:write') })
+  return json({ url: await authorizeUrl('kick', config, callbackUrl(url), state, verifier, bot ? 'user:read chat:write' : 'user:read events:subscribe chat:write') })
 }
 
 export async function completeKickLink(url, env) {
@@ -111,6 +112,21 @@ export async function completeKickLink(url, env) {
   const identity = await platformIdentity('kick', config, code, callbackUrl(url), pairing.verifier, true)
   if (!identity?.token.refresh_token) return callbackPage('Kick no autorizó el canal. Revisa los permisos e inténtalo de nuevo.', 403)
   const broadcaster = identity.viewerId.slice(5)
+  if (state.startsWith('sc-kick-bot-')) {
+    const community = pairing.community_id
+    const channel = await env.DB.prepare('SELECT broadcaster_id FROM kick_channels WHERE community_id = ?').bind(community).first()
+    if (!channel || channel.broadcaster_id === broadcaster) {
+      return callbackPage('Autoriza una cuenta distinta a la del canal de Kick. Vuelve a la app para intentarlo.', 409)
+    }
+    const encrypted = await seal(env, community + ':bot', identity.token)
+    const result = await env.DB.prepare(
+      'INSERT INTO kick_bots (community_id, broadcaster_id, bot_id, login, encrypted_tokens) ' +
+      'SELECT c.community_id, c.broadcaster_id, ?, ?, ? FROM kick_channels c JOIN devices d ON d.community_id = c.community_id ' +
+      'WHERE c.community_id = ? AND c.broadcaster_id = ? AND d.key_hash = ? AND d.revoked_at IS NULL ' +
+      'ON CONFLICT(community_id) DO UPDATE SET broadcaster_id = excluded.broadcaster_id, bot_id = excluded.bot_id, login = excluded.login, encrypted_tokens = excluded.encrypted_tokens'
+    ).bind(broadcaster, identity.login, encrypted, community, channel.broadcaster_id, pairing.device_hash).run()
+    return result.meta.changes ? callbackPage('Bot vinculado. Puedes volver a Stream Companions.') : callbackPage('Vuelve a vincular el bot desde Stream Companions.', 409)
+  }
   const community = pairing.community_id || 'kick-' + broadcaster
   const linked = await env.DB.prepare('SELECT community_id FROM kick_channels WHERE broadcaster_id = ? OR community_id = ?')
     .bind(broadcaster, community).all()
@@ -167,17 +183,19 @@ async function kickLive(env, channel) {
   return { login: found.slug ?? channel.login, live: found.stream.is_live, thumbnail: found.stream.thumbnail ?? '' }
 }
 
-async function channelAccess(env, channel) {
-  const token = await unseal(env, channel)
+async function channelAccess(env, channel, bot = false) {
+  const context = bot ? channel.community_id + ':bot' : channel.community_id
+  const token = await unseal(env, { ...channel, community_id: context })
   if (token.expires > Date.now() + 90_000) return token.access
   const config = providerConfig(env, 'kick')
   const response = await fetch('https://id.kick.com/oauth/token', { method: 'POST', body: new URLSearchParams({
     grant_type: 'refresh_token', client_id: config.id, client_secret: config.secret, refresh_token: token.refresh
-  }) })
+  }), signal: AbortSignal.timeout(6000) })
   if (!response.ok) throw Error('Kick renewal failed')
   const renewed = await response.json()
-  await env.DB.prepare('UPDATE kick_channels SET encrypted_tokens = ? WHERE community_id = ? AND encrypted_tokens = ?')
-    .bind(await seal(env, channel.community_id, { ...renewed, refresh_token: renewed.refresh_token ?? token.refresh }),
+  const table = bot ? 'kick_bots' : 'kick_channels'
+  await env.DB.prepare('UPDATE ' + table + ' SET encrypted_tokens = ? WHERE community_id = ? AND encrypted_tokens = ?')
+    .bind(await seal(env, context, { ...renewed, refresh_token: renewed.refresh_token ?? token.refresh }),
       channel.community_id, channel.encrypted_tokens).run()
   return renewed.access_token
 }
@@ -190,6 +208,11 @@ export async function kickDevice(request, url, env, device) {
   }
   const channel = await env.DB.prepare('SELECT * FROM kick_channels WHERE community_id = ?').bind(community).first()
   if (!channel) return request.method === 'GET' ? json({ connected: false, events: [] }) : json({ error: 'channel not connected' }, 409)
+  if (request.method === 'POST' && url.pathname === '/api/kick/connect-bot') {
+    return startKickLink(url, env, hash, community, true)
+  }
+  const ownBot = () => env.DB.prepare('SELECT * FROM kick_bots WHERE community_id = ? AND broadcaster_id = ?')
+    .bind(community, channel.broadcaster_id).first()
   if (request.method === 'GET' && url.pathname === '/api/kick/live') {
     try { return json({ channel: await kickLive(env, channel) }) } catch { return json({ channel: null }) }
   }
@@ -211,13 +234,14 @@ export async function kickDevice(request, url, env, device) {
       if (event.twitch_generation) erasures.set(event.twitch_id, { viewer_id: event.twitch_id, generation: event.twitch_generation, active: 1 })
     }
     if (cursor || results.length) await env.DB.prepare('DELETE FROM kick_messages WHERE received_at < ?').bind(Date.now() - 600_000).run()
-    return json({ connected: true, login: channel.login, events: results, erasures: [...erasures.values()] })
+    return json({ connected: true, login: channel.login, botLogin: url.searchParams.has('bot') ? (await ownBot())?.login ?? null : undefined, events: results, erasures: [...erasures.values()] })
   }
   if (request.method === 'POST' && url.pathname === '/api/kick/reply') {
     const data = await request.json().catch(() => null)
     if (typeof data?.message !== 'string' || !data.message || data.message.length > 500) return json({ error: 'invalid message' }, 400)
     try {
-      const headers = { Authorization: 'Bearer ' + await channelAccess(env, channel), 'Content-Type': 'application/json' }
+      const linkedBot = await ownBot()
+      const headers = { Authorization: 'Bearer ' + await channelAccess(env, linkedBot ?? channel, Boolean(linkedBot)), 'Content-Type': 'application/json' }
       const send = async type => {
         const response = await fetch(api + 'chat', {
           method: 'POST', headers, signal: AbortSignal.timeout(6000),
@@ -226,9 +250,9 @@ export async function kickDevice(request, url, env, device) {
         const payload = await response.json().catch(() => ({}))
         return { sent: response.ok && payload.data?.is_sent === true, rejected: [400, 401, 403, 404].includes(response.status) || (response.ok && payload.data?.is_sent === false) }
       }
-      const bot = await send('bot')
+      const bot = await send(linkedBot ? 'user' : 'bot')
       if (bot.sent) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'bot' } })
-      if (data.botOnly !== true && bot.rejected && (await send('user')).sent) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'channel' } })
+      if (!linkedBot && data.botOnly !== true && bot.rejected && (await send('user')).sent) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'channel' } })
       return json({ error: 'Kick rejected reply' }, 502)
     } catch { return json({ error: 'Kick reply unavailable' }, 502) }
   }

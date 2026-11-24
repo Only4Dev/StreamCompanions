@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2
+
+- Streamers can link a dedicated Kick account to send chat replies and announcements from their own bot. The shared app bot remains available when no dedicated bot is linked.
+
 ## 1.1.1
 
 - Send chat replies and announcements through a linked Twitch bot or the Kick app bot. The broadcaster account is never used as a fallback.

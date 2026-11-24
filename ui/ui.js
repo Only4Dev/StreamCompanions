@@ -115,8 +115,8 @@ labels.en.openPortal = 'Open web portal'
 Object.assign(labels.es, { legendaryChancePercent: 'Aparición legendaria (%)', resetCancel: 'Cancelar', resetCommunity: 'Borrar progreso de la comunidad', resetPrompt: 'Esto borra los registros y el progreso de todos los viewers de esta comunidad. Escribe RESET para confirmar.', resetDone: 'Progreso borrado. Los viewers deben registrarse de nuevo.', resetPending: 'Borrado pendiente. La app volverá a intentarlo.', summonSourcePreview: 'Vista previa de invocaciones (fuente)', battleSourcePreview: 'Vista previa de batalla (fuente)', activityTab: 'Registro', liveChatTab: 'Chat', liveChatHelp: 'Mensajes recientes de los chats conectados.', connectTwitchBot: 'Vincular bot de Twitch', botAccountHelp: 'Vincula una cuenta de Twitch distinta a la del canal para que el bot pueda enviar mensajes.' })
 Object.assign(labels.en, { legendaryChancePercent: 'Legendary encounter chance (%)', resetCancel: 'Cancel', resetCommunity: 'Reset community progress', resetPrompt: 'This deletes all viewer registrations and progress for this community. Type RESET to confirm.', resetDone: 'Progress deleted. Viewers must join again.', resetPending: 'Reset pending. The app will retry.', summonSourcePreview: 'Summon preview (source)', battleSourcePreview: 'Battle preview (source)', activityTab: 'Log', liveChatTab: 'Chat', liveChatHelp: 'Recent messages from connected chats.', connectTwitchBot: 'Link Twitch bot', botAccountHelp: 'Link a separate Twitch account so the bot can send chat messages.' })
 
-Object.assign(labels.es, { kickBotHelp: 'Kick envía desde el bot de Stream Companions. Vincula el canal y usa Probar Kick para comprobarlo.', testTwitchBot: 'Probar Twitch', testKickBot: 'Probar Kick', botTestOffline: 'El canal no está conectado.', botTestFailed: 'El bot no pudo enviar. Revisa su vinculación y permisos.', botTestChannel: 'Mensaje enviado desde la cuenta del canal.', botTestBot: 'Mensaje enviado desde el bot.' })
-Object.assign(labels.en, { kickBotHelp: 'Kick sends as the Stream Companions bot. Link the channel and use Test Kick to check it.', testTwitchBot: 'Test Twitch', testKickBot: 'Test Kick', botTestOffline: 'The channel is not connected.', botTestFailed: 'The bot could not send. Check its connection and permissions.', botTestChannel: 'Message sent from the channel account.', botTestBot: 'Message sent from the bot.' })
+Object.assign(labels.es, { connectKickBot: 'Vincular bot de Kick', kickBotNeedsChannel: 'Conecta primero tu canal de Kick en Conexiones.', kickBotAuthorize: 'Autoriza la cuenta del bot en Kick y vuelve a la app.', kickBotHelp: 'Vincula una cuenta de Kick distinta a la del canal para enviar mensajes con tu propio bot. Si prefieres, usa el bot de Stream Companions.', testTwitchBot: 'Probar Twitch', testKickBot: 'Probar Kick', botTestOffline: 'El canal no está conectado.', botTestFailed: 'El bot no pudo enviar. Revisa su vinculación y permisos.', botTestChannel: 'Mensaje enviado desde la cuenta del canal.', botTestBot: 'Mensaje enviado desde el bot.' })
+Object.assign(labels.en, { connectKickBot: 'Link Kick bot', kickBotNeedsChannel: 'Connect your Kick channel in Connections first.', kickBotAuthorize: 'Authorize your bot account in Kick, then return to the app.', kickBotHelp: 'Link a separate Kick account to send messages as your own bot. You can also use the Stream Companions bot.', testTwitchBot: 'Test Twitch', testKickBot: 'Test Kick', botTestOffline: 'The channel is not connected.', botTestFailed: 'The bot could not send. Check its connection and permissions.', botTestChannel: 'Message sent from the channel account.', botTestBot: 'Message sent from the bot.' })
 let botTestPlatform
 function renderActivity(id, entries) {
   const node = document.getElementById(id)
@@ -337,6 +337,10 @@ async function refresh() {
   $('twitch-bot-status').textContent = state.twitchBotStatus || ''
   $('test-twitch-bot').disabled = !state.twitchConnected
   $('test-kick-bot').disabled = !state.kickConnected
+  $('connect-kick-bot').disabled = !state.kickConnected
+  if (state.kickBotLogin) $('kick-bot-status').textContent = '@' + state.kickBotLogin
+  else if (!state.kickConnected) $('kick-bot-status').textContent = copy.kickBotNeedsChannel
+  else if ($('kick-bot-status').textContent === copy.kickBotNeedsChannel) $('kick-bot-status').textContent = ''
   const tested = state.botTestStatus?.[botTestPlatform]
   if (tested) {
     const result = { bot: 'botTestBot', channel: 'botTestChannel', offline: 'botTestOffline', failed: 'botTestFailed' }[tested]
@@ -575,6 +579,12 @@ if (panel) {
   $('connect-twitch-bot').addEventListener('click', async () => {
     const response = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ connectTwitchBot: true }) }).catch(() => null)
     if (!response?.ok) $('twitch-bot-status').textContent = labels[$('language').value].unavailable
+  })
+  $('connect-kick-bot').addEventListener('click', async () => {
+    const copy = labels[$('language').value]
+    const response = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connectKickBot: true }) }).catch(() => null)
+    $('kick-bot-status').textContent = response?.ok ? copy.kickBotAuthorize : copy.unavailable
   })
   $('connect-kick').addEventListener('click', async () => {
     const copy = labels[$('language').value]

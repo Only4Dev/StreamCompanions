@@ -89,6 +89,7 @@ function chatAction(viewer, displayName, text, platform) {
   if (result === 'joined' && game.starterName(viewer)) return { code: 'joined', viewer: displayName, pokemon: game.starterName(viewer) }
   return result === 'joined' ? '' : { code: result, viewer: displayName }
 }
+let kickBotLogin
 let kickConnected
 let kickRegistration
 let kickRegistrationTimer
@@ -413,13 +414,14 @@ async function pollKick() {
   let next = 15_000
   try {
     if (pendingReset) return
-    const response = await kickRequest('events?privacy=2&after=' + kickCursor)
+    const response = await kickRequest('events?privacy=2&bot=1&after=' + kickCursor)
     if (!response.ok) throw Error('Kick gateway HTTP ' + response.status)
     const data = await response.json()
     if (pendingReset) return
     kickConnected = data.connected === true
     if (!kickConnected) { kickStatus = ''; return }
     ensureCloudSync()
+    kickBotLogin = data.botLogin ?? null
     kickStatus = 'Kick · ' + data.login
     next = 4000
     const replies = []
@@ -609,7 +611,7 @@ const server = createServer(async (req, res) => {
       const state = ['encounter', 'companions'].includes(overlay)
         ? { ...game.overlay(overlay), bot: { language: bot.language } }
         : { ...game.snapshot(), twitchStatus, kickStatus, syncStatus, setup, bot, setupComplete, version: app.getVersion(), updateStatus,
-          twitchConnected: twitchAllowed() && Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, canInstallUpdate: app.isPackaged && process.platform === 'win32', activityLog, localChat, twitchBotStatus, botTestStatus, canReset: syncDevice?.url === publicPortal, resettingCommunity: Boolean(pendingReset), live: setup.platform !== 'demo' }
+          twitchConnected: twitchAllowed() && Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, canInstallUpdate: app.isPackaged && process.platform === 'win32', activityLog, localChat, twitchBotStatus, kickBotLogin, botTestStatus, canReset: syncDevice?.url === publicPortal, resettingCommunity: Boolean(pendingReset), live: setup.platform !== 'demo' }
       if (overlay === 'companions' && ['summon', 'battle'].includes(searchParams.get('preview'))) {
         const samples = manifest.species.filter(entry => entry.normal && !evolutionParent(Number(entry.id))).slice(0, 3)
         const demo = searchParams.get('preview')
@@ -757,9 +759,10 @@ const server = createServer(async (req, res) => {
         res.writeHead(204).end()
         return
       }
-      if (action.connectKick === true) {
+      if (action.connectKick === true || action.connectKickBot === true) {
         if (!syncDevice && twitchClientId) { res.writeHead(409).end(); return }
-        const response = syncDevice ? await kickRequest('connect', {}) : await startKickRegistration(app.getPath('userData'))
+        if (action.connectKickBot && (!syncDevice || !kickConnected)) { res.writeHead(409).end(); return }
+        const response = syncDevice ? await kickRequest(action.connectKickBot ? 'connect-bot' : 'connect', {}) : await startKickRegistration(app.getPath('userData'))
         if (!response.ok) { res.writeHead(response.status).end(); return }
         const { url } = await response.json()
         const authorize = new URL(url)

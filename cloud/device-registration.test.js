@@ -37,7 +37,7 @@ test('a verified Twitch owner can retry their device registration without replac
 test('Kick can create a community and Twitch can join it with the same device', async t => {
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
-  for (const name of ['0001_sync', '0006_kick', '0008_community_owners']) {
+  for (const name of ['0001_sync', '0006_kick', '0008_community_owners', '0016_kick_bots']) {
     db.exec(await readFile(new URL('./migrations/' + name + '.sql', import.meta.url), 'utf8'))
   }
   const env = {
@@ -50,9 +50,15 @@ test('Kick can create a community and Twitch can join it with the same device', 
       async batch(statements) { return statements.map(statement => statement.run()) }
     }
   }
-  t.mock.method(globalThis, 'fetch', async url => {
-    if (url === 'https://id.kick.com/oauth/token') return Response.json({ access_token: 'access', refresh_token: 'refresh', expires_in: 3600 })
-    if (url === 'https://api.kick.com/public/v1/users') return Response.json({ data: [{ user_id: 55, name: 'host-kick' }] })
+  let kickIdentity = { user_id: 55, name: 'host-kick' }
+  const sent = []
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url === 'https://api.kick.com/public/v1/chat') {
+      sent.push({ token: options.headers.Authorization, body: JSON.parse(options.body) })
+      return Response.json({ data: { is_sent: true } })
+    }
+    if (url === 'https://id.kick.com/oauth/token') return Response.json({ access_token: 'access-' + kickIdentity.user_id, refresh_token: 'refresh', expires_in: 3600 })
+    if (url === 'https://api.kick.com/public/v1/users') return Response.json({ data: [kickIdentity] })
     if (url === 'https://api.kick.com/public/v1/events/subscriptions') return Response.json({ data: [{ name: 'chat.message.sent' }] })
     if (url === 'https://id.twitch.tv/oauth2/validate') return Response.json({ client_id: 'm2vfvdba9flbjxhbq3nndyqx4tsdar', user_id: '12', login: 'host_twitch' })
     throw new Error('Unexpected provider URL')
@@ -79,4 +85,22 @@ test('Kick can create a community and Twitch can join it with the same device', 
   assert.equal((await twitch('c'.repeat(64))).status, 401)
   assert.deepEqual(await (await twitch(token)).json(), { community: 'kick-55' })
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM devices').get().count, 1)
+  const startBot = async () => {
+    const response = await request('/api/kick/connect-bot', { method: 'POST', headers: { Authorization: 'Bearer ' + token } })
+    assert.equal(response.status, 200)
+    const url = new URL((await response.json()).url)
+    assert.equal(url.searchParams.get('scope'), 'user:read chat:write')
+    return '/auth/kick/callback?code=code&state=' + url.searchParams.get('state')
+  }
+  assert.equal((await request(await startBot())).status, 409)
+  kickIdentity = { user_id: 56, name: 'my-bot' }
+  const botCallback = await startBot()
+  assert.equal((await request(botCallback)).status, 200)
+  assert.equal((await request(botCallback)).status, 400)
+  const reply = await request('/api/kick/reply', { method: 'POST', headers: { Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ message: 'Hello', botOnly: true }) })
+  assert.equal(reply.status, 204)
+  assert.equal(reply.headers.get('X-Chat-Identity'), 'bot')
+  assert.deepEqual(sent, [{ token: 'Bearer access-56', body: { broadcaster_user_id: 55, content: 'Hello', type: 'user' } }])
+
 })
