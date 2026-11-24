@@ -46,8 +46,6 @@ let kickStatus = ''
 let kickCursor = 0
 const openedAt = Date.now()
 let kickTimer
-let twitchBot
-let twitchBotStatus = ''
 const botTestStatus = {}
 let lastBotTest = 0
 const liveChannels = new Map()
@@ -92,7 +90,6 @@ function chatAction(viewer, displayName, text, platform) {
   if (result === 'joined' && game.starterName(viewer)) return { code: 'joined', viewer: displayName, pokemon: game.starterName(viewer) }
   return result === 'joined' ? '' : { code: result, viewer: displayName }
 }
-let kickBotLogin
 let kickConnected
 let kickRegistration
 let kickRegistrationTimer
@@ -399,7 +396,11 @@ function ensureCloudSync() {
 }
 
 function kickRequest(path, body) {
-  return fetch(new URL('/api/kick/' + path, syncDevice.url), {
+  return deviceRequest('/api/kick/' + path, body)
+}
+
+function deviceRequest(path, body) {
+  return fetch(new URL(path, syncDevice.url), {
     method: body ? 'POST' : 'GET', redirect: 'error',
     headers: { Authorization: 'Bearer ' + syncDevice.token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
@@ -408,7 +409,7 @@ function kickRequest(path, body) {
 }
 
 async function sendKickMessage(message) {
-  const response = await kickRequest('reply', { message: message.slice(0, 500), botOnly: true })
+  const response = await kickRequest('reply', { message: message.slice(0, 500), projectBotOnly: true })
   if (!response.ok) return false
   return response.headers.get('X-Chat-Identity') || 'bot'
 }
@@ -417,14 +418,13 @@ async function pollKick() {
   let next = 15_000
   try {
     if (pendingReset) return
-    const response = await kickRequest('events?privacy=2&bot=1&after=' + kickCursor)
+    const response = await kickRequest('events?privacy=2&after=' + kickCursor)
     if (!response.ok) throw Error('Kick gateway HTTP ' + response.status)
     const data = await response.json()
     if (pendingReset) return
     kickConnected = data.connected === true
     if (!kickConnected) { kickStatus = ''; return }
     ensureCloudSync()
-    kickBotLogin = data.botLogin ?? null
     kickStatus = 'Kick · ' + data.login
     next = 4000
     const replies = []
@@ -614,7 +614,7 @@ const server = createServer(async (req, res) => {
       const state = ['encounter', 'companions'].includes(overlay)
         ? { ...game.overlay(overlay), bot: { language: bot.language } }
         : { ...game.snapshot(), twitchStatus, kickStatus, syncStatus, setup, bot, setupComplete, version: app.getVersion(), updateStatus,
-          twitchConnected: twitchAllowed() && Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, canInstallUpdate: app.isPackaged && process.platform === 'win32', activityLog, localChat, twitchBotStatus, kickBotLogin, botTestStatus, canReset: syncDevice?.url === publicPortal, resettingCommunity: Boolean(pendingReset), live: setup.platform !== 'demo' }
+          twitchConnected: twitchAllowed() && Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, canInstallUpdate: app.isPackaged && process.platform === 'win32', activityLog, localChat, botTestStatus, canReset: syncDevice?.url === publicPortal, resettingCommunity: Boolean(pendingReset), live: setup.platform !== 'demo' }
       if (overlay === 'companions' && ['summon', 'battle'].includes(searchParams.get('preview'))) {
         const samples = manifest.species.filter(entry => entry.normal && !evolutionParent(Number(entry.id))).slice(0, 3)
         const demo = searchParams.get('preview')
@@ -711,7 +711,7 @@ const server = createServer(async (req, res) => {
         if (!edited) { res.writeHead(400).end(); return }
         writeFileSync(botFile + '.tmp', JSON.stringify(edited))
         renameSync(botFile + '.tmp', botFile)
-        bot = edited
+        bot = { ...edited, nickname: "" }
         res.writeHead(204).end()
         return
       }
@@ -757,15 +757,9 @@ const server = createServer(async (req, res) => {
         res.writeHead(204).end()
         return
       }
-      if (action.connectTwitchBot === true && twitchClientId) {
-        connectDesktopBot(app.getPath('userData'), true)
-        res.writeHead(204).end()
-        return
-      }
-      if (action.connectKick === true || action.connectKickBot === true) {
+      if (action.connectKick === true) {
         if (!syncDevice && twitchClientId) { res.writeHead(409).end(); return }
-        if (action.connectKickBot && (!syncDevice || !kickConnected)) { res.writeHead(409).end(); return }
-        const response = syncDevice ? await kickRequest(action.connectKickBot ? 'connect-bot' : 'connect', {}) : await startKickRegistration(app.getPath('userData'))
+        const response = syncDevice ? await kickRequest('connect', {}) : await startKickRegistration(app.getPath('userData'))
         if (!response.ok) { res.writeHead(response.status).end(); return }
         const { url } = await response.json()
         const authorize = new URL(url)
@@ -871,28 +865,6 @@ const server = createServer(async (req, res) => {
   }
 })
 
-function connectDesktopBot(profile, authorize = false) {
-  if (!safeStorage.isEncryptionAvailable()) return
-  const file = join(profile, 'twitch-bot-session.enc')
-  let savedToken
-  if (!authorize) {
-    try { savedToken = JSON.parse(safeStorage.decryptString(readFileSync(file))) } catch { return }
-  }
-  twitchBot?.()
-  twitchBot = connectTwitch({
-    clientId: twitchClientId, savedToken, sendOnly: true,
-    saveToken(token) {
-      writeFileSync(file + '.tmp', safeStorage.encryptString(JSON.stringify(token)))
-      renameSync(file + '.tmp', file)
-    },
-    announceCode(url, code) {
-      twitchBotStatus = 'Twitch bot · ' + code
-      shell.openExternal(url).catch(() => {})
-    },
-    onStatus(status) { twitchBotStatus = status }
-  })
-}
-
 app.whenReady().then(() => {
   const profile = app.getPath('userData')
   mkdirSync(profile, { recursive: true })
@@ -910,7 +882,7 @@ app.whenReady().then(() => {
   }
   botFile = join(profile, 'bot.json')
   try {
-    bot = validateBot(JSON.parse(readFileSync(botFile, 'utf8'))) ?? defaultBot
+    bot = { ...(validateBot(JSON.parse(readFileSync(botFile, 'utf8'))) ?? defaultBot), nickname: '' }
   } catch (error) {
     if (error.code === 'ENOENT' && typeof setup.template === 'string' && setup.template !== botCopy.es.notice) {
       bot = { ...defaultBot, responses: { notice: setup.template } }
@@ -998,13 +970,10 @@ app.whenReady().then(() => {
       allowOwner: true,
       onChat: (name, message) => rememberChat('twitch', name, message),
       botOnly: true,
-      async sendReply(broadcaster, message) {
-        if (twitchBot?.identity()?.user_id === broadcaster) return false
-        try { return await twitchBot?.sendTo(broadcaster, message) }
-        catch (error) {
-          if ([401, 403].includes(error.status)) return false
-          throw error
-        }
+      async sendReply(_broadcaster, message) {
+        if (!syncDevice || syncDevice.url !== publicPortal) return false
+        return deviceRequest('/api/twitch/bot-reply', { message: message.slice(0, 500) })
+          .then(response => response.ok, () => false)
       },
       announceCode(url, code) {
         twitchAuthorizationUrl = url
@@ -1022,7 +991,6 @@ app.whenReady().then(() => {
       }
     })
   }
-  if (twitchClientId) connectDesktopBot(profile)
   if (disconnectTwitch || syncDevice) {
     const notices = createEncounterNotices(async message => {
       const text = botSignature(bot, message)
@@ -1081,7 +1049,6 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   clearInterval(battleTimer)
   kickAbort.abort()
-  twitchBot?.()
   clearTimeout(kickRegistrationTimer)
   clearTimeout(kickTimer)
   clearTimeout(shopTimer)

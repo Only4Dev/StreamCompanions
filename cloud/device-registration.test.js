@@ -37,7 +37,7 @@ test('a verified Twitch owner can retry their device registration without replac
 test('Kick can create a community and Twitch can join it with the same device', async t => {
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
-  for (const name of ['0001_sync', '0006_kick', '0008_community_owners', '0016_kick_bots']) {
+  for (const name of ['0001_sync', '0006_kick', '0008_community_owners', '0016_kick_bots', '0017_project_bots']) {
     db.exec(await readFile(new URL('./migrations/' + name + '.sql', import.meta.url), 'utf8'))
   }
   const env = {

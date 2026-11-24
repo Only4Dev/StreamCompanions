@@ -29,7 +29,7 @@ export async function verifyKickMessage(key, messageId, timestamp, body, signatu
 }
 
 const settingsKey = env => crypto.subtle.importKey('raw', binary(env.KICK_TOKEN_KEY), 'AES-GCM', false, ['encrypt', 'decrypt'])
-async function seal(env, community, token) {
+export async function seal(env, community, token) {
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const packed = text.encode(JSON.stringify({
     access: token.access_token, refresh: token.refresh_token, expires: Date.now() + token.expires_in * 1000
@@ -183,8 +183,8 @@ async function kickLive(env, channel) {
   return { login: found.slug ?? channel.login, live: found.stream.is_live, thumbnail: found.stream.thumbnail ?? '' }
 }
 
-async function channelAccess(env, channel, bot = false) {
-  const context = bot ? channel.community_id + ':bot' : channel.community_id
+async function channelAccess(env, channel, bot = false, shared = false) {
+  const context = shared ? 'project:kick' : bot ? channel.community_id + ':bot' : channel.community_id
   const token = await unseal(env, { ...channel, community_id: context })
   if (token.expires > Date.now() + 90_000) return token.access
   const config = providerConfig(env, 'kick')
@@ -193,10 +193,11 @@ async function channelAccess(env, channel, bot = false) {
   }), signal: AbortSignal.timeout(6000) })
   if (!response.ok) throw Error('Kick renewal failed')
   const renewed = await response.json()
-  const table = bot ? 'kick_bots' : 'kick_channels'
-  await env.DB.prepare('UPDATE ' + table + ' SET encrypted_tokens = ? WHERE community_id = ? AND encrypted_tokens = ?')
+  const table = shared ? 'project_bots' : bot ? 'kick_bots' : 'kick_channels'
+  const key = shared ? 'provider' : 'community_id'
+  await env.DB.prepare('UPDATE ' + table + ' SET encrypted_tokens = ? WHERE ' + key + ' = ? AND encrypted_tokens = ?')
     .bind(await seal(env, context, { ...renewed, refresh_token: renewed.refresh_token ?? token.refresh }),
-      channel.community_id, channel.encrypted_tokens).run()
+      shared ? 'kick' : channel.community_id, channel.encrypted_tokens).run()
   return renewed.access_token
 }
 
@@ -240,8 +241,11 @@ export async function kickDevice(request, url, env, device) {
     const data = await request.json().catch(() => null)
     if (typeof data?.message !== 'string' || !data.message || data.message.length > 500) return json({ error: 'invalid message' }, 400)
     try {
-      const linkedBot = await ownBot()
-      const headers = { Authorization: 'Bearer ' + await channelAccess(env, linkedBot ?? channel, Boolean(linkedBot)), 'Content-Type': 'application/json' }
+      const sharedBot = await env.DB.prepare("SELECT user_id, encrypted_tokens FROM project_bots WHERE provider = 'kick'").first()
+      if (sharedBot?.user_id === channel.broadcaster_id) return json({ error: 'bot account is the broadcaster' }, 409)
+      const linkedBot = sharedBot || data.projectBotOnly === true ? null : await ownBot()
+      if (!sharedBot && data.projectBotOnly === true) return json({ error: 'project bot unavailable' }, 503)
+      const headers = { Authorization: 'Bearer ' + await channelAccess(env, sharedBot ?? linkedBot ?? channel, Boolean(linkedBot), Boolean(sharedBot)), 'Content-Type': 'application/json' }
       const send = async type => {
         const response = await fetch(api + 'chat', {
           method: 'POST', headers, signal: AbortSignal.timeout(6000),
@@ -250,7 +254,7 @@ export async function kickDevice(request, url, env, device) {
         const payload = await response.json().catch(() => ({}))
         return response.ok && payload.data?.is_sent === true
       }
-      const bot = await send(linkedBot ? 'user' : 'bot')
+      const bot = await send(sharedBot || linkedBot ? 'user' : 'bot')
       if (bot) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'bot' } })
       return json({ error: 'Kick rejected reply' }, 502)
     } catch { return json({ error: 'Kick reply unavailable' }, 502) }

@@ -1,6 +1,7 @@
+import { completeProjectBot, projectBotAuthorization, twitchProjectReply } from './project-bots.js'
 import { portal } from './portal.js'
 import { readMovesets } from './movesets.js'
-import { completeKickLink, kickDevice, kickWebhook, startKickLink } from './kick.js'
+import { completeKickLink, kickDevice, kickWebhook, seal, startKickLink } from './kick.js'
 import { heldItems } from '../ui/held-items.js'
 import { normalizeShopPrices } from '../ui/shop.js'
 
@@ -209,6 +210,13 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url)
     const path = url.pathname
+    const setupProvider = /^\/api\/project-bot\/(kick|twitch)$/.exec(path)?.[1]
+    if (setupProvider && request.method === 'POST') return projectBotAuthorization(request, url, env, setupProvider)
+    const callbackProvider = /^\/auth\/(kick|twitch)\/callback$/.exec(path)?.[1]
+    if (callbackProvider && request.method === 'GET' && url.searchParams.get('state')?.startsWith('sc-project-bot-')) {
+      return completeProjectBot(url, env, callbackProvider, seal)
+    }
+    if (path === '/api/twitch/bot-reply' && request.method === 'POST') return twitchProjectReply(request, env, await authorizedDevice(request, env.DB))
     if (path === '/webhooks/kick' && request.method === 'POST') return kickWebhook(request, env.DB)
     if (path === '/webhooks/kick' && request.method === 'GET') return json({ status: 'ready' })
     if (path === '/auth/kick/callback' && request.method === 'GET' && url.searchParams.get('state')?.startsWith('sc-kick-')) {

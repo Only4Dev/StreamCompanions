@@ -16,7 +16,7 @@ Object.assign(labels.es, {
   linkKick: 'Vincular Kick en el portal', connectTwitch: 'Conectar Twitch', twitchReady: 'Chat conectado', twitchDisconnected: 'Chat sin conectar',
   connectKick: 'Conectar Kick', kickStatus: 'Chat sin conectar', kickPairing: 'Termina la autorización que ya tienes abierta.', kickAuthorize: 'Autoriza el canal en Kick y vuelve a la app.',
   mode: 'Modo', demoMode: 'Demo local', clientId: 'Client ID de Twitch', webUrl: 'URL del portal',
-  nickname: 'Apodo del bot', advanced: 'Configuración avanzada', clientHint: 'Identificador público de la aplicación de Twitch. El valor incluido funciona para iniciar sesión con tu cuenta.', resetReply: 'Restaurar',
+  advanced: 'Configuración avanzada', clientHint: 'Identificador público de la aplicación de Twitch. El valor incluido funciona para iniciar sesión con tu cuenta.', resetReply: 'Restaurar',
   botHelp: 'Los mensajes predeterminados siguen el idioma de la app. Tus ediciones se mantienen al cambiarlo. Para enviar ambos idiomas, escribe las dos frases en un mismo campo, separadas por «|». Un campo vacío desactiva el mensaje. Conserva {url} en !web y usa {min} y {unidad} en los avisos.',
   saved: 'Cambios guardados.', invalidSetup: 'Revisa el Client ID o la URL HTTPS.', restarting: 'Reiniciando la conexión.',
   invalidBot: 'Revisa los textos. La respuesta de !web debe incluir {url}.', unavailable: 'No se pudieron guardar los cambios.',
@@ -33,7 +33,7 @@ Object.assign(labels.en, {
   linkKick: 'Link Kick in the portal', connectTwitch: 'Connect Twitch', twitchReady: 'Chat connected', twitchDisconnected: 'Chat not connected',
   connectKick: 'Connect Kick', kickStatus: 'Chat not connected', kickPairing: 'Finish the authorization you have already started.', kickAuthorize: 'Authorize your channel in Kick, then return to the app.',
   mode: 'Mode', demoMode: 'Local demo', clientId: 'Twitch Client ID', webUrl: 'Portal URL',
-  nickname: 'Bot nickname', advanced: 'Advanced settings', clientHint: 'Public identifier for the Twitch application. Use the included value to sign in with your account.', resetReply: 'Reset',
+  advanced: 'Advanced settings', clientHint: 'Public identifier for the Twitch application. Use the included value to sign in with your account.', resetReply: 'Reset',
   botHelp: 'Default messages follow the app language. Your edits stay as written. To send both languages, enter both phrases in the same field, separated by “|”. Leave a field empty to disable it. Keep {url} in !web and use {min} and {unidad} in countdowns.',
   saved: 'Changes saved.', invalidSetup: 'Check the Client ID or HTTPS URL.', restarting: 'Reconnecting the app.',
   invalidBot: 'Check the messages. The !web reply must include {url}.', unavailable: 'Could not save the changes.',
@@ -112,11 +112,11 @@ Object.assign(labels.en, { totalEncounters: 'All-time encounters', totalCaptures
 labels.es.openPortal = 'Abrir portal web'
 labels.en.openPortal = 'Open web portal'
 
-Object.assign(labels.es, { legendaryChancePercent: 'Aparición legendaria (%)', resetCancel: 'Cancelar', resetCommunity: 'Borrar progreso de la comunidad', resetPrompt: 'Esto borra los registros y el progreso de todos los viewers de esta comunidad. Escribe RESET para confirmar.', resetDone: 'Progreso borrado. Los viewers deben registrarse de nuevo.', resetPending: 'Borrado pendiente. La app volverá a intentarlo.', summonSourcePreview: 'Vista previa de invocaciones (fuente)', battleSourcePreview: 'Vista previa de batalla (fuente)', activityTab: 'Registro', liveChatTab: 'Chat', liveChatHelp: 'Mensajes recientes de los chats conectados.', connectTwitchBot: 'Vincular bot de Twitch', botAccountHelp: 'Vincula una cuenta de Twitch distinta a la del canal para que el bot pueda enviar mensajes.' })
-Object.assign(labels.en, { legendaryChancePercent: 'Legendary encounter chance (%)', resetCancel: 'Cancel', resetCommunity: 'Reset community progress', resetPrompt: 'This deletes all viewer registrations and progress for this community. Type RESET to confirm.', resetDone: 'Progress deleted. Viewers must join again.', resetPending: 'Reset pending. The app will retry.', summonSourcePreview: 'Summon preview (source)', battleSourcePreview: 'Battle preview (source)', activityTab: 'Log', liveChatTab: 'Chat', liveChatHelp: 'Recent messages from connected chats.', connectTwitchBot: 'Link Twitch bot', botAccountHelp: 'Link a separate Twitch account so the bot can send chat messages.' })
+Object.assign(labels.es, { legendaryChancePercent: 'Aparición legendaria (%)', resetCancel: 'Cancelar', resetCommunity: 'Borrar progreso de la comunidad', resetPrompt: 'Esto borra los registros y el progreso de todos los viewers de esta comunidad. Escribe RESET para confirmar.', resetDone: 'Progreso borrado. Los viewers deben registrarse de nuevo.', resetPending: 'Borrado pendiente. La app volverá a intentarlo.', summonSourcePreview: 'Vista previa de invocaciones (fuente)', battleSourcePreview: 'Vista previa de batalla (fuente)', activityTab: 'Registro', liveChatTab: 'Chat', liveChatHelp: 'Mensajes recientes de los chats conectados.', copyBotMod: 'Copiar comando de moderador', botModCopied: 'Comando copiado. Pégalo en el chat de tu canal de Twitch.', botAccountHelp: 'Twitch: copia el comando, pégalo en el chat de tu canal y pulsa Probar Twitch.' })
+Object.assign(labels.en, { legendaryChancePercent: 'Legendary encounter chance (%)', resetCancel: 'Cancel', resetCommunity: 'Reset community progress', resetPrompt: 'This deletes all viewer registrations and progress for this community. Type RESET to confirm.', resetDone: 'Progress deleted. Viewers must join again.', resetPending: 'Reset pending. The app will retry.', summonSourcePreview: 'Summon preview (source)', battleSourcePreview: 'Battle preview (source)', activityTab: 'Log', liveChatTab: 'Chat', liveChatHelp: 'Recent messages from connected chats.', copyBotMod: 'Copy moderator command', botModCopied: 'Command copied. Paste it in your Twitch channel chat.', botAccountHelp: 'Twitch: copy the command, run it in your channel chat, and click Test Twitch.' })
 
-Object.assign(labels.es, { connectKickBot: 'Vincular bot de Kick', kickBotNeedsChannel: 'Conecta primero tu canal de Kick en Conexiones.', kickBotAuthorize: 'Autoriza la cuenta del bot en Kick y vuelve a la app.', kickBotHelp: 'Vincula una cuenta de Kick distinta a la del canal para enviar mensajes con tu propio bot. Si prefieres, usa el bot de Stream Companions.', testTwitchBot: 'Probar Twitch', testKickBot: 'Probar Kick', botTestOffline: 'El canal no está conectado.', botTestFailed: 'El bot no pudo enviar. Revisa su vinculación y permisos.', botTestChannel: 'Mensaje enviado desde la cuenta del canal.', botTestBot: 'Mensaje enviado desde el bot.' })
-Object.assign(labels.en, { connectKickBot: 'Link Kick bot', kickBotNeedsChannel: 'Connect your Kick channel in Connections first.', kickBotAuthorize: 'Authorize your bot account in Kick, then return to the app.', kickBotHelp: 'Link a separate Kick account to send messages as your own bot. You can also use the Stream Companions bot.', testTwitchBot: 'Test Twitch', testKickBot: 'Test Kick', botTestOffline: 'The channel is not connected.', botTestFailed: 'The bot could not send. Check its connection and permissions.', botTestChannel: 'Message sent from the channel account.', botTestBot: 'Message sent from the bot.' })
+Object.assign(labels.es, { kickBotHelp: 'Kick: conecta tu canal en Conexiones y pulsa Probar Kick.', testTwitchBot: 'Probar Twitch', testKickBot: 'Probar Kick', botTestOffline: 'El canal no está conectado.', botTestFailed: 'El bot no pudo enviar. Revisa su vinculación y permisos.', botTestChannel: 'Mensaje enviado desde la cuenta del canal.', botTestBot: 'Mensaje enviado desde el bot.' })
+Object.assign(labels.en, { kickBotHelp: 'Kick: connect your channel in Connections and click Test Kick.', testTwitchBot: 'Test Twitch', testKickBot: 'Test Kick', botTestOffline: 'The channel is not connected.', botTestFailed: 'The bot could not send. Check its connection and permissions.', botTestChannel: 'Message sent from the channel account.', botTestBot: 'Message sent from the bot.' })
 let botTestPlatform
 function renderActivity(id, entries) {
   const node = document.getElementById(id)
@@ -137,7 +137,6 @@ function showPane(name) {
 
 function loadBotEditor(bot) {
   const form = $('bot-form')
-  form.elements.nickname.value = bot.nickname
   for (const action of botActions) {
     const row = document.createElement('div')
     row.className = 'bot-row'
@@ -334,19 +333,13 @@ async function refresh() {
   $('reset-community').disabled = Boolean(state.resettingCommunity)
   renderActivity('activity-list', state.activityLog)
   renderActivity('live-chat-list', state.localChat)
-  $('twitch-bot-status').textContent = state.twitchBotStatus || ''
   $('test-twitch-bot').disabled = !state.twitchConnected
   $('test-kick-bot').disabled = !state.kickConnected
-  $('connect-kick-bot').disabled = !state.kickConnected
-  if (state.kickBotLogin) $('kick-bot-status').textContent = '@' + state.kickBotLogin
-  else if (!state.kickConnected) $('kick-bot-status').textContent = copy.kickBotNeedsChannel
-  else if ($('kick-bot-status').textContent === copy.kickBotNeedsChannel) $('kick-bot-status').textContent = ''
   const tested = state.botTestStatus?.[botTestPlatform]
   if (tested) {
     const result = { bot: 'botTestBot', channel: 'botTestChannel', offline: 'botTestOffline', failed: 'botTestFailed' }[tested]
     $('bot-test-result').textContent = copy[result] ?? ''
   }
-  $('connect-twitch-bot').disabled = state.setup?.platform !== 'twitch'
   $('kick-card-status').textContent = connectionMessage(state.kickStatus) || copy.kickStatus
   for (const [provider, name] of [['twitch', 'Twitch'], ['kick', 'Kick']]) {
     const chip = $('status-' + provider)
@@ -576,15 +569,13 @@ if (panel) {
       if (!result?.ok) $('bot-test-result').textContent = labels[$('language').value].botTestFailed
     })
   }
-  $('connect-twitch-bot').addEventListener('click', async () => {
-    const response = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ connectTwitchBot: true }) }).catch(() => null)
-    if (!response?.ok) $('twitch-bot-status').textContent = labels[$('language').value].unavailable
-  })
-  $('connect-kick-bot').addEventListener('click', async () => {
+  $('copy-bot-mod').addEventListener('click', async () => {
     const copy = labels[$('language').value]
-    const response = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ connectKickBot: true }) }).catch(() => null)
-    $('kick-bot-status').textContent = response?.ok ? copy.kickBotAuthorize : copy.unavailable
+    const command = '/mod streamcompanionsbot'
+    try {
+      await navigator.clipboard.writeText(command)
+      $('bot-test-result').textContent = copy.botModCopied
+    } catch { $('bot-test-result').textContent = command }
   })
   $('connect-kick').addEventListener('click', async () => {
     const copy = labels[$('language').value]
@@ -620,7 +611,7 @@ if (panel) {
   $('bot-form').addEventListener('submit', async event => {
     event.preventDefault()
     const form = event.target
-    const bot = { nickname: form.elements.nickname.value, responses: {} }
+    const bot = { nickname: '', responses: {} }
     for (const key of botActions) {
       const input = form.elements.namedItem(key)
       if (input.dataset.custom === 'true') bot.responses[key] = input.value
