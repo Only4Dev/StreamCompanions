@@ -59,6 +59,18 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.deepEqual(await (await device('GET', null, { 'poke-ball': 200 })).json(), {
     orders: [{ id: priced, viewerId: 'twitch:1', item: 'poke-ball', price: 150 }]
   })
+  const syncCapture = capture => worker.fetch(new Request(base + '/api/sync', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ viewers: [{ id: 'twitch:1', revision: 2, displayName: 'viewer',
+      balls: { normal: 5, great: 0, ultra: 0, master: 0 }, collection: {},
+      log: [{ at: 1, platform: 'twitch', action: '!catch great', result: 'escaped', capture }] }] })
+  }), { DB: D1 })
+  assert.equal((await syncCapture({ ball: 'great', remaining: -1 })).status, 400)
+  assert.equal((await syncCapture({ ball: 'great', remaining: 0 })).status, 200)
+  const logPage = await worker.fetch(new Request(base + '/?community=stream&tab=log', {
+    headers: { Cookie: 'sc_session=' + session }
+  }), { DB: D1 })
+  assert.match(await logPage.text(), /viewer lanzó una Super Ball · Se escapó · Restantes \(Super Ball\): 0/)
   const confirmPage = await worker.fetch(new Request(base + '/auth/delete', { headers: { Cookie: 'sc_session=' + session } }), { DB: D1 })
   const confirmationCookie = confirmPage.headers.getSetCookie().find(item => item.startsWith('sc_delete=')).split(';')[0]
   const nonce = confirmationCookie.slice('sc_delete='.length).split('.')[0]

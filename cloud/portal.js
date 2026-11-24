@@ -551,6 +551,17 @@ export async function portal(request, url, env) {
           '<form method="post" action="' + escape(action) + '">' + button + '</form>' + (available && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
       }).join('') + '</ul></section>'
   }
+  const logDescription = entry => {
+    const outcome = Object.hasOwn(outcomes, entry.result) ? outcomes[entry.result] : ''
+    if (!entry.capture) return [entry.action, outcome].filter(Boolean).join(' · ')
+    const { ball, remaining, pokemon } = entry.capture
+    const names = { normal: 'Poké Ball', great: en ? 'Great Ball' : 'Super Ball', ultra: 'Ultra Ball', master: 'Master Ball' }
+    const name = names[ball]
+    const viewer = displayName || identity.login || (en ? 'Viewer' : 'Espectador')
+    return [en ? viewer + ' threw a ' + name : viewer + ' lanzó una ' + name,
+      pokemon ? outcome + ' · ' + pokemon : outcome,
+      en ? 'Remaining (' + name + '): ' + remaining : 'Restantes (' + name + '): ' + remaining].filter(Boolean).join(' · ')
+  }
   const outcomes = en ?
     { joined: 'Joined', caught: 'Caught', escaped: 'Escaped', noBalls: 'Out of Poké Balls', noEncounter: 'No wild Pokémon', summoned: 'Summoned', removed: 'Withdrawn', duplicateReward: 'Earned XP', alreadyCaught: 'Already caught', candyUsed: 'Used Rare Candy' } :
     { joined: 'Registro', caught: 'Captura', escaped: 'Se escapó', noBalls: 'Sin Poké Balls', noEncounter: 'Sin encuentro activo', summoned: 'Invocado', removed: 'Retirado', duplicateReward: 'Ganó XP', alreadyCaught: 'Ya capturado', candyUsed: 'Usó Caramelo Raro' }
@@ -632,7 +643,7 @@ export async function portal(request, url, env) {
       : tab === 'overview' ? overview : tab === 'shop' ? shopPage : tab === 'log' ?
         '<section class="sheet"><h2>' + (en ? 'Activity log' : 'Registro de actividad') + '</h2><ul>' +
         [...log].reverse().map(entry => '<li><time>' + escape(new Date(entry.at).toLocaleString(language, { timeZone: 'America/Lima' })) +
-          '</time> · ' + escape(entry.platform + ' · ' + entry.action + (Object.hasOwn(outcomes, entry.result) ? ' · ' + outcomes[entry.result] : '')) + '</li>').join('') + '</ul></section>' : inventoryPage) +
+          '</time> · ' + escape(entry.platform + ' · ' + logDescription(entry)) + '</li>').join('') + '</ul></section>' : inventoryPage) +
     '<div class="toolbar"><p class="meta">' + (updated ? t('Última sincronización · ') + escape(updated) + ' (Lima)' : t('Todavía no hay progreso sincronizado')) +
     '</p></div>')
 }

@@ -109,9 +109,14 @@ async function synchronize(request, db) {
     const generation = viewer.generation ?? 0
     if (!Number.isSafeInteger(generation) || generation < 0) return json({ error: 'invalid generation' }, 400)
     const log = viewer.log ?? []
+    const validCapture = ({ capture, result, action }) => capture === undefined ||
+      (capture !== null && typeof capture === 'object' && !Array.isArray(capture) &&
+       ['caught', 'duplicateReward', 'escaped'].includes(result) && /^!catch(?: |$)/.test(action) &&
+       types.includes(capture.ball) && Number.isSafeInteger(capture.remaining) && capture.remaining >= 0 &&
+       (capture.pokemon === undefined || (typeof capture.pokemon === 'string' && capture.pokemon.length <= 80)))
     if (!Array.isArray(log) || log.length > 30 || log.some(entry => !entry || !['kick', 'twitch'].includes(entry.platform) ||
         typeof entry.action !== 'string' || !entry.action.startsWith('!') || entry.action.length > 120 ||
-        typeof entry.result !== 'string' || entry.result.length > 50 || !Number.isSafeInteger(entry.at) || entry.at < 0 || entry.at > 8.64e15)) {
+        typeof entry.result !== 'string' || entry.result.length > 50 || !Number.isSafeInteger(entry.at) || entry.at < 0 || entry.at > 8.64e15 || !validCapture(entry))) {
       return json({ error: 'invalid activity log' }, 400)
     }
     ids.add(viewer.id)
@@ -125,7 +130,9 @@ async function synchronize(request, db) {
       'WHERE excluded.revision > viewer_progress.revision'
     ).bind(device.community_id, viewer.id, viewer.revision,
         JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters,
-          log: log.map(({ at, platform, action, result }) => ({ at, platform, action, result })), metrics: { wins: metrics.wins, losses: metrics.losses, summonMinutes: metrics.summonMinutes } }), Date.now(), viewer.id, generation, generation, viewer.id, device.key_hash))
+          log: log.map(({ at, platform, action, result, capture }) => ({
+            at, platform, action, result, ...(capture ? { capture: { ball: capture.ball, remaining: capture.remaining, pokemon: capture.pokemon } } : {})
+          })), metrics: { wins: metrics.wins, losses: metrics.losses, summonMinutes: metrics.summonMinutes } }), Date.now(), viewer.id, generation, generation, viewer.id, device.key_hash))
     writes.push(db.prepare('INSERT OR IGNORE INTO erasure_devices SELECT ?, viewer_id FROM erased_viewers WHERE viewer_id = ?')
       .bind(device.community_id, viewer.id))
   }

@@ -81,7 +81,10 @@ function chatAction(viewer, displayName, text, platform) {
   const balance = { ball: names[ball], remaining: balls?.[ball] }
   if (action.startsWith('!')) {
     remember(activityLog, { platform, name: displayName, message: text.slice(0, 120), result })
-    game.recordAction(viewer, { platform, action: normalizeCommand(text).slice(0, 120), result })
+    const capture = ['caught', 'duplicateReward', 'escaped'].includes(result) ? {
+      ball, remaining: balance.remaining, ...(result !== 'escaped' ? { pokemon: game.latestCapture()?.pokemon } : {})
+    } : undefined
+    game.recordAction(viewer, { platform, action: normalizeCommand(text).slice(0, 120), result, ...(capture ? { capture } : {}) })
     persistGame()
   }
   if (result === 'caught' || result === 'duplicateReward') return { code: 'catchSuccess', ...game.latestCapture(), ...balance }

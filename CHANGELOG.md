@@ -2,6 +2,8 @@
 
 ## 1.1.2
 
+- The viewer activity log shows the ball spent and the remaining count after each catch attempt.
+
 - Streamers can link a dedicated Kick account to send chat replies and announcements from their own bot. The shared app bot remains available when no dedicated bot is linked.
 
 ## 1.1.1
