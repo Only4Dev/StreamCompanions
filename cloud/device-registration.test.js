@@ -55,7 +55,7 @@ test('Kick can create a community and Twitch can join it with the same device', 
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     if (url === 'https://api.kick.com/public/v1/chat') {
       sent.push({ token: options.headers.Authorization, body: JSON.parse(options.body) })
-      return Response.json({ data: { is_sent: true } })
+      return Response.json({ data: { is_sent: sent.at(-1).body.type === 'user' } })
     }
     if (url === 'https://id.kick.com/oauth/token') return Response.json({ access_token: 'access-' + kickIdentity.user_id, refresh_token: 'refresh', expires_in: 3600 })
     if (url === 'https://api.kick.com/public/v1/users') return Response.json({ data: [kickIdentity] })
@@ -93,6 +93,10 @@ test('Kick can create a community and Twitch can join it with the same device', 
     return '/auth/kick/callback?code=code&state=' + url.searchParams.get('state')
   }
   assert.equal((await request(await startBot())).status, 409)
+  const legacyReply = await request('/api/kick/reply', { method: 'POST', headers: { Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ message: 'Hello' }) })
+  assert.equal(legacyReply.status, 502)
+  assert.deepEqual(sent.splice(0).map(item => item.body.type), ['bot'])
   kickIdentity = { user_id: 56, name: 'my-bot' }
   const botCallback = await startBot()
   assert.equal((await request(botCallback)).status, 200)

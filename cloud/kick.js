@@ -248,11 +248,10 @@ export async function kickDevice(request, url, env, device) {
           body: JSON.stringify({ broadcaster_user_id: Number(channel.broadcaster_id), content: data.message, type })
         })
         const payload = await response.json().catch(() => ({}))
-        return { sent: response.ok && payload.data?.is_sent === true, rejected: [400, 401, 403, 404].includes(response.status) || (response.ok && payload.data?.is_sent === false) }
+        return response.ok && payload.data?.is_sent === true
       }
       const bot = await send(linkedBot ? 'user' : 'bot')
-      if (bot.sent) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'bot' } })
-      if (!linkedBot && data.botOnly !== true && bot.rejected && (await send('user')).sent) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'channel' } })
+      if (bot) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'bot' } })
       return json({ error: 'Kick rejected reply' }, 502)
     } catch { return json({ error: 'Kick reply unavailable' }, 502) }
   }
