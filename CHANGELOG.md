@@ -4,7 +4,7 @@
 
 - The viewer activity log shows the ball spent and the remaining count after each catch attempt.
 
-- Streamers can link a dedicated Kick account to send chat replies and announcements from their own bot. The shared app bot remains available when no dedicated bot is linked.
+- Twitch and Kick send game announcements and replies as the shared @streamcompanionsbot account. The Bot tab includes a Twitch moderator command and a send test for each platform.
 
 ## 1.1.1
 
