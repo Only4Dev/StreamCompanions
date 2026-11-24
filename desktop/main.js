@@ -47,7 +47,7 @@ let kickCursor = 0
 const openedAt = Date.now()
 let kickTimer
 const botTestStatus = {}
-let lastBotTest = 0
+const lastBotTest = new Map()
 const liveChannels = new Map()
 const activityLog = []
 const localChat = []
@@ -404,13 +404,17 @@ function deviceRequest(path, body) {
     method: body ? 'POST' : 'GET', redirect: 'error',
     headers: { Authorization: 'Bearer ' + syncDevice.token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(6500)])
+    signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(path === '/api/kick/reply' ? 15_000 : 6500)])
   })
 }
 
-async function sendKickMessage(message) {
+async function sendKickMessage(message, test = false) {
   const response = await kickRequest('reply', { message: message.slice(0, 500), projectBotOnly: true })
-  if (!response.ok) return false
+  if (!response.ok) {
+    if (!test) return false
+    const { reason } = await response.json().catch(() => ({}))
+    return ['kickPermission', 'kickRateLimited', 'kickRejected', 'kickSameAccount', 'kickUnavailable'].includes(reason) ? reason : false
+  }
   return response.headers.get('X-Chat-Identity') || 'bot'
 }
 
@@ -749,15 +753,15 @@ const server = createServer(async (req, res) => {
       }
       if (['twitch', 'kick'].includes(action.testBot)) {
         const platform = action.testBot
-        if (Date.now() - lastBotTest < 5000) { res.writeHead(429).end(); return }
-        lastBotTest = Date.now()
+        if (Date.now() - (lastBotTest.get(platform) ?? 0) < 5000) { res.writeHead(429).end(); return }
+        lastBotTest.set(platform, Date.now())
         const connected = platform === 'kick' ? kickConnected : twitchAllowed() && disconnectTwitch?.connected()
         if (!connected) {
           botTestStatus[platform] = 'offline'
         } else {
           const message = bot.language === 'es' ? 'Stream Companions: mensaje de prueba.' : 'Stream Companions: test message.'
           try {
-            const sent = platform === 'kick' ? await sendKickMessage(botSignature(bot, message)) :
+            const sent = platform === 'kick' ? await sendKickMessage(botSignature(bot, message), true) :
               await disconnectTwitch.testChat(botSignature(bot, message))
             botTestStatus[platform] = sent || 'failed'
           } catch { botTestStatus[platform] = 'failed' }

@@ -242,9 +242,9 @@ export async function kickDevice(request, url, env, device) {
     if (typeof data?.message !== 'string' || !data.message || data.message.length > 500) return json({ error: 'invalid message' }, 400)
     try {
       const sharedBot = await env.DB.prepare('SELECT user_id, encrypted_tokens FROM project_bots WHERE provider = ?').bind('kick').first()
-      if (sharedBot?.user_id === channel.broadcaster_id) return json({ error: 'bot account is the broadcaster' }, 409)
+      if (sharedBot?.user_id === channel.broadcaster_id) return json({ error: 'bot account is the broadcaster', reason: 'kickSameAccount' }, 409)
       const linkedBot = sharedBot || data.projectBotOnly === true ? null : await ownBot()
-      if (!sharedBot && data.projectBotOnly === true) return json({ error: 'project bot unavailable' }, 503)
+      if (!sharedBot && data.projectBotOnly === true) return json({ error: 'project bot unavailable', reason: 'kickUnavailable' }, 503)
       const headers = { Authorization: 'Bearer ' + await channelAccess(env, sharedBot ?? linkedBot ?? channel, Boolean(linkedBot), Boolean(sharedBot)), 'Content-Type': 'application/json' }
       const send = async type => {
         const response = await fetch(api + 'chat', {
@@ -252,11 +252,11 @@ export async function kickDevice(request, url, env, device) {
           body: JSON.stringify({ broadcaster_user_id: Number(channel.broadcaster_id), content: data.message, type })
         })
         const payload = await response.json().catch(() => ({}))
-        return response.ok && payload.data?.is_sent === true
+        return { sent: response.ok && payload.data?.is_sent === true, status: response.status }
       }
       const bot = await send(sharedBot || linkedBot ? 'user' : 'bot')
-      if (bot) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'bot' } })
-      return json({ error: 'Kick rejected reply' }, 502)
+      if (bot.sent) return new Response(null, { status: 204, headers: { 'X-Chat-Identity': 'bot' } })
+      return json({ error: 'Kick rejected reply', reason: [401, 403].includes(bot.status) ? 'kickPermission' : bot.status === 429 ? 'kickRateLimited' : 'kickRejected', providerStatus: bot.status }, 502)
     } catch { return json({ error: 'Kick reply unavailable' }, 502) }
   }
   return json({ error: 'not found' }, 404)

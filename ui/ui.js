@@ -115,8 +115,10 @@ labels.en.openPortal = 'Open web portal'
 Object.assign(labels.es, { legendaryChancePercent: 'Aparición legendaria (%)', resetCancel: 'Cancelar', resetCommunity: 'Borrar progreso de la comunidad', resetPrompt: 'Esto borra los registros y el progreso de todos los viewers de esta comunidad. Escribe RESET para confirmar.', resetDone: 'Progreso borrado. Los viewers deben registrarse de nuevo.', resetPending: 'Borrado pendiente. La app volverá a intentarlo.', summonSourcePreview: 'Vista previa de invocaciones (fuente)', battleSourcePreview: 'Vista previa de batalla (fuente)', activityTab: 'Registro', liveChatTab: 'Chat', liveChatHelp: 'Mensajes recientes de los chats conectados.', copyBotMod: 'Copiar comando de moderador', botModCopied: 'Comando copiado. Pégalo en el chat de tu canal de Twitch.', botAccountHelp: 'Twitch: copia el comando, pégalo en el chat de tu canal y pulsa Probar Twitch.' })
 Object.assign(labels.en, { legendaryChancePercent: 'Legendary encounter chance (%)', resetCancel: 'Cancel', resetCommunity: 'Reset community progress', resetPrompt: 'This deletes all viewer registrations and progress for this community. Type RESET to confirm.', resetDone: 'Progress deleted. Viewers must join again.', resetPending: 'Reset pending. The app will retry.', summonSourcePreview: 'Summon preview (source)', battleSourcePreview: 'Battle preview (source)', activityTab: 'Log', liveChatTab: 'Chat', liveChatHelp: 'Recent messages from connected chats.', copyBotMod: 'Copy moderator command', botModCopied: 'Command copied. Paste it in your Twitch channel chat.', botAccountHelp: 'Twitch: copy the command, run it in your channel chat, and click Test Twitch.' })
 
-Object.assign(labels.es, { kickBotHelp: 'Kick: conecta tu canal en Conexiones y pulsa Probar Kick.', testTwitchBot: 'Probar Twitch', testKickBot: 'Probar Kick', botTestOffline: 'El canal no está conectado.', botTestFailed: 'El bot no pudo enviar. Revisa su vinculación y permisos.', botTestChannel: 'Mensaje enviado desde la cuenta del canal.', botTestBot: 'Mensaje enviado desde el bot.' })
-Object.assign(labels.en, { kickBotHelp: 'Kick: connect your channel in Connections and click Test Kick.', testTwitchBot: 'Test Twitch', testKickBot: 'Test Kick', botTestOffline: 'The channel is not connected.', botTestFailed: 'The bot could not send. Check its connection and permissions.', botTestChannel: 'Message sent from the channel account.', botTestBot: 'Message sent from the bot.' })
+Object.assign(labels.es, { kickBotHelp: 'Conecta tu canal y pulsa Probar Kick. Si el chat restringe quién puede escribir, puedes añadir el bot como moderador.', testTwitchBot: 'Probar Twitch', testKickBot: 'Probar Kick', botTestOffline: 'El canal no está conectado.', botTestFailed: 'El bot no pudo enviar. Revisa su vinculación y permisos.', botTestChannel: 'Mensaje enviado desde la cuenta del canal.', botTestBot: 'Mensaje enviado desde el bot.' })
+Object.assign(labels.en, { kickBotHelp: 'Connect your channel and click Test Kick. If your chat restricts who can post, you can add the bot as a moderator.', testTwitchBot: 'Test Twitch', testKickBot: 'Test Kick', botTestOffline: 'The channel is not connected.', botTestFailed: 'The bot could not send. Check its connection and permissions.', botTestChannel: 'Message sent from the channel account.', botTestBot: 'Message sent from the bot.' })
+Object.assign(labels.es, { kickPermission: 'Kick rechazó el permiso del bot. Confirma que tu chat permite escribir a @streamcompanionsbot y prueba de nuevo.', kickRateLimited: 'Kick limitó los envíos. Espera un momento y vuelve a probar.', kickRejected: 'Kick rechazó el mensaje. Revisa las restricciones de tu chat y prueba de nuevo.', kickSameAccount: 'Conecta tu canal de streamer. @streamcompanionsbot es el remitente.', kickUnavailable: 'El bot compartido de Kick aún no está disponible.' })
+Object.assign(labels.en, { kickPermission: 'Kick denied the bot permission. Check that @streamcompanionsbot can post in your chat and try again.', kickRateLimited: 'Kick rate-limited the message. Wait a moment and try again.', kickRejected: 'Kick rejected the message. Check your chat restrictions and try again.', kickSameAccount: 'Connect your streamer channel. @streamcompanionsbot is the sender.', kickUnavailable: 'The shared Kick bot is currently unavailable.' })
 let botTestPlatform
 function renderActivity(id, entries) {
   const node = document.getElementById(id)
@@ -337,7 +339,7 @@ async function refresh() {
   $('test-kick-bot').disabled = !state.kickConnected
   const tested = state.botTestStatus?.[botTestPlatform]
   if (tested) {
-    const result = { bot: 'botTestBot', channel: 'botTestChannel', offline: 'botTestOffline', failed: 'botTestFailed' }[tested]
+    const result = { bot: 'botTestBot', channel: 'botTestChannel', offline: 'botTestOffline', failed: 'botTestFailed', kickPermission: 'kickPermission', kickRateLimited: 'kickRateLimited', kickRejected: 'kickRejected', kickSameAccount: 'kickSameAccount', kickUnavailable: 'kickUnavailable' }[tested]
     $('bot-test-result').textContent = copy[result] ?? ''
   }
   $('kick-card-status').textContent = connectionMessage(state.kickStatus) || copy.kickStatus
@@ -569,12 +571,12 @@ if (panel) {
       if (!result?.ok) $('bot-test-result').textContent = labels[$('language').value].botTestFailed
     })
   }
-  $('copy-bot-mod').addEventListener('click', async () => {
+  for (const button of document.querySelectorAll('[data-copy-mod]')) button.addEventListener('click', async () => {
     const copy = labels[$('language').value]
     const command = '/mod streamcompanionsbot'
     try {
       await navigator.clipboard.writeText(command)
-      $('bot-test-result').textContent = copy.botModCopied
+      $('bot-test-result').textContent = copy.botModCopied.replace('Twitch', button.dataset.copyMod === 'kick' ? 'Kick' : 'Twitch')
     } catch { $('bot-test-result').textContent = command }
   })
   $('connect-kick').addEventListener('click', async () => {
