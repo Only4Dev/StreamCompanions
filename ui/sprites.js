@@ -238,6 +238,10 @@ export function chooseBehavior(actor, animations, time, random = Math.random) {
 }
 
 export function showScene(canvas, kind, catalog, getState, formatTime, { strip = false } = {}) {
+  if (kind === 'companions') {
+    canvas.width = companionWidth
+    canvas.height = strip ? companionStripHeight : companionHeight
+  }
   const context = canvas.getContext('2d')
   const actors = new Map()
   const battlePositions = new Map()
