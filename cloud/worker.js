@@ -167,13 +167,14 @@ async function deviceShop(request, db) {
       if (!prices) return json({ error: 'invalid prices' }, 400)
     }
     const packed = prices ? JSON.stringify(prices) : null
-    const dnaLevel = dna ? (request.headers.get('X-Shop-Family-Dna') === '1' ? 2 : 1) : 0
+    const familyDna = request.headers.get('X-Shop-Family-Dna')
+    const dnaLevel = dna ? (familyDna === '2' ? 3 : familyDna === '1' ? 2 : 1) : 0
     const [, pending] = await db.batch([
       db.prepare('INSERT INTO shop_online (community_id, seen_at, prices, supports_dna) VALUES (?, ?, ?, ?) ' +
         'ON CONFLICT (community_id) DO UPDATE SET seen_at = excluded.seen_at, prices = excluded.prices, supports_dna = excluded.supports_dna ' +
         'WHERE excluded.prices IS NOT NULL OR shop_online.prices IS NULL').bind(community, Date.now(), packed, dnaLevel),
       db.prepare('SELECT id, viewer_id AS viewerId, item, price, species_key AS speciesKey FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
-        'AND (? IS NOT NULL OR price IS NULL) AND (? >= 2 OR species_key IS NULL) ORDER BY created_at LIMIT 10').bind(community, packed, dnaLevel)
+        'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) ORDER BY created_at LIMIT 10').bind(community, packed, dnaLevel)
     ])
     return json({ orders: pending.results.map(({ price, speciesKey, ...order }) => ({ ...order,
       ...(price === null ? {} : { price }), ...(speciesKey === null ? {} : { speciesKey }) })) })

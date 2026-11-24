@@ -22,10 +22,10 @@ for (const entry of nationalDex) {
 const familyLinks = id => families.get(familyRoot(id)) ?? []
 const dexByName = new Map(nationalDex.map(([id]) => [speciesName(id), id]))
 function sharedDna(boosters, key) {
-  const shiny = key.endsWith(' ✦')
-  const id = dexByName.get(key.replace(/ ✦$/, ''))
-  const keys = id ? familyLinks(id).map(([member]) => speciesName(member) + (shiny ? ' ✦' : '')) : [key]
-  return familyDnaCount(boosters, keys)
+  const name = key.replace(/ ✦$/, '')
+  const id = dexByName.get(name)
+  const names = id ? familyLinks(id).map(([member]) => speciesName(member)) : [name]
+  return familyDnaCount(boosters, names.flatMap(name => [name, name + ' ✦']))
 }
 const typeNames = {
   normal: 'Normal', fighting: 'Lucha', flying: 'Volador', poison: 'Veneno', ground: 'Tierra', rock: 'Roca',
@@ -328,7 +328,7 @@ export async function portal(request, url, env) {
       return new Response(null, { status: 409 })
     }
     const destination = target ? { pokemon: target } : { tab: 'shop' }
-    const blocked = !shopOpen ? 'offline' : product.dna && !(online?.supports_dna >= 2) ? 'upgrade' : null
+    const blocked = !shopOpen ? 'offline' : product.dna && !(online?.supports_dna >= 3) ? 'upgrade' : null
     const returnBlocked = reason => redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, reason }), [])
     if (blocked) return returnBlocked(blocked)
     const price = published?.[item] ?? product.price
@@ -339,7 +339,7 @@ export async function portal(request, url, env) {
     } else return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, repriced: '1' }), [])
     const now = Date.now()
     const queued = await env.DB.prepare('INSERT OR IGNORE INTO shop_orders (id, community_id, viewer_id, item, created_at, price, species_key) ' +
-      'SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM shop_online WHERE community_id = ? AND seen_at > ? AND prices IS ? AND (? IS NULL OR supports_dna >= 2)) ' +
+      'SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM shop_online WHERE community_id = ? AND seen_at > ? AND prices IS ? AND (? IS NULL OR supports_dna >= 3)) ' +
       'AND EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ? AND account_id = ?) AND EXISTS (SELECT 1 FROM web_sessions WHERE id IN (?, ?) AND expires_at > ?)')
       .bind(orderId, selected.community_id, selected.viewer_id, item, now, published ? price : null, target,
         selected.community_id, now - 70_000, online?.prices ?? null, target, selected.viewer_id, identity.account_id, session, key, Date.now()).run()
@@ -391,7 +391,7 @@ export async function portal(request, url, env) {
     const dnaOrder = /^[a-f0-9-]{36}$/.test(purchase ?? '') ? await env.DB.prepare(
       "SELECT result FROM shop_orders WHERE id = ? AND community_id = ? AND viewer_id = ? AND item = 'dna-booster'"
     ).bind(purchase, selected.community_id, selected.viewer_id).first() : null
-    const dnaBlocked = !shopOpen ? offlineText : !(online?.supports_dna >= 2) ? upgradeText : pokeDollars < dnaPrice ? fundsText : ''
+    const dnaBlocked = !shopOpen ? offlineText : !(online?.supports_dna >= 3) ? upgradeText : pokeDollars < dnaPrice ? fundsText : ''
     const dnaMessage = purchaseWarning || (url.searchParams.has('repriced') ? (en ? 'The price changed.' : 'El precio cambió.') :
       url.searchParams.has('retry') ? (en ? 'Purchase unavailable. Check for a pending order.' : 'Compra no disponible. Revisa si hay un pedido pendiente.') :
       dnaOrder ? (dnaOrder.result === 'purchased' ? (en ? 'Purchase complete.' : 'Compra realizada.') :
@@ -400,8 +400,8 @@ export async function portal(request, url, env) {
     const dnaSection = '<div class="held-frame"><strong>DNA Booster ' + (dna >= maxDnaBoosters ? 'MAX' : dna + '/' + maxDnaBoosters) + '</strong>' +
       '<span>' + (en ? 'Shared across this evolution line' : 'Compartido en esta línea evolutiva') + '</span>' +
       helpHint(en ? 'About DNA Booster' : 'Sobre DNA Booster', en ?
-        'Adds 10 points to each battle stat before level scaling. Up to 10 boosters per evolution line, separately for normal and shiny.' :
-        'Suma 10 puntos a cada estadística de combate antes del escalado por nivel. Hasta 10 por línea evolutiva, por separado para normal y shiny.') +
+        'Boosts the battle stats of the whole evolution line, including shiny Pokémon. Max 10.' :
+        'Mejora las estadísticas de toda la línea evolutiva, incluidas las variantes shiny. Máximo 10.') +
       '<span>' + escape(walletText) + '</span>' +
       (dnaMessage || dnaBlocked ? '<span role="status">' + escape(dnaMessage || dnaBlocked) + '</span>' : '') +
       (dna < maxDnaBoosters ? '<form method="post" action="' + escape(dnaAction) + '"><button' +

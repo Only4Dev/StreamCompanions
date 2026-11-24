@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { catchChance, createGame } from '../desktop/game.js'
 import { xpAtLevel } from '../ui/levels.js'
 
-test('DNA Booster purchases affect only the selected owned variant and cap at ten', () => {
+test('DNA Booster purchases affect both variants and use a shared cap', () => {
   const viewerId = 'twitch:4'
   const game = createGame({ progress: { viewers: { [viewerId]: { collection: { Brasa: 0, 'Brasa ✦': 0 },
     dnaBoosters: { Brasa: 9 }, pokeDollars: 30_000 } } } })
@@ -12,10 +12,10 @@ test('DNA Booster purchases affect only the selected owned variant and cap at te
   assert.equal(buy('1', 'Brasa'), 'purchased')
   assert.equal(buy('2', 'Brasa'), 'maxed')
   assert.equal(buy('3', 'Gota'), 'unavailable')
-  assert.equal(buy('4', 'Brasa ✦'), 'purchased')
+  assert.equal(buy('4', 'Brasa ✦'), 'maxed')
   const saved = game.progress().viewers[viewerId]
-  assert.deepEqual(saved.dnaBoosters, { Brasa: 10, 'Brasa ✦': 1 })
-  assert.equal(saved.pokeDollars, 10_000)
+  assert.deepEqual(saved.dnaBoosters, { Brasa: 10 })
+  assert.equal(saved.pokeDollars, 20_000)
 })
 
 test('DNA purchases share one cap across an evolution branch and survive reconnecting', () => {
@@ -31,7 +31,7 @@ test('DNA purchases share one cap across an evolution branch and survive reconne
   const reopened = createGame({ catalog, progress: game.progress() })
   const viewer = reopened.progress().viewers[id]
   for (const key of ['Slowpoke', 'Slowbro', 'Slowking']) assert.equal(reopened.dnaCount(viewer, key), 10)
-  assert.equal(reopened.dnaCount(viewer, 'Slowpoke ✦'), 0)
+  assert.equal(reopened.dnaCount(viewer, 'Slowpoke ✦'), 10)
   assert.equal(viewer.pokeDollars, 20_000)
 })
 

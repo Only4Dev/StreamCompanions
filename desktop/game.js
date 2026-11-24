@@ -103,10 +103,10 @@ export function createGame({ now = Date.now, random = Math.random, progress, cat
   }
 
   function dnaKeys(viewer, key) {
-    const suffix = key.endsWith(' ✦') ? ' ✦' : ''
-    const id = byName.get(key.replace(/ ✦$/, ''))?.id
-    if (!id) return [key]
-    return families.get(familyRoot(id)).map(member => member.name + suffix)
+    const name = key.replace(/ ✦$/, '')
+    const id = byName.get(name)?.id
+    const names = id ? families.get(familyRoot(id)).map(member => member.name) : [name]
+    return names.flatMap(name => [name, name + ' ✦'])
       .filter(name => Object.hasOwn(viewer.collection, name)).sort()
   }
 
