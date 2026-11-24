@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
 import worker from './worker.js'
+import { seal } from './kick.js'
 import { createHash } from 'node:crypto'
 
 test('a verified Twitch owner can retry their device registration without replacing another device', async t => {
@@ -106,5 +107,14 @@ test('Kick can create a community and Twitch can join it with the same device', 
   assert.equal(reply.status, 204)
   assert.equal(reply.headers.get('X-Chat-Identity'), 'bot')
   assert.deepEqual(sent, [{ token: 'Bearer access-56', body: { broadcaster_user_id: 55, content: 'Hello', type: 'user' } }])
+
+  assert.equal((await request('/api/kick/reply', { method: 'POST', headers: { Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ message: 'Shared', projectBotOnly: true }) })).status, 503)
+  const encrypted = await seal(env, 'project:kick', { access_token: 'shared-access', refresh_token: 'shared-refresh', expires_in: 3600 })
+  db.prepare('INSERT INTO project_bots VALUES (?, ?, ?)').run('kick', '99', encrypted)
+  const shared = await request('/api/kick/reply', { method: 'POST', headers: { Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ message: 'Shared', projectBotOnly: true }) })
+  assert.equal(shared.status, 204)
+  assert.deepEqual(sent.at(-1), { token: 'Bearer shared-access', body: { broadcaster_user_id: 55, content: 'Shared', type: 'user' } })
 
 })

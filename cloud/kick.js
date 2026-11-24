@@ -241,7 +241,7 @@ export async function kickDevice(request, url, env, device) {
     const data = await request.json().catch(() => null)
     if (typeof data?.message !== 'string' || !data.message || data.message.length > 500) return json({ error: 'invalid message' }, 400)
     try {
-      const sharedBot = await env.DB.prepare("SELECT user_id, encrypted_tokens FROM project_bots WHERE provider = 'kick'").first()
+      const sharedBot = await env.DB.prepare('SELECT user_id, encrypted_tokens FROM project_bots WHERE provider = ?').bind('kick').first()
       if (sharedBot?.user_id === channel.broadcaster_id) return json({ error: 'bot account is the broadcaster' }, 409)
       const linkedBot = sharedBot || data.projectBotOnly === true ? null : await ownBot()
       if (!sharedBot && data.projectBotOnly === true) return json({ error: 'project bot unavailable' }, 503)
