@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
-import { mkdir, mkdtemp, rename, rm, stat } from 'node:fs/promises'
+import { mkdir, mkdtemp, rename } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -11,6 +12,10 @@ const run = promisify(execFile)
 const executable = 'Stream Companions.exe'
 const versionPattern = /^\d{1,8}\.\d{1,8}\.\d{1,8}$/
 const allowedHosts = new Set(['github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'])
+const require = createRequire(import.meta.url)
+// Electron's standard fs opens ASAR archives as directories and can lock them on Windows.
+const nativeFs = require(process.versions.electron ? 'original-fs' : 'node:fs')
+const { rm, stat } = nativeFs.promises
 
 export function releaseArchive(version, asset) {
   if (!versionPattern.test(version ?? '')) return null
@@ -22,10 +27,7 @@ export function releaseArchive(version, asset) {
   return { url, size: asset.size, digest: asset.digest.slice(7) }
 }
 
-export function isAppArchive(entry) {
-  // Electron exposes the root of a valid ASAR as a virtual directory.
-  return entry.isFile() || Boolean(process.versions.electron && entry.isDirectory())
-}
+export const hasAppArchive = file => nativeFs.statSync(file).isFile()
 
 export async function stageUpdate(profile, { version, archive }, shutdown) {
   if (!versionPattern.test(version ?? '') || !archive) throw new Error('Release has no verified Windows archive')
@@ -72,7 +74,7 @@ export async function stageUpdate(profile, { version, archive }, shutdown) {
     const target = join(stage, 'app')
     await mkdir(target)
     await run(tar, ['-xf', zip, '-C', target], flags)
-    if (!(await stat(join(target, executable))).isFile() || !isAppArchive(await stat(join(target, 'resources', 'app.asar')))) {
+    if (!(await stat(join(target, executable))).isFile() || !(await stat(join(target, 'resources', 'app.asar'))).isFile()) {
       throw new Error('Release is missing app files')
     }
     // Keep the existing installation intact. Each update launches from its own folder.

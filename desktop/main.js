@@ -14,7 +14,7 @@ import { createGame, creatures } from './game.js'
 import { level } from '../ui/levels.js'
 import { spriteScale } from '../ui/sprites.js'
 import { projectLinks } from '../ui/about.js'
-import { isAppArchive, stageUpdate } from './install-update.js'
+import { hasAppArchive, stageUpdate } from './install-update.js'
 import { checkForUpdate } from './update-check.js'
 import { evolutionParent } from '../ui/evolution.js'
 
@@ -125,7 +125,7 @@ function useInstalledUpdate(profile) {
     const delta = installed.map((part, index) => part - current[index]).find(Boolean) ?? 0
     if (delta <= 0) return false
     const executable = join(profile, 'app-updates', folder, 'app', 'Stream Companions.exe')
-    if (!statSync(executable).isFile() || !isAppArchive(statSync(join(dirname(executable), 'resources', 'app.asar')))) return false
+    if (!statSync(executable).isFile() || !hasAppArchive(join(dirname(executable), 'resources', 'app.asar'))) return false
     app.relaunch({ execPath: executable })
     app.quit()
     return true
