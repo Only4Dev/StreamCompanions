@@ -51,7 +51,7 @@ const lastBotTest = new Map()
 const liveChannels = new Map()
 const activityLog = []
 const localChat = []
-const commandTimes = new Map()
+const commandTimes = new Map([['twitch', new Map()], ['kick', new Map()]])
 let lastWild = null
 const remember = (list, entry) => { list.push({ ...entry, at: Date.now() }); if (list.length > 100) list.shift() }
 const rememberChat = (platform, name, message) => remember(localChat, { platform, name, message: message.slice(0, 500) })
@@ -62,9 +62,10 @@ function chatAction(viewer, displayName, text, platform) {
   if (action.startsWith('!')) {
     if (!['!poke', '!catch', '!summon', '!summonshiny', '!evolve', '!candy', '!balls'].includes(action)) return ''
     const now = Date.now()
-    for (const [id, at] of commandTimes) if (now - at >= 5000) commandTimes.delete(id)
-    if (commandTimes.has(viewer)) return ''
-    commandTimes.set(viewer, now)
+    const channelTimes = commandTimes.get(platform)
+    for (const [id, at] of channelTimes) if (now - at >= 5000) channelTimes.delete(id)
+    if (channelTimes.has(viewer)) return ''
+    channelTimes.set(viewer, now)
   }
   const balls = game.ballInventory(viewer)
   const en = bot.language === 'en'
@@ -408,6 +409,13 @@ function deviceRequest(path, body) {
   })
 }
 
+function announceInLiveChats(message) {
+  return Promise.allSettled([
+    twitchAllowed() && isLive('twitch') ? disconnectTwitch?.announce(message) : undefined,
+    kickConnected && isLive('kick') ? sendKickMessage(message) : undefined
+  ])
+}
+
 async function sendKickMessage(message, test = false) {
   const response = await kickRequest('reply', { message: message.slice(0, 500), projectBotOnly: true })
   if (!response.ok) {
@@ -573,7 +581,7 @@ function tickBattleSchedule() {
   battleDueAt = Date.now() + 300_000
   game.setWildPaused(true)
   const message = botSignature(bot, bot.language === 'en' ? 'Battle royale starts in 5 minutes!' : '¡La batalla campal empieza en 5 minutos!')
-  Promise.allSettled([isLive('twitch') ? disconnectTwitch?.announce(message) : undefined, isLive('kick') ? sendKickMessage(message) : undefined])
+  announceInLiveChats(message)
 }
 
 const routes = new Map([
@@ -712,7 +720,7 @@ const server = createServer(async (req, res) => {
         battleDueAt = Date.now() + 60_000
         game.setWildPaused(true)
         const message = botSignature(bot, bot.language === 'en' ? 'Battle royale starts in 1 minute!' : '¡La batalla campal empieza en 1 minuto!')
-        Promise.allSettled([isLive('twitch') ? disconnectTwitch?.announce(message) : undefined, isLive('kick') ? sendKickMessage(message) : undefined])
+        announceInLiveChats(message)
         res.writeHead(204).end()
         return
       }
@@ -1004,13 +1012,7 @@ app.whenReady().then(() => {
     })
   }
   if (disconnectTwitch || syncDevice) {
-    const notices = createEncounterNotices(async message => {
-      const text = botSignature(bot, message)
-      await Promise.all([
-        disconnectTwitch?.announce(text),
-        kickConnected && isLive('kick') ? sendKickMessage(text) : undefined
-      ])
-    })
+    const notices = createEncounterNotices(message => announceInLiveChats(botSignature(bot, message)))
     noticeTimer = setInterval(() => {
       if (game.config.running === false) return
       tickBattleSchedule()
@@ -1021,10 +1023,7 @@ app.whenReady().then(() => {
         const chance = Math.round(game.encounterChance(wild.name) * 100)
         remember(activityLog, { name: pokemon, message: 'Wild encounter', result: chance + '%' })
         const message = botSignature(bot, formatBotReply(bot, 'wildAppeared', { pokemon, chance }))
-        if (message) Promise.allSettled([
-          isLive('twitch') ? disconnectTwitch?.announce(message) : null,
-          isLive('kick') ? sendKickMessage(message) : null
-        ])
+        if (message) announceInLiveChats(message)
       }
       notices(game.schedule(), botResponse(bot, 'notice'), bot.language).catch(error => {
         console.warn('Could not send encounter notice:', error.message)

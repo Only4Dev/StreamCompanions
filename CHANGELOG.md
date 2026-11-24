@@ -2,6 +2,8 @@
 
 ## 1.1.2
 
+- Command cooldowns are independent in Twitch and Kick. Encounter and battle announcements are sent to both live chats without waiting for either platform.
+
 - The viewer activity log shows the ball spent and the remaining count after each catch attempt.
 
 - Twitch and Kick send game announcements and replies as the shared @streamcompanionsbot account. The Bot tab includes a moderator command and a send test for both platforms, with clearer Kick delivery errors.
