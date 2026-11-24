@@ -5,7 +5,7 @@ import { webEnglish } from "./web-copy.js"
 import { authorizeUrl, eraseAccount, platformIdentity, providerConfig, sessionKey, signIn, unlinkIdentity } from './auth.js'
 import { nationalDex } from './national-dex.js'
 import { kanto } from './kanto.js'
-import { equippedMoves, moves } from '../dev/battle.js'
+import { equippedMoves, moveCooldown, movePp, moves } from '../dev/battle.js'
 import { familyDnaCount, familyRoot, maxDnaBoosters } from '../ui/evolution.js'
 import { creatureMoves, parseLoadout, speciesName, validMoveset } from './movesets.js'
 import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles } from './portal-style.js'
@@ -41,6 +41,8 @@ function typeIcon(type, en) {
   return '<img class="type-icon" width="26" height="26" alt="' + name + '" title="' + name + '" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/types/generation-viii/sword-shield/small/' + id + '.png">'
 }
 
+const helpHint = (label, copy) => '<details class="portal-hint"><summary aria-label="' + escape(label) + '">?</summary><p>' + escape(copy) + '</p></details>'
+
 function moveCard(key, selected, en, unlockLevel = 0) {
   const move = moves[key]
   const ultimate = Boolean(move.ultimate)
@@ -70,6 +72,7 @@ function moveCard(key, selected, en, unlockLevel = 0) {
   return '<' + tag + ' class="move-card' + (unlockLevel ? ' move-locked' : '') + '">' +
     (selectable ? '<input type="checkbox" name="move" value="' + escape(key) + '"' + (selected ? ' checked' : '') + '>' : '') +
     '<span class="move-title">' + typeIcon(type, en) + '<strong>' + escape(move.name) + '</strong></span>' +
+    '<span class="move-limits">' + (ultimate ? (en ? 'Charge' : 'Carga') : 'CD ' + moveCooldown(move).toLocaleString(en ? 'en' : 'es') + ' s') + ' · PP ' + movePp(move) + '</span>' +
     '<small>' + power + ' · ' + target + '</small>' + (unlockLevel ? '<small>' + (en ? 'Unlocks at Lv. ' : 'Se aprende al Nv. ') + unlockLevel + '</small>' : note) + '</' + tag + '>'
 }
 
@@ -305,20 +308,34 @@ export async function portal(request, url, env) {
   const online = buying || url.searchParams.get('tab') === 'shop' || !editing && url.searchParams.has('pokemon')
     ? await env.DB.prepare('SELECT seen_at, prices, supports_dna FROM shop_online WHERE community_id = ?').bind(selected.community_id).first() : null
   const published = online?.prices ? JSON.parse(online.prices) : null
+  const shopOpen = Boolean(online && online.seen_at > Date.now() - 70_000)
+  const walletText = (en ? 'Current balance: ' : 'Saldo actual: ') + '$' + pokeDollars
+  const offlineText = en ? 'Purchases are available when the streamer’s app is connected and the game is running.' :
+    'Puedes comprar cuando la app del streamer esté conectada y el juego activo.'
+  const fundsText = (en ? 'Not enough Pokédollars. ' : 'No tienes suficientes Pokédólares. ') + walletText
+  const upgradeText = en ? 'The streamer’s app does not support DNA Booster purchases yet.' :
+    'La app del streamer aún no admite compras de DNA Booster.'
+  const reasons = { offline: offlineText, funds: fundsText, upgrade: upgradeText }
+  const reason = url.searchParams.get('reason')
+  const purchaseWarning = Object.hasOwn(reasons, reason ?? '') ? reasons[reason] : ''
   if (buying) {
     const item = url.searchParams.get('item')
     const orderId = url.searchParams.get('order')
     if (!Object.hasOwn(shopItems, item ?? '') || !/^[a-f0-9-]{36}$/.test(orderId ?? '')) return new Response(null, { status: 400 })
     const product = shopItems[item]
     const target = product.dna ? url.searchParams.get('pokemon') : null
-    if (product.dna && (!(online?.supports_dna >= 2) || !Object.hasOwn(collection, target ?? '') || sharedDna(dnaBoosters, target) >= maxDnaBoosters)) {
+    if (product.dna && (!Object.hasOwn(collection, target ?? '') || sharedDna(dnaBoosters, target) >= maxDnaBoosters)) {
       return new Response(null, { status: 409 })
     }
     const destination = target ? { pokemon: target } : { tab: 'shop' }
+    const blocked = !shopOpen ? 'offline' : product.dna && !(online?.supports_dna >= 2) ? 'upgrade' : null
+    const returnBlocked = reason => redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, reason }), [])
+    if (blocked) return returnBlocked(blocked)
     const price = published?.[item] ?? product.price
     const quote = url.searchParams.get('price')
     if ((!published && quote === null) || quote === String(price)) {
-      if ((product.held && ownedItems.includes(item)) || pokeDollars < price) return new Response(null, { status: 409 })
+      if (pokeDollars < price) return returnBlocked('funds')
+      if (product.held && ownedItems.includes(item)) return new Response(null, { status: 409 })
     } else return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, repriced: '1' }), [])
     const now = Date.now()
     const queued = await env.DB.prepare('INSERT OR IGNORE INTO shop_orders (id, community_id, viewer_id, item, created_at, price, species_key) ' +
@@ -374,16 +391,21 @@ export async function portal(request, url, env) {
     const dnaOrder = /^[a-f0-9-]{36}$/.test(purchase ?? '') ? await env.DB.prepare(
       "SELECT result FROM shop_orders WHERE id = ? AND community_id = ? AND viewer_id = ? AND item = 'dna-booster'"
     ).bind(purchase, selected.community_id, selected.viewer_id).first() : null
-    const dnaMessage = url.searchParams.has('repriced') ? (en ? 'The price changed.' : 'El precio cambió.') :
+    const dnaBlocked = !shopOpen ? offlineText : !(online?.supports_dna >= 2) ? upgradeText : pokeDollars < dnaPrice ? fundsText : ''
+    const dnaMessage = purchaseWarning || (url.searchParams.has('repriced') ? (en ? 'The price changed.' : 'El precio cambió.') :
       url.searchParams.has('retry') ? (en ? 'Purchase unavailable. Check for a pending order.' : 'Compra no disponible. Revisa si hay un pedido pendiente.') :
       dnaOrder ? (dnaOrder.result === 'purchased' ? (en ? 'Purchase complete.' : 'Compra realizada.') :
-        dnaOrder.result ? (en ? 'Purchase could not be completed.' : 'No se pudo completar la compra.') :
-          (en ? 'Purchase pending. Refresh to check its status.' : 'Compra pendiente. Recarga para consultar el estado.')) : ''
+        dnaOrder.result === 'funds' ? fundsText : dnaOrder.result ? (en ? 'Purchase could not be completed.' : 'No se pudo completar la compra.') :
+          (en ? 'Purchase pending. Refresh to check its status.' : 'Compra pendiente. Recarga para consultar el estado.')) : '')
     const dnaSection = '<div class="held-frame"><strong>DNA Booster ' + (dna >= maxDnaBoosters ? 'MAX' : dna + '/' + maxDnaBoosters) + '</strong>' +
       '<span>' + (en ? 'Shared across this evolution line' : 'Compartido en esta línea evolutiva') + '</span>' +
-      (dnaMessage ? '<span role="status">' + dnaMessage + '</span>' : '') +
+      helpHint(en ? 'About DNA Booster' : 'Sobre DNA Booster', en ?
+        'Adds 10 points to each battle stat before level scaling. Up to 10 boosters per evolution line, separately for normal and shiny.' :
+        'Suma 10 puntos a cada estadística de combate antes del escalado por nivel. Hasta 10 por línea evolutiva, por separado para normal y shiny.') +
+      '<span>' + escape(walletText) + '</span>' +
+      (dnaMessage || dnaBlocked ? '<span role="status">' + escape(dnaMessage || dnaBlocked) + '</span>' : '') +
       (dna < maxDnaBoosters ? '<form method="post" action="' + escape(dnaAction) + '"><button' +
-        (!(online?.supports_dna >= 2 && online.seen_at > Date.now() - 70_000) || (dnaOrder && !dnaOrder.result) || pokeDollars < dnaPrice ? ' disabled' : '') + '>' +
+        (dnaBlocked || (dnaOrder && !dnaOrder.result) ? ' disabled' : '') + '>' +
         (en ? 'Buy · $' : 'Comprar · $') + dnaPrice + '</button></form>' : '') + '</div>'
     const saved = await env.DB.prepare('SELECT moves FROM viewer_movesets WHERE community_id = ? AND viewer_id = ? AND species_key = ?')
       .bind(selected.community_id, selected.viewer_id, speciesKey).first()
@@ -438,7 +460,7 @@ export async function portal(request, url, env) {
       (detail.form === detail.id ? '' : '<p>' + (en ? 'Battle form · ' : 'Forma en combate · ') + escape(speciesName(detail.form)) + '</p>') +
       xpBar + '</div><div class="summary-equipment">' + itemFrame + '</div></div><dl class="battle-stats">' + stats.map(([es, english, key]) => '<div><dt>' + (en ? english : es) +
         '</dt><dd>' + Math.round(detail.stats[key]) + '</dd></div>').join('') + '</dl>' + dnaSection +
-      '<h2>' + (en ? 'Moveset' : 'Ataques activos') + '</h2><form class="moveset-form" method="post" action="' + escape(action) +
+      '<div class="section-with-help"><h2>' + (en ? 'Moveset' : 'Ataques activos') + '</h2>' + helpHint(en ? 'About cooldowns and PP' : 'Sobre recarga y PP', en ? 'CD is the cooldown in seconds after the move finishes. PP is how many times the move can be used per battle. Ultimates use a charge meter.' : 'CD es la recarga en segundos después del ataque. PP indica cuántas veces puedes usarlo por batalla. Los ataques definitivos requieren carga.') + '</div><form class="moveset-form" method="post" action="' + escape(action) +
       '"><fieldset><legend>' + (en ? 'Choose up to four' : 'Elige hasta cuatro') + ' · <output>' + active.length + ' / 4</output></legend><div class="move-options">' +
       [...detail.unlockedAt].map(([key, rank]) => moveCard(key, active.includes(key), en, rank > detail.rank ? rank : 0)).join('') +
       '</div></fieldset><fieldset class="ultimate-slot"><legend>' + (en ? 'Ultimate' : 'Ataque definitivo') + '</legend>' +
@@ -456,16 +478,16 @@ export async function portal(request, url, env) {
   let shopPage = ''
   if (tab === 'shop') {
     const en = language === 'en'
-    const available = online && online.seen_at > Date.now() - 70_000
+    const available = shopOpen
     const order = await env.DB.prepare('SELECT item, result FROM shop_orders WHERE community_id = ? AND viewer_id = ? ORDER BY created_at DESC LIMIT 1')
       .bind(selected.community_id, selected.viewer_id).first()
     const status = { purchased: en ? 'Purchase complete' : 'Compra realizada', owned: en ? 'Already owned' : 'Ya tienes ese objeto',
-      funds: en ? 'Not enough Pokédollars' : 'Pokédólares insuficientes', unavailable: en ? 'Purchase could not be completed' : 'No se pudo completar la compra',
+      funds: fundsText, unavailable: en ? 'Purchase could not be completed' : 'No se pudo completar la compra',
       maxed: en ? 'That Pokémon is at the DNA limit' : 'Ese Pokémon ya alcanzó el máximo de DNA' }
     const pending = order && !order.result
     shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong>$' + escape(pokeDollars) + '</strong></p>' +
       (url.searchParams.has('repriced') ? '<p role="status">' + (en ? 'The price changed. Check it before buying again.' : 'El precio cambió. Revísalo antes de volver a comprar.') + '</p>' : '') +
-      (!available ? '<p class="empty">' + (en ? 'The shop opens when the streamer runs the game.' : 'La tienda abre cuando el streamer tiene el juego activo.') + '</p>' : '') +
+      (purchaseWarning || !available ? '<p role="status" class="empty">' + escape(purchaseWarning || offlineText) + '</p>' : '') +
       (pending ? '<p role="status">' + (en ? 'Purchase pending. Refresh to check its status.' : 'Compra pendiente. Recarga para consultar el estado.') + '</p>' :
         order && status[order.result] ? '<p role="status">' + status[order.result] + '</p>' : '') +
       '<ul class="held-grid">' + Object.entries(shopItems).filter(([, product]) => !product.dna).map(([id, product]) => {
@@ -475,7 +497,7 @@ export async function portal(request, url, env) {
         const button = '<button' + (!available || pending || owned || pokeDollars < price ? ' disabled' : '') + '>' +
           (owned ? (en ? 'Owned' : 'Ya lo tienes') : (en ? 'Buy' : 'Comprar')) + '</button>'
         return '<li>' + itemIcon(id) + '<strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
-          '<form method="post" action="' + escape(action) + '">' + button + '</form></li>'
+          '<form method="post" action="' + escape(action) + '">' + button + '</form>' + (available && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
       }).join('') + '</ul></section>'
   }
   const overviewLabel = language === 'en' ? 'Overview' : 'Resumen'

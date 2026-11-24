@@ -373,6 +373,9 @@ export function arenaBaseStats(id, original) {
     limitOffense(specialAttack + (specialAttack > attack ? offenseBonus : 0)), specialDefense, speed]
 }
 
+export const moveCooldown = move => move.cooldown ?? (move.kind === 'area' ? 3.4 : move.kind === 'guard' ? 4.5 : 1.1)
+export const movePp = move => move.ultimate ? 2 : (move.pp ?? 20)
+
 export function battleStatsAtLevel(id, stats, level, dna = 0) {
   const [hp, attack, defense, specialAttack, specialDefense, speed] = arenaBaseStats(id, stats).map(stat => stat + dna * 10)
   const factor = 1 + (level - 1) * .02
@@ -411,9 +414,9 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       margin, x: clamp(150 + index * (arena.width - 300) / Math.max(1, entries.length - 1), margin, arena.width - margin),
       direction: index < entries.length / 2 ? 1 : -1, next: 0.5 + index * 0.12,
       shield: 0, boosts: {}, status: null, knockback: 0, hurtUntil: 0, motion: 'Idle', motionSince: 0,
-      cast: null, dashUntil: 0, dashReady: 0, cooldowns: {}, ultimatePp: 2, ultimateCharge: 0,
+      cast: null, dashUntil: 0, dashReady: 0, cooldowns: {}, ultimatePp: movePp({ ultimate: true }), ultimateCharge: 0,
       hasUltimate: Boolean(equippedUltimate), equippedUltimate,
-      kit, pp: Object.fromEntries(kit.filter(key => !moves[key].ultimate).map(key => [key, moves[key].pp ?? 20]))
+      kit, pp: Object.fromEntries(kit.filter(key => !moves[key].ultimate).map(key => [key, movePp(moves[key])]))
     }
   })
 
@@ -588,7 +591,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     actor.motion = move.animation ?? (isRanged(move) ? 'Shoot' : move.kind === 'guard' ? 'Idle' :
       move.kind === 'area' ? 'Special0' : 'Attack')
     actor.next = time + duration + clamp(1.4 - actor.speed / 140, .45, 1.2)
-    actor.cooldowns[moveId] = time + duration + (move.cooldown ?? (move.kind === 'area' ? 3.4 : move.kind === 'guard' ? 4.5 : 1.1))
+    actor.cooldowns[moveId] = time + duration + moveCooldown(move)
     if (move.kind === 'area') {
       effects.push({ kind: 'warning', type: move.type, visual: move.visual, x: actor.x, reach: move.reach, at: time, expires: time + duration })
     }
