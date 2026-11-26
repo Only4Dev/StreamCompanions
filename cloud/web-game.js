@@ -72,6 +72,8 @@ export async function enqueueWebGame(db, account, community, platform, form) {
   } else if (action === 'summon' && Object.hasOwn(progress.collection, form.get('pokemon') ?? '')) {
     const pokemon = form.get('pokemon')
     command = pokemon.endsWith(' ✦') ? '!summonshiny ' + pokemon.slice(0, -2) : '!summon ' + pokemon
+  } else if (action === 'tracker') {
+    command = '!legendaryticket'
   } else if (action === 'withdraw') {
     command = '!summon out'
   } else if (action === 'candy' && /^\d{1,2}$/.test(form.get('quantity') ?? '') && Number(form.get('quantity')) > 0) {

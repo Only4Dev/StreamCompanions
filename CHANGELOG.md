@@ -2,6 +2,9 @@
 
 ## 1.2.0
 
+- Add configurable Poké Eggs with four hatch effects and the Legendary Tracker, usable from the web or with `!legendaryticket`.
+- Show Rare Candy and Legendary Tracker quantities in the portal’s Consumables pocket.
+
 - Add Ditto’s battle copy, Zorua and Zoroark’s Illusion, and equipment-driven forms for Arceus, Genesect, Silvally, Zacian, and Zamazenta.
 
 - Add 15 battle-form species with normal and shiny sprite support, more than 20 passive abilities, and six additional held items.

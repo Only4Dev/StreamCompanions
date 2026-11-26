@@ -124,4 +124,26 @@ export const darkStyles = `
 [data-theme=dark] .bag-slot,[data-theme=dark] .move-options label,[data-theme=dark] .help-steps li:nth-child(even){background:#443748;border-color:var(--line)}
 [data-theme=dark] .move-options .move-card:has(input:checked){background:#24483e;border-color:#63b58d}
 [data-theme=dark] .variants a.shiny-tag{color:#2d1e08;background:#ffe590}
+.live-item-count{display:flex;align-items:center;gap:.45rem}
+.egg-dialog{--glow:#fff8d8;--radius:6px;--ray-opacity:0;text-align:center;width:min(420px,calc(100vw - 26px));max-height:calc(100dvh - 26px);padding:clamp(16px,5vw,30px);border:2px solid var(--line);border-radius:24px;background:var(--paper);color:var(--ink);box-shadow:var(--shadow);overflow:auto}
+.egg-dialog::backdrop{background:#161027c9}
+.egg-dialog[data-rarity=uncommon]{--glow:#8df2af;--radius:18px}
+.egg-dialog[data-rarity=rare]{--glow:#8dcbff;--radius:32px;--ray-opacity:.38}
+.egg-dialog[data-rarity=epic]{--glow:#e8acff;--radius:46px;--ray-opacity:.62}
+.egg-stage{height:clamp(132px,32dvh,230px);position:relative;display:grid;place-items:center;overflow:hidden;isolation:isolate}
+.egg-rays{position:absolute;width:210px;aspect-ratio:1;border-radius:50%;background:repeating-conic-gradient(from 4deg,var(--glow) 0deg 10deg,transparent 12deg 38deg);opacity:0;mask-image:radial-gradient(#000 5%,transparent 72%);animation:egg-rays 1.5s ease-out forwards}
+.egg-shell{position:relative;width:116px;aspect-ratio:1;filter:drop-shadow(0 0 var(--radius) var(--glow));animation:egg-wiggle .22s 6 alternate ease-in-out}
+.egg-shell i{position:absolute;inset:0;background:url('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/egg.png') center/contain no-repeat;image-rendering:pixelated}
+.egg-shell i:first-child{clip-path:polygon(0 0,100% 0,100% 51%,68% 49%,57% 57%,43% 46%,30% 54%,0 48%);animation:egg-top 1.5s forwards}
+.egg-shell i:last-child{clip-path:polygon(0 48%,30% 54%,43% 46%,57% 57%,68% 49%,100% 51%,100% 100%,0 100%);animation:egg-bottom 1.5s forwards}
+.egg-stage img{position:absolute;opacity:0;image-rendering:pixelated;filter:drop-shadow(0 0 var(--radius) var(--glow))}
+.egg-dialog.hatched .egg-stage img{opacity:1;animation:egg-reveal .38s ease-out}
+.egg-dialog.hatched .egg-shell{visibility:hidden}
+.egg-dialog [data-hatch-result]{min-height:1.5em;font-weight:850}
+@keyframes egg-wiggle{from{transform:rotate(-8deg)}to{transform:rotate(8deg)}}
+@keyframes egg-top{0%,47%{transform:none}68%,79%{transform:translate(-3px,-8px) rotate(-5deg)}to{transform:translate(-22px,-40px) rotate(-28deg);opacity:0}}
+@keyframes egg-bottom{0%,54%{transform:none}80%{transform:translate(3px,5px) rotate(4deg)}to{transform:translate(19px,20px) rotate(18deg);opacity:0}}
+@keyframes egg-rays{0%,30%{opacity:0;transform:scale(.35) rotate(-20deg)}80%{opacity:var(--ray-opacity)}to{opacity:var(--ray-opacity);transform:scale(1.2) rotate(18deg)}}
+@keyframes egg-reveal{from{opacity:0;transform:translateY(8px) scale(.7)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.egg-dialog *{animation:none!important}.egg-rays{opacity:var(--ray-opacity)}}
 `

@@ -84,7 +84,7 @@ function chatAction(viewer, displayName, text, platform, save = true, sharedSumm
   if (pendingReset || !isLive(platform)) return ''
   const [action, ball = 'normal'] = normalizeCommand(text).split(' ')
   if (action.startsWith('!') && action !== '!balls') {
-    if (!['!poke', '!catch', '!summon', '!summonshiny', '!evolve', '!candy', '!balls'].includes(action)) return ''
+    if (!['!poke', '!catch', '!summon', '!summonshiny', '!evolve', '!candy', '!balls', '!legendaryticket'].includes(action)) return ''
     const now = Date.now()
     const channelTimes = commandTimes.get(platform)
     for (const [id, at] of channelTimes) if (now - at >= 5000) channelTimes.delete(id)
@@ -313,7 +313,7 @@ async function pollShop() {
     if (Array.isArray(webActions) && webActions.length) await processWebGame(webActions)
     if (!Array.isArray(orders) || !orders.length || orders.length > 10 || orders.some(order =>
       !/^[a-f0-9-]{36}$/.test(order?.id ?? '') || !/^(twitch|kick):\d{1,24}$/.test(order?.viewerId ?? ''))) return
-    const receipts = orders.map(order => ({ id: order.id, result: game.fulfillOrder(order) }))
+    const receipts = orders.map(order => ({ id: order.id, result: game.fulfillOrder(order), hatch: game.shopHatch(order.id) }))
     receipts.forEach(({ id, result }, index) => logDiagnostic('shop_order_result', {
       requestId: id, result, item: orders[index].item, quantity: orders[index].quantity ?? 1
     }))
@@ -353,7 +353,7 @@ async function processWebGame(actions) {
     const { id, viewerId, platform, command, encounterId, twitchId, kickId } = action
     if (!/^[a-f0-9-]{36}$/.test(id) || !/^(twitch|kick):\d{1,24}$/.test(viewerId) ||
         !['twitch', 'kick'].includes(platform) || typeof command !== 'string' || command.length > 90 ||
-        !/^!(?:catch (?:normal|great|ultra|master)|summon .+|summonshiny .+|candy \d{1,2})$/.test(command)) continue
+        !/^!(?:catch (?:normal|great|ultra|master)|summon .+|summonshiny .+|candy \d{1,2}|legendaryticket)$/.test(command)) continue
     let result = game.webReceipt(id)
     const replay = Boolean(result)
     if (!result) {
@@ -1050,12 +1050,14 @@ const server = createServer(async (req, res) => {
           lastBattleEncounter = game.encounterCount()
         }
       }
-      else if (action.queueLegendary) game.queueLegendary(action.queueLegendary)
+      else if (action.queueLegendary) {
+        if (game.queueLegendary(action.queueLegendary) === false) { res.writeHead(409).end(); return }
+      }
       else if (action.demoMasterBall && !app.isPackaged && !twitchClientId && !syncDevice) {
         if (!game.grantDemoMasterBall(String(action.demoMasterBall))) { res.writeHead(404).end(); return }
       }
       else if (action.spawn) {
-        if (game.config.running === false) { res.writeHead(409).end(); return }
+        if (game.config.running === false || game.trackerPending()) { res.writeHead(409).end(); return }
         game.spawn(action.spawn)
       }
       else if (action.clearStatistics === true) game.clearStatistics()

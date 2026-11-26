@@ -10,7 +10,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
   for (const migration of ['0001_sync', '0002_portal', '0003_viewer_login', '0004_accounts', '0005_movesets', '0006_kick',
-    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity', '0019_web_game', '0020_portal_announcements', '0021_shiny_cue']) {
+    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity', '0019_web_game', '0020_portal_announcements', '0021_shiny_cue', '0022_shop_hatch']) {
     db.exec(await readFile(new URL('./migrations/' + migration + '.sql', import.meta.url), 'utf8'))
   }
   const D1 = {
@@ -210,6 +210,33 @@ test('a signed-in viewer can submit one shop order while their device is online'
     headers: { Cookie: 'sc_session=' + session }
   }), { DB: D1 })
   assert.match(await logPage.text(), /viewer lanzó una Super Ball · Se escapó · Restantes \(Super Ball\): 0/)
+  db.prepare("UPDATE viewer_progress SET payload = json_set(payload, '$.pokeDollars', 120000, '$.rareCandies', 3) WHERE viewer_id = ?").run('twitch:1')
+  await device('GET', undefined, { 'poke-egg': 5000, 'legendary-tracker': 100000 })
+  const egg = crypto.randomUUID()
+  const ticket = crypto.randomUUID()
+  assert.match((await order(egg, 5000, 1, 'poke-egg')).headers.get('Location'), new RegExp('section=eggs&purchase=' + egg))
+  const orderViewer = { id: 'twitch:1', revision: 4, displayName: 'viewer', pokeDollars: 115000, rareCandies: 3,
+    collection: { Rattata: 0 }, balls: { normal: 8, great: 0, ultra: 0, master: 0 } }
+  const hatch = { id: 19, name: 'Rattata', rarity: 'common', duplicate: false, xp: 0 }
+  assert.equal((await device('POST', { viewers: [{ id: egg, result: 'purchased', viewer: orderViewer,
+    hatch: { ...hatch, id: 150, name: 'Mewtwo', rarity: 'epic' } }] })).status, 400)
+  const newReceipt = await device('POST', { viewers: [{ id: egg, result: 'purchased', viewer: orderViewer, hatch }] })
+  assert.equal(newReceipt.status, 200, await newReceipt.text())
+  status.searchParams.set('purchase', egg)
+  assert.deepEqual((await readStatus()).hatch, hatch)
+  assert.match((await order(ticket, 100000, 1, 'legendary-tracker')).headers.get('Location'), new RegExp('section=keys&purchase=' + ticket))
+  assert.equal((await device('POST', { viewers: [{ id: ticket, result: 'purchased', viewer: { ...orderViewer, revision: 5, pokeDollars: 15000, legendaryTrackers: 1 } }] })).status, 200)
+  assert.match((await order(egg, 5000, 1, 'poke-egg')).headers.get('Location'), new RegExp('purchase=' + egg))
+  const consumables = await worker.fetch(new Request(base + '/?community=stream&tab=inventory&pocket=key', { headers: cookie }), { DB: D1 })
+  const bag = await consumables.text()
+  assert.match(bag, /rare-candy\.png[^]*Caramelo Raro[^]*×3/)
+  assert.match(bag, /dowsing-machine\.png[^]*Legendary Tracker[^]*×1/)
+  const trackerAction = await worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
+    method: 'POST', headers: { ...cookie, Origin: base },
+    body: new URLSearchParams({ id: crypto.randomUUID(), action: 'tracker' })
+  }), { DB: D1 })
+  assert.equal(trackerAction.status, 303)
+  assert.ok((await pollWeb()).some(action => action.command === '!legendaryticket'))
   const confirmPage = await worker.fetch(new Request(base + '/auth/delete', { headers: { Cookie: 'sc_session=' + session } }), { DB: D1 })
   const confirmationCookie = confirmPage.headers.getSetCookie().find(item => item.startsWith('sc_delete=')).split(';')[0]
   const nonce = confirmationCookie.slice('sc_delete='.length).split('.')[0]

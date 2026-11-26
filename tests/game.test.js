@@ -4,6 +4,46 @@ import { catchChance, createGame } from '../desktop/game.js'
 import { captureCategories } from '../ui/capture-rates.js'
 import { xpAtLevel } from '../ui/levels.js'
 
+test('a Poké Egg hatches only a regular base species and keeps its receipt across restart', () => {
+  const catalog = [{ id: 150, name: 'Mewtwo', legendary: true }, { id: 151, name: 'Mew' },
+    { id: 793, name: 'Nihilego' }, { id: 984, name: 'Great Tusk' },
+    { id: 19, name: 'Rattata' }, { id: 20, name: 'Raticate' }]
+  const options = { catalog, now: () => 0, random: () => .99 }
+  const game = createGame({ ...options, progress: { viewers: { A: { collection: {}, pokeDollars: 11000 } } } })
+  const order = { id: 'egg', viewerId: 'A', item: 'poke-egg', price: 5000 }
+  assert.equal(game.fulfillOrder(order), 'purchased')
+  assert.deepEqual(game.shopHatch('egg'), { id: 19, name: 'Rattata', rarity: 'common', duplicate: false, xp: 0 })
+  const restarted = createGame({ ...options, progress: game.progress() })
+  assert.equal(restarted.fulfillOrder(order), 'purchased')
+  assert.deepEqual(restarted.shopHatch('egg'), game.shopHatch('egg'))
+  assert.deepEqual(restarted.progress().viewers.A.collection, { Rattata: 0 })
+  assert.equal(restarted.progress().viewers.A.pokeDollars, 6000)
+  assert.equal(restarted.fulfillOrder({ ...order, id: 'egg-two' }), 'purchased')
+  assert.equal(restarted.shopHatch('egg-two').duplicate, true)
+  assert.ok(restarted.progress().viewers.A.collection.Rattata > 0)
+})
+
+test('Legendary Tracker survives restart, protects the last five minutes and is unavailable during battle', () => {
+  let time = 0
+  const options = { now: () => time, random: () => 0, catalog: [
+    { id: 19, name: 'Rattata' }, { id: 151, name: 'Mew' }, { id: 150, name: 'Mewtwo', legendary: true }] }
+  const game = createGame({ ...options, progress: { viewers: { A: { collection: {}, pokeDollars: 210000 } } } })
+  for (const id of ['first', 'second']) assert.equal(game.fulfillOrder({ id, viewerId: 'A', item: 'legendary-tracker', price: 100000 }), 'purchased')
+  const ordinary = game.schedule()
+  time = ordinary - 60_000
+  game.setBattleActive(true)
+  assert.equal(game.chat('A', '!legendaryticket'), 'battleLocked')
+  assert.equal(game.progress().viewers.A.legendaryTrackers, 2)
+  game.setBattleActive(false)
+  assert.equal(game.chat('A', '!legendaryticket'), 'trackerUsed')
+  assert.equal(game.chat('A', '!legendaryticket'), 'trackerQueued')
+  assert.equal(game.schedule(), time + 300_000)
+  const restarted = createGame({ ...options, progress: game.progress() })
+  assert.equal(restarted.progress().viewers.A.legendaryTrackers, 1)
+  time = restarted.schedule()
+  assert.equal(restarted.currentEncounter().name, 'Mewtwo')
+})
+
 test('an existing viewer with no Pokémon can claim a starter without a community reset', () => {
   const catalog = [{ id: 1, name: 'Bulbasaur' }, { id: 150, name: 'Mewtwo', legendary: true }]
   const game = createGame({ catalog, streamStarters: true, random: () => 0, progress: { viewers: {

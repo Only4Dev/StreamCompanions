@@ -53,7 +53,7 @@ export function twitchChatHandler({ owner, follows, command, reply, webUrl, getB
       if (hint) await send(hint)
       return
     }
-    if (/^!(?:evolve|candy)(?:\s|$)/i.test(text) || result === 'summonOtherChannel') {
+    if (/^!(?:evolve|candy|legendaryticket)(?:\s|$)/i.test(text) || result === 'summonOtherChannel') {
       const hint = formatBotReply(bot, result?.code ?? result, result ?? {})
       if (hint && time - lastEvolutionReply >= 3000) {
         lastEvolutionReply = time

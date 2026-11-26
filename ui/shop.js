@@ -1,7 +1,12 @@
 import { maxDnaBoosters } from './evolution.js'
 import { heldItems } from './held-items.js'
 
+export const featuredShopItems = ['poke-egg', 'legendary-tracker']
+export const eggRarities = ['common', 'uncommon', 'rare', 'epic']
+
 export const shopItems = {
+  'poke-egg': { price: 5_000, names: ['Poké Egg', 'Poké Egg'], section: 'eggs', icon: 'egg' },
+  'legendary-tracker': { price: 100_000, names: ['Legendary Tracker', 'Legendary Tracker'], section: 'keys', icon: 'dowsing-machine' },
   'poke-ball': { price: 100, names: ['Poké Ball', 'Poké Ball'], ball: 'normal' },
   'great-ball': { price: 250, names: ['Super Ball', 'Great Ball'], ball: 'great' },
   'ultra-ball': { price: 500, names: ['Ultra Ball', 'Ultra Ball'], ball: 'ultra' },

@@ -5,7 +5,9 @@ import { portal } from './portal.js'
 import { readMovesets } from './movesets.js'
 import { completeKickLink, kickDevice, kickWebhook, seal, startKickLink } from './kick.js'
 import { arenaShopItems, heldItems } from '../ui/held-items.js'
-import { normalizeShopPrices } from '../ui/shop.js'
+import { nationalStats } from '../dev/national-stats.js'
+import { eggRarity, specialEncounterTag } from '../ui/capture-rates.js'
+import { eggRarities, featuredShopItems, normalizeShopPrices } from '../ui/shop.js'
 
 const json = (data, status = 200) => Response.json(data, {
   status, headers: { 'Cache-Control': 'no-store' }
@@ -108,11 +110,12 @@ function viewerWrites(db, device, viewers) {
       }
     const items = viewer.heldItems ?? []
     const rareCandies = viewer.rareCandies ?? 0
+    const legendaryTrackers = viewer.legendaryTrackers ?? 0
     const pokeDollars = viewer.pokeDollars ?? 0
     const dnaBoosters = viewer.dnaBoosters ?? {}
     if (typeof dnaBoosters !== 'object' || Array.isArray(dnaBoosters) || Object.entries(dnaBoosters).some(([key, count]) =>
       !Object.hasOwn(viewer.collection, key) || !Number.isInteger(count) || count < 0 || count > 10)) return json({ error: 'invalid DNA boosters' }, 400)
-    if (![rareCandies, pokeDollars].every(value => Number.isSafeInteger(value) && value >= 0)) return json({ error: 'invalid rewards' }, 400)
+    if (![rareCandies, legendaryTrackers, pokeDollars].every(value => Number.isSafeInteger(value) && value >= 0)) return json({ error: 'invalid rewards' }, 400)
     if (!Array.isArray(items) || items.length > Object.keys(heldItems).length ||
         items.some(item => typeof item !== 'string' || !Object.hasOwn(heldItems, item))) return json({ error: 'invalid items' }, 400)
     const generation = viewer.generation ?? 0
@@ -138,7 +141,7 @@ function viewerWrites(db, device, viewers) {
       'ON CONFLICT(community_id, viewer_id) DO UPDATE SET revision = excluded.revision, payload = excluded.payload, updated_at = excluded.updated_at ' +
       'WHERE excluded.revision > viewer_progress.revision'
     ).bind(device.community_id, viewer.id, viewer.revision,
-        JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters,
+        JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters, ...(legendaryTrackers ? { legendaryTrackers } : {}),
           log: log.map(({ at, platform, action, result, capture }) => ({
             at, platform, action, result, ...(capture ? { capture: { ball: capture.ball, remaining: capture.remaining, pokemon: capture.pokemon } } : {})
           })), metrics: { wins: metrics.wins, losses: metrics.losses, summonMinutes: metrics.summonMinutes } }), Date.now(), viewer.id, generation, generation, viewer.id, device.key_hash))
@@ -185,7 +188,7 @@ async function deviceShop(request, db) {
         const raw = header.length <= 2048 ? JSON.parse(header) : null
         prices = normalizeShopPrices(raw)
         dna = Boolean(prices && Object.hasOwn(raw, 'dna-booster'))
-        for (const item of ['master-ball', ...arenaShopItems]) {
+        for (const item of ['master-ball', ...arenaShopItems, ...featuredShopItems]) {
           if (prices && !Object.hasOwn(raw, item)) delete prices[item]
         }
       } catch { /* invalid header */ }
@@ -204,7 +207,7 @@ async function deviceShop(request, db) {
       db.prepare('SELECT id, viewer_id AS viewerId, item, price, species_key AS speciesKey, quantity FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
         'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) AND (? = 1 OR quantity = 1) ' +
         "AND (item NOT IN (SELECT value FROM json_each(?)) OR item IN (SELECT key FROM json_each(?))) " +
-        'ORDER BY created_at, id LIMIT 10').bind(community, packed, dnaLevel, supportsQuantity, JSON.stringify(['master-ball', ...arenaShopItems]), packed)
+        'ORDER BY created_at, id LIMIT 10').bind(community, packed, dnaLevel, supportsQuantity, JSON.stringify(['master-ball', ...arenaShopItems, ...featuredShopItems]), packed)
     ])
     const state = request.headers.get('X-Web-Game')
     const webActions = state === null ? undefined : await deviceWebGame(db, device, state)
@@ -220,20 +223,30 @@ async function deviceShop(request, db) {
   }
   const viewers = []
   for (const receipt of receipts) {
-    if (receipt.viewer === undefined) continue
-    const order = await db.prepare('SELECT viewer_id, result FROM shop_orders WHERE community_id = ? AND id = ?')
+    if (receipt.viewer === undefined && receipt.hatch === undefined) continue
+    const order = await db.prepare('SELECT viewer_id, result, item FROM shop_orders WHERE community_id = ? AND id = ?')
       .bind(community, receipt.id).first()
     if (!order || receipt.result !== 'purchased' || receipt.viewer?.id !== order.viewer_id) {
       return json({ error: 'invalid purchase viewer' }, 400)
+    }
+    const hatch = receipt.hatch
+    if (order.item === 'poke-egg' || hatch !== undefined) {
+      const row = nationalStats[hatch?.id - 1]
+      if (order.item !== 'poke-egg' || !row || row[0] !== hatch.id || specialEncounterTag(hatch.id, Boolean(row[5])) ||
+          typeof hatch.name !== 'string' || !Object.hasOwn(receipt.viewer.collection ?? {}, hatch.name) ||
+          !eggRarities.includes(hatch.rarity) || hatch.rarity !== eggRarity(hatch.id) ||
+          typeof hatch.duplicate !== 'boolean' || !Number.isSafeInteger(hatch.xp) || hatch.xp < 0) {
+        return json({ error: 'invalid egg hatch' }, 400)
+      }
     }
     if (order.result === null) viewers.push(receipt.viewer)
   }
   const writes = viewerWrites(db, device, viewers)
   if (writes instanceof Response) return writes
-  await db.batch([...writes, ...receipts.map(({ id, result }) => db.prepare(
-    'UPDATE shop_orders SET result = ? WHERE community_id = ? AND id = ? AND result IS NULL AND ' +
+  await db.batch([...writes, ...receipts.map(({ id, result, hatch }) => db.prepare(
+    'UPDATE shop_orders SET result = ?, hatch = ? WHERE community_id = ? AND id = ? AND result IS NULL AND ' +
     'EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
-  ).bind(result, community, id, device.key_hash))])
+  ).bind(result, hatch ? JSON.stringify(hatch) : null, community, id, device.key_hash))])
   return json({ received: receipts.map(({ id }) => id) })
 }
 

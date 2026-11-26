@@ -58,6 +58,10 @@ export function specialEncounterTag(id, legendary = false) {
 const bandFor = (id, legendary) => legendary || mythicalSpecies.has(id)
   ? legendaryBand : bands.find(band => (captureRates[id - 1] ?? 255) >= band.minimum)
 
+export function eggRarity(id) {
+  return ({ superEasy: 'common', easy: 'common', normal: 'uncommon', hard: 'rare', ultraHard: 'epic' })[bandFor(id, false).id]
+}
+
 export const captureCategories = [...bands, legendaryBand].map(({ id, names, chances }) => ({
   id, names, defaults: chances.map(chance => Math.round(chance * 10_000) / 100)
 }))

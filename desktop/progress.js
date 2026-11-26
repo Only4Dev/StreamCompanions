@@ -60,7 +60,7 @@ export function openProgress(path) {
           const { wins = 0, losses = 0, summonSeconds = 0 } = viewer.metrics ?? {}
           const metrics = { wins, losses, summonMinutes: Math.floor(summonSeconds / 60) }
           queue.run(id, JSON.stringify({ ...(progress.viewerGenerations?.[id] ? { generation: progress.viewerGenerations[id] } : {}), displayName: viewer.displayName ?? '', balls: viewer.balls, collection, metrics,
-            heldItems: viewer.heldItems ?? [], rareCandies: viewer.rareCandies ?? 0, pokeDollars: viewer.pokeDollars ?? 0,
+            heldItems: viewer.heldItems ?? [], rareCandies: viewer.rareCandies ?? 0, ...(viewer.legendaryTrackers ? { legendaryTrackers: viewer.legendaryTrackers } : {}), pokeDollars: viewer.pokeDollars ?? 0,
             dnaBoosters: viewer.dnaBoosters ?? {}, ...(viewer.log?.length ? { log: viewer.log } : {}) }))
         }
       })
