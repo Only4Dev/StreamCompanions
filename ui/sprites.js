@@ -1,4 +1,4 @@
-import { level } from './levels.js'
+import { level, maxLevel, xpAtLevel } from './levels.js'
 import { drawArea, drawClash, drawDigMound, drawField, drawHyper, drawOngoing, drawPoisonHazard, drawProjectile, drawStatus, drawTarget, drawUltimate } from '../dev/battle-vfx.js'
 
 const images = new Map()
@@ -96,11 +96,37 @@ function label(context, text, x, y, size = 15, color = '#fff') {
   context.fillText(text, x, y)
 }
 
-function encounterCard(ctx, wild, entry, captures, width, height, fade, time, formatTime, language) {
-  const scale = Math.min(1, height / 245, width / 410)
+export function createCaptureQueue() {
+  let seen = new Set()
+  let nextRowAt = 0
+  const pending = []
+  let visible = []
+  return (captures, time, wallTime, elapsed) => {
+    const current = new Set()
+    for (const capture of captures) {
+      const key = capture.encounterId + ':' + capture.id
+      current.add(key)
+      if (!seen.has(key) && wallTime - capture.at < 10_000) pending.push(capture)
+    }
+    seen = current
+    visible = visible.filter(row => time - row.shownAt < 4100)
+    if (visible.length < 3 && pending.length && time >= nextRowAt) {
+      visible.push({ capture: pending.shift(), shownAt: time, y: visible.length * 24 + 12 })
+      nextRowAt = time + 450
+    }
+    return visible.map((row, index) => {
+      row.y += (index * 24 - row.y) * (1 - Math.exp(-elapsed * 18))
+      const age = time - row.shownAt
+      return { ...row.capture, y: row.y, opacity: Math.min(1, age / 180, (4100 - age) / 700) }
+    })
+  }
+}
+
+function encounterCard(ctx, wild, entry, captures, width, height, fade, time, formatTime, language, arrivalAge) {
+  const scale = Math.min(1, height / 295, width / 410)
   const x = width / 2
-  const y = height / 2 - 101 * scale + (1 - fade) * 8
-  const accent = wild.shiny ? '#fad77f' : '#c2d9c8'
+  const y = height / 2 - 124 * scale + (1 - fade) * 8
+  const accent = wild.specialTag ? '#d7a7ff' : wild.shiny ? '#fad77f' : '#c2d9c8'
   const box = (left, top, w, h, radius, color) => {
     ctx.beginPath()
     ctx.roundRect(left, top, w, h, radius)
@@ -111,6 +137,26 @@ function encounterCard(ctx, wild, entry, captures, width, height, fade, time, fo
   ctx.translate(x, y)
   ctx.scale(scale, scale)
   ctx.globalAlpha = fade
+  if (wild.specialTag && arrivalAge < 1250) {
+    const burst = arrivalAge / 1250
+    ctx.save()
+    ctx.globalAlpha = fade * (1 - burst)
+    for (let i = 0; i < 2; i++) {
+      ctx.beginPath()
+      ctx.ellipse(0, 84, 83 + burst * 54 + i * 15, 92 + burst * 12 + i * 7, 0, 0, 2 * Math.PI)
+      ctx.strokeStyle = i ? '#ffe7a3' : accent
+      ctx.lineWidth = i ? 2 : 4
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+  if (wild.specialTag) {
+    const tags = { legendary: ['Legendario', 'Legendary'], mythical: ['Mítico', 'Mythical'],
+      ultraBeast: ['Ultraente', 'Ultra Beast'], paradox: ['Paradoja', 'Paradox'] }
+    const en = language === 'en'
+    const text = (en ? 'Ultra-rare' : 'Ultrarraro') + ' · ' + tags[wild.specialTag][Number(en)]
+    label(ctx, text, 0, -6, 13, accent)
+  }
   box(-78, 4, 160, 176, 12, '#0e151dcc')
   box(-80, 0, 160, 176, 12, '#202d32')
   box(-77, 3, 154, 170, 10, accent)
@@ -125,15 +171,14 @@ function encounterCard(ctx, wild, entry, captures, width, height, fade, time, fo
   }
   if (wild.shiny) sparkles(ctx, 0, 68, time, 0, 2)
   label(ctx, wild.name + (wild.shiny ? ' ✦' : '') + ' · Lv. ' + (wild.level ?? 1), 0, 140, wild.name.length > 13 ? 13 : 15)
-  box(-51, 146, 102, 19, 4, '#101e23')
-  label(ctx, formatTime(wild.endsAt), 0, 161, 15)
-  for (const [index, caught] of captures.entries()) {
-    const age = Date.now() - caught.at
-    ctx.globalAlpha = fade * Math.min(1, age / 180, (4600 - age) / 500)
-    box(-185, 184 + index * 24, 370, 22, 6, '#17232bef')
+  box(-69, 146, 138, 19, 4, '#101e23')
+  label(ctx, [wild.difficulty, formatTime(wild.endsAt)].filter(Boolean).join(' · '), 0, 161, 13)
+  for (const caught of captures) {
+    ctx.globalAlpha = fade * caught.opacity
+    box(-185, 184 + caught.y, 370, 22, 6, '#17232bef')
     const name = caught.viewer.length > 20 ? caught.viewer.slice(0, 19) + '…' : caught.viewer
     const text = language === 'en' ? name + ' caught ' + caught.pokemon + '!' : '¡' + name + ' capturó a ' + caught.pokemon + '!'
-    label(ctx, text, 0, 200 + index * 24, text.length > 47 ? 12 : 14)
+    label(ctx, text, 0, 200 + caught.y, text.length > 47 ? 12 : 14)
   }
   ctx.restore()
 }
@@ -248,6 +293,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
   const species = new Map(catalog.map(entry => [entry.name, entry]))
   let previous = 0
   let shownEncounter
+  let shownEncounterAt = 0
+  const captureQueue = createCaptureQueue()
   let encounterOpacity = 0
   function draw(time) {
     requestAnimationFrame(draw)
@@ -271,15 +318,18 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       const wild = state.encounter
       const active = wild && Date.now() < wild.endsAt
       if (active) {
-        if (shownEncounter?.id !== wild.id) encounterOpacity = 0
+        if (shownEncounter?.id !== wild.id) {
+          encounterOpacity = 0
+          shownEncounterAt = time
+        }
         shownEncounter = wild
       }
-      encounterOpacity = Math.max(0, Math.min(1, encounterOpacity + elapsed * (active ? 3.1 : -2.7)))
-      if (!shownEncounter || !encounterOpacity) return
-      const captures = (state.recentCaptures ?? []).filter(item => item.encounterId === shownEncounter.id &&
-        Date.now() >= item.at && Date.now() - item.at < 4600).slice(-2)
+      if (!shownEncounter) return
+      const captures = captureQueue(state.recentCaptures ?? [], time, Date.now(), elapsed)
+      encounterOpacity = Math.max(0, Math.min(1, encounterOpacity + elapsed * (active || captures.length ? 3.1 : -2.7)))
+      if (!encounterOpacity) return
       encounterCard(context, shownEncounter, species.get(shownEncounter.name), captures, width, height,
-        encounterOpacity * encounterOpacity * (3 - 2 * encounterOpacity), time, formatTime, state.bot?.language)
+        encounterOpacity * encounterOpacity * (3 - 2 * encounterOpacity), time, formatTime, state.bot?.language, time - shownEncounterAt)
       return
     }
 
@@ -301,8 +351,10 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       if (!battle.over) for (const shot of battle.projectiles) drawProjectile(context, shot, floor - 12, battle.time)
       for (const [index, fighter] of state.battle.actors.entries()) {
         if (!fighter.hp) continue
-        const entry = species.get(fighter.name)
-        const variant = fighter.shiny ? entry?.shiny : entry?.normal
+        const appearance = fighter.appearance ?? fighter
+        const entry = species.get(appearance.name)
+        const form = entry?.battleForms?.[appearance.form]
+        const variant = appearance.shiny ? form?.shiny ?? entry?.shiny : form?.normal ?? entry?.normal
         const clip = battleClip(variant?.animations, fighter.motion)
         const start = battlePositions.get(index) ?? fighter.x
         const x = start + (fighter.x - start) * Math.min(1, elapsed * 13)
@@ -315,7 +367,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         if (fighter.ongoing) drawOngoing(context, fighter.ongoing, x, y, battle.time)
         if (fighter.status) drawStatus(context, fighter.status, x, top - 55, battle.time, 26, 24)
         if (fighter.evasion || fighter.flinched) label(context, fighter.flinched ? '✦ ✦' : '≋', x + 32, top - 49, 20)
-        label(context, (fighter.ownerName ? fighter.ownerName + ' | ' : '') + fighter.name + ' · Lv. ' + fighter.level, x, top - 14, 21)
+        label(context, (fighter.ownerName ? fighter.ownerName + ' | ' : '') + (appearance.disguised ? appearance.name : fighter.name) + ' · Lv. ' + fighter.level, x, top - 14, 21)
         const hp = fighter.hp / fighter.maxHp
         context.fillStyle = '#131b22'
         context.fillRect(x - 46, top - 8, 92, 9)
@@ -344,6 +396,12 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         direction: Math.random() < .5 ? -1 : 1, until: time + 640, since: time, arrived: time,
         behavior: 'Idle', turnAt: null, speed: 0 })
       const actor = actors.get(layer)
+      if (data.active.evolvedAt && actor.evolvedAt !== data.active.evolvedAt) {
+        actor.evolvedAt = data.active.evolvedAt
+        actor.arrived = time
+        actor.since = time
+        actor.behavior = 'Idle'
+      }
       const rank = level(data.collection[key])
       if (actor.rank !== undefined && rank > actor.rank) actor.levelUpAt = time
       actor.rank = rank
@@ -386,8 +444,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         context.save()
         context.globalAlpha *= 1 - pickupAge
         const top = labelY - (levelUpAge < 1650 ? 105 : 40) - pickupAge * 42
-        if (pickup.candy) label(context, '🍬 +1', actor.x, top, 25)
-        if (pickup.money) label(context, '+$' + pickup.money, actor.x, top - (pickup.candy ? 29 : 0), 25)
+        const rewards = [pickup.candy && '🍬 +1', pickup.money && '+$' + pickup.money, pickup.masterBall && 'Master Ball +1'].filter(Boolean)
+        rewards.forEach((reward, index) => label(context, reward, actor.x, top - index * 29, 25))
         context.restore()
       }
       if (showNames) {
@@ -396,6 +454,12 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         label(context, display + ' | ' + key, actor.x, labelY - 22, 23)
         const bounce = levelUpAge < 650 ? Math.sin(Math.PI * levelUpAge / 650) * 9 : 0
         label(context, 'Lv. ' + rank, actor.x, labelY + bounce * .3, 19 + bounce, bounce ? '#a2fce1' : '#fff')
+        const start = xpAtLevel(rank)
+        const fraction = rank >= maxLevel ? 1 : (data.collection[key] - start) / (xpAtLevel(rank + 1) - start)
+        context.fillStyle = '#142c44'
+        context.fillRect(actor.x - 27, labelY + 14, 54, 5)
+        context.fillStyle = '#79d7ff'
+        context.fillRect(actor.x - 27, labelY + 14, 54 * Math.max(0, Math.min(1, fraction)), 5)
       }
       if (levelUpAge < 1650) {
         const rise = levelUpAge / 1650

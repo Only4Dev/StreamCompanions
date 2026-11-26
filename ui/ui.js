@@ -1,6 +1,7 @@
 import { botCopy } from './bot-copy.js'
-import { level, showScene } from './sprites.js'
-import { shopItems } from '/ui/shop.js'
+import { level, showScene } from './sprites.js?v=blue-xp'
+import { captureCategories } from '/ui/capture-rates.js'
+import { maxShopPrice, shopIconUrl, shopItems } from '/ui/shop.js'
 import { aboutCopy } from '/ui/about.js'
 
 const $ = id => document.getElementById(id)
@@ -51,17 +52,25 @@ Object.assign(labels.es, { obsTitle: 'Fuentes de navegador para OBS', obsHelp: '
 Object.assign(labels.en, { obsTitle: 'OBS browser sources', obsHelp: 'Add one browser source per link. Set the companions source to 1920 × 550.',
   obsEncounter: 'Wild encounters', obsCompanions: 'Summoned companions', obsCopy: 'Copy link', obsCopied: 'Link copied.', obsCopyError: 'Select the link and copy it manually.' })
 
-Object.assign(labels.es, { summonMoneyPerMinute: 'Pokédólares por minuto invocado', summonXpPerSecond: 'XP por segundo invocado', battleXpPerOpponent: 'XP de victoria por rival' })
-Object.assign(labels.en, { summonMoneyPerMinute: 'Pokédollars per summon minute', summonXpPerSecond: 'Summon XP per second', battleXpPerOpponent: 'Victory XP per opponent' })
+Object.assign(labels.es, { summonMoneyPerMinute: 'Pokédólares por minuto invocado', summonXpPerSecond: 'XP por segundo invocado', battleXpPercentPerWin: 'XP del siguiente nivel por victoria (%)' })
+Object.assign(labels.en, { summonMoneyPerMinute: 'Pokédollars per summon minute', summonXpPerSecond: 'Summon XP per second', battleXpPercentPerWin: 'XP toward the next level per win (%)' })
 Object.assign(labels.es, { battleEveryEncounters: 'Salvajes por batalla (0 = manual)', startBattle: 'Iniciar batalla', battleNeedsPlayers: 'Necesitas dos compañeros activos.', battleUnavailable: 'Inicia el juego y espera a que termine la batalla anterior.', battleStarted: 'Batalla programada. Se esperará a que termine cualquier encuentro activo.' })
 Object.assign(labels.en, { battleEveryEncounters: 'Wild encounters per battle (0 = manual)', startBattle: 'Start battle', battleNeedsPlayers: 'At least two companions must be active.', battleUnavailable: 'Start the game and wait for the current battle to finish.', battleStarted: 'Battle queued. Any active encounter will finish first.' })
 
-Object.assign(labels.es, { battleEnabled: 'Batallas', battleOff: 'Deshabilitadas', battleOn: 'Habilitadas', battleHpMultiplier: 'Multiplicador de PS', battleUnavailable: 'Habilita las batallas, inicia el juego y espera a que termine la ronda anterior.' })
-Object.assign(labels.en, { battleEnabled: 'Battles', battleOff: 'Disabled', battleOn: 'Enabled', battleHpMultiplier: 'HP multiplier', battleUnavailable: 'Enable battles, start the game, and wait for the previous round to finish.' })
+Object.assign(labels.es, { battleEnabled: 'Batallas', battleOff: 'Deshabilitadas', battleOn: 'Habilitadas', battleHpMultiplier: 'Multiplicador de PS', battleMoneyPerWin: 'Pokédólares por victoria', battleUnavailable: 'Habilita las batallas, inicia el juego y espera a que termine la ronda anterior.' })
+Object.assign(labels.en, { battleEnabled: 'Battles', battleOff: 'Disabled', battleOn: 'Enabled', battleHpMultiplier: 'HP multiplier', battleMoneyPerWin: 'Pokédollars per win', battleUnavailable: 'Enable battles, start the game, and wait for the previous round to finish.' })
 
-Object.assign(labels.es, { queueLegendary: 'Programar próximo legendario', queuedLegendary: 'Próximo legendario', demoMaster: 'Dar Master Ball de prueba', candyUsed: 'Caramelo usado. El Pokémon subió un nivel.', noCandy: 'No tienes Caramelos Raros.', candyMaxLevel: 'Ese Pokémon alcanzó el nivel máximo.' })
-Object.assign(labels.en, { queueLegendary: 'Queue next legendary encounter', queuedLegendary: 'Next legendary', demoMaster: 'Give test Master Ball', candyUsed: 'Candy used. The Pokémon gained a level.', noCandy: 'You have no Rare Candies.', candyMaxLevel: 'That Pokémon is already at the level cap.' })
+Object.assign(labels.es, { queueLegendary: 'Programar próxima aparición especial', queuedLegendary: 'Próxima aparición especial', demoMaster: 'Dar Master Ball de prueba', candyUsed: 'Caramelo usado. El Pokémon subió un nivel.', noCandy: 'No tienes Caramelos Raros.', candyMaxLevel: 'Ese Pokémon alcanzó el nivel máximo.' })
+Object.assign(labels.en, { queueLegendary: 'Queue next special encounter', queuedLegendary: 'Next special encounter', demoMaster: 'Give test Master Ball', candyUsed: 'Candy used. The Pokémon gained a level.', noCandy: 'You have no Rare Candies.', candyMaxLevel: 'That Pokémon is already at the level cap.' })
 
+Object.assign(labels.es, { botAnnounceInChat: 'Mostrar avisos automáticos en el chat', botCaptureInChat: 'Mostrar capturas en el chat', botActionInChat: 'Mostrar respuestas a acciones en el chat', botAnnouncementHelp: 'Los avisos siguen apareciendo en En directo del portal.' })
+Object.assign(labels.en, { botAnnounceInChat: 'Show automatic announcements in chat', botCaptureInChat: 'Show catches in chat', botActionInChat: 'Show action replies in chat', botAnnouncementHelp: 'Announcements still appear in the portal’s Live tab.' })
+Object.assign(labels.es, { captureTab: 'Captura', captureDifficulty: 'Dificultad', captureGreatBall: 'Super Ball',
+  captureHelp: 'Ajusta los porcentajes por lanzamiento para tu comunidad. La Master Ball mantiene el 100 %.',
+  captureDefaults: 'Cargar valores iniciales', captureSaved: 'Porcentajes guardados.' })
+Object.assign(labels.en, { captureTab: 'Capture', captureDifficulty: 'Difficulty', captureGreatBall: 'Great Ball',
+  captureHelp: 'Set the percentage per throw for your community. The Master Ball always catches.',
+  captureDefaults: 'Load defaults', captureSaved: 'Capture rates saved.' })
 Object.assign(labels.es, { shopTab: 'Tienda', shopPricesHelp: 'Edita los precios en Pokédólares. Se publican en la siguiente conexión de la tienda con el juego activo.', publishShopPrices: 'Guardar y publicar precios', shopPricesSaved: 'Precios guardados. Se publicarán en la próxima sincronización de la tienda.' })
 Object.assign(labels.en, { shopTab: 'Shop', shopPricesHelp: 'Edit prices in Pokédollars. They go live on the next shop sync while the game is running.', publishShopPrices: 'Save and publish prices', shopPricesSaved: 'Prices saved. They will go live on the next shop sync.' })
 
@@ -82,7 +91,7 @@ const tips = {
   battleSettings: ['Las batallas usan la misma fuente que las invocaciones.', 'Battles use the same source as summoned companions.'],
   interval: ['Tiempo entre apariciones automáticas.', 'Time between automatic wild spawns.'],
   duration: ['Tiempo visible para intentar capturar un salvaje normal.', 'How long a normal wild encounter is visible for catches.'],
-  legendaryChancePercent: ['Probabilidad por aparición automática. 0 desactiva los legendarios aleatorios.', 'Chance per automatic encounter. Set to 0 to disable random legendary encounters.'],
+  legendaryChancePercent: ['Probabilidad por aparición automática. 0 desactiva las apariciones ultrarraras aleatorias.', 'Chance per automatic encounter. Set to 0 to disable random ultra-rare encounters.'],
   catchGraceSeconds: ['Segundos extra para capturar después de que desaparece el retrato.', 'Extra seconds to catch after the portrait disappears.'],
   shiny: ['1 entre este número de apariciones, si existe variante shiny.', 'One in this many encounters, when a shiny variant exists.'],
   duplicateMode: ['Premio si el viewer vuelve a capturar una variante que ya tiene.', 'Reward for catching a variant the viewer already owns.'],
@@ -92,9 +101,10 @@ const tips = {
   visibleLimit: ['Máximo a la vez. Tienen prioridad las invocaciones recientes.', 'Maximum at once. Most recent summons appear first.'],
   summonMoneyPerMinute: ["Pokédólares por cada minuto con un compañero invocado.", "Pokédollars per minute with a summoned companion."],
   summonXpPerSecond: ['XP por segundo de invocación activa.', 'XP per second while summoned and active.'],
-  battleXpPerOpponent: ['El Pokémon ganador recibe esta XP por cada rival.', 'The winner receives this much XP for each opponent.'],
+  battleXpPercentPerWin: ['El ganador recibe este porcentaje del tramo al siguiente nivel. 0 desactiva la XP de victoria.', 'The winner receives this percentage of the XP needed for their next level. Set to 0 to disable.'],
   battleEveryEncounters: ['Intenta iniciar tras este número de encuentros si hay dos compañeros. Usa 0 para inicio manual.', 'Tries to start after this many encounters with two companions. Use 0 for manual only.'],
   battleEnabled: ['Habilita el inicio manual y la programación de batallas.', 'Enables manual and scheduled battles.'],
+  battleMoneyPerWin: ['Premio para el ganador al cerrar la batalla. 0 desactiva el premio.', 'Paid to the winner when the battle ends. Set to 0 to disable.'],
   battleHpMultiplier: ['Multiplica los PS iniciales de todos los participantes.', 'Multiplies starting HP for all fighters.'],
   gameToggle: ['Activa encuentros automáticos y comandos del chat. Al detenerlo se limpian los overlays.', 'Enables automatic encounters and gameplay chat. Stopping clears the overlays.'],
   previewLocal: ['Solo aparece en este panel. No modifica el directo ni el progreso.', 'Only shown in this panel. Does not affect the stream or progress.'],
@@ -112,8 +122,8 @@ Object.assign(labels.en, { totalEncounters: 'All-time encounters', totalCaptures
 labels.es.openPortal = 'Abrir portal web'
 labels.en.openPortal = 'Open web portal'
 
-Object.assign(labels.es, { legendaryChancePercent: 'Aparición legendaria (%)', resetCancel: 'Cancelar', resetCommunity: 'Borrar progreso de la comunidad', resetPrompt: 'Esto borra los registros y el progreso de todos los viewers de esta comunidad. Escribe RESET para confirmar.', resetDone: 'Progreso borrado. Los viewers deben registrarse de nuevo.', resetPending: 'Borrado pendiente. La app volverá a intentarlo.', summonSourcePreview: 'Vista previa de invocaciones (fuente)', battleSourcePreview: 'Vista previa de batalla (fuente)', activityTab: 'Registro', liveChatTab: 'Chat', liveChatHelp: 'Mensajes recientes de los chats conectados.', copyBotMod: 'Copiar comando de moderador', botModCopied: 'Comando copiado. Pégalo en el chat de tu canal de Twitch.', botAccountHelp: 'Twitch: copia el comando, pégalo en el chat de tu canal y pulsa Probar Twitch.' })
-Object.assign(labels.en, { legendaryChancePercent: 'Legendary encounter chance (%)', resetCancel: 'Cancel', resetCommunity: 'Reset community progress', resetPrompt: 'This deletes all viewer registrations and progress for this community. Type RESET to confirm.', resetDone: 'Progress deleted. Viewers must join again.', resetPending: 'Reset pending. The app will retry.', summonSourcePreview: 'Summon preview (source)', battleSourcePreview: 'Battle preview (source)', activityTab: 'Log', liveChatTab: 'Chat', liveChatHelp: 'Recent messages from connected chats.', copyBotMod: 'Copy moderator command', botModCopied: 'Command copied. Paste it in your Twitch channel chat.', botAccountHelp: 'Twitch: copy the command, run it in your channel chat, and click Test Twitch.' })
+Object.assign(labels.es, { legendaryChancePercent: 'Aparición ultrarrara (%)', resetCancel: 'Cancelar', resetCommunity: 'Borrar progreso de la comunidad', resetPrompt: 'Esto borra los registros y el progreso de todos los viewers de esta comunidad. Escribe RESET para confirmar.', resetDone: 'Progreso borrado. Los viewers deben registrarse de nuevo.', resetPending: 'Borrado pendiente. La app volverá a intentarlo.', summonSourcePreview: 'Vista previa de invocaciones (fuente)', battleSourcePreview: 'Vista previa de batalla (fuente)', activityTab: 'Registro', liveChatTab: 'Chat', liveChatHelp: 'Mensajes recientes de los chats conectados.', copyBotMod: 'Copiar comando de moderador', botModCopied: 'Comando copiado. Pégalo en el chat de tu canal de Twitch.', botAccountHelp: 'Twitch: copia el comando, pégalo en el chat de tu canal y pulsa Probar Twitch.' })
+Object.assign(labels.en, { legendaryChancePercent: 'Ultra-rare encounter chance (%)', resetCancel: 'Cancel', resetCommunity: 'Reset community progress', resetPrompt: 'This deletes all viewer registrations and progress for this community. Type RESET to confirm.', resetDone: 'Progress deleted. Viewers must join again.', resetPending: 'Reset pending. The app will retry.', summonSourcePreview: 'Summon preview (source)', battleSourcePreview: 'Battle preview (source)', activityTab: 'Log', liveChatTab: 'Chat', liveChatHelp: 'Recent messages from connected chats.', copyBotMod: 'Copy moderator command', botModCopied: 'Command copied. Paste it in your Twitch channel chat.', botAccountHelp: 'Twitch: copy the command, run it in your channel chat, and click Test Twitch.' })
 
 Object.assign(labels.es, { kickBotHelp: 'Conecta tu canal y pulsa Probar Kick. Si el chat restringe quién puede escribir, puedes añadir el bot como moderador.', testTwitchBot: 'Probar Twitch', testKickBot: 'Probar Kick', botTestOffline: 'El canal no está conectado.', botTestFailed: 'El bot no pudo enviar. Revisa su vinculación y permisos.', botTestChannel: 'Mensaje enviado desde la cuenta del canal.', botTestBot: 'Mensaje enviado desde el bot.' })
 Object.assign(labels.en, { kickBotHelp: 'Connect your channel and click Test Kick. If your chat restricts who can post, you can add the bot as a moderator.', testTwitchBot: 'Test Twitch', testKickBot: 'Test Kick', botTestOffline: 'The channel is not connected.', botTestFailed: 'The bot could not send. Check its connection and permissions.', botTestChannel: 'Message sent from the channel account.', botTestBot: 'Message sent from the bot.' })
@@ -139,6 +149,9 @@ function showPane(name) {
 
 function loadBotEditor(bot) {
   const form = $('bot-form')
+  $('announce-in-chat').checked = bot.announceInChat !== false
+  $('capture-in-chat').checked = bot.captureInChat !== false
+  $('action-in-chat').checked = bot.actionInChat !== false
   for (const action of botActions) {
     const row = document.createElement('div')
     row.className = 'bot-row'
@@ -193,24 +206,43 @@ function renderUpdateStatus() {
 }
 let viewer = 'Demo'
 let state
+Object.assign(labels.es, { shinyCue: 'Sonido shiny', chooseShinyCue: 'Elegir MP3 o WAV', resetShinyCue: 'Restablecer' })
+Object.assign(labels.en, { shinyCue: 'Shiny sound', chooseShinyCue: 'Choose MP3 or WAV', resetShinyCue: 'Reset' })
+
 let lastEncounter
+function playShinyCue() {
+  const cue = new Audio('/sfx/shiny.wav?play=' + Date.now())
+  cue.volume = .55
+  return cue.play()
+}
 let settingsLoaded = false
 let setupLoaded = false
 let translateLab
 const catalog = (await (await fetch('/catalog')).json()).species
 if (panel) {
+  const cueStatus = $('shiny-cue-status')
+  const reportCueError = () => cueStatus.textContent = $('language').value === 'en' ?
+    'Choose a valid MP3 or WAV up to 512 KB.' : 'Elige un MP3 o WAV válido de hasta 512 KB.'
+  for (const action of ['choose', 'reset']) $(action + '-shiny-cue').addEventListener('click', async () => {
+    cueStatus.textContent = ''
+    try {
+      const response = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shinyCue: action }) })
+      if (!response.ok) reportCueError()
+    } catch { reportCueError() }
+  })
+  $('preview-shiny-cue').addEventListener('click', () => playShinyCue().catch(reportCueError))
   for (const [id, product] of Object.entries(shopItems)) {
     const label = document.createElement('label')
     const name = document.createElement('span')
     name.dataset.shopItem = id
     const icon = document.createElement('img')
-    icon.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/' + (product.icon ?? id) + '.png'
+    icon.src = shopIconUrl(id)
     icon.width = 30
     icon.height = 30
     icon.loading = 'lazy'
     icon.alt = ''
     const input = document.createElement('input')
-    Object.assign(input, { name: id, type: 'number', min: '1', max: '100000', required: true, value: product.price })
+    Object.assign(input, { name: id, type: 'number', min: '1', max: maxShopPrice(product), required: true, value: product.price })
     const heading = document.createElement('span')
     heading.className = 'shop-item-name'
     heading.append(icon, name)
@@ -218,7 +250,7 @@ if (panel) {
     $('shop-price-fields').append(label)
   }
   const legendary = $('legendary-event')
-  for (const entry of catalog.filter(item => item.legendary && item.wildEligible)) {
+  for (const entry of catalog.filter(item => item.specialTag && item.wildEligible)) {
     legendary.elements.creature.add(new Option(entry.name, entry.name))
   }
   legendary.hidden = !legendary.elements.creature.options.length
@@ -284,19 +316,15 @@ async function refresh() {
   const previewMode = new URLSearchParams(location.search).get('preview')
   const response = await fetch(panel ? '/state' : '/state?overlay=' + location.pathname.slice(1) + (previewMode ? '&preview=' + encodeURIComponent(previewMode) : ''))
   state = await response.json()
-  if (!panel) {
-    if (location.pathname === '/encounter') {
-      const encounter = state.encounter
-      const id = encounter?.id ?? encounter?.endsAt ?? null
-      if (lastEncounter !== undefined && id !== lastEncounter && encounter?.shiny && encounter.endsAt > Date.now()) {
-        const cue = new Audio('/sfx/shiny.wav')
-        cue.volume = .55
-        cue.play().catch(error => console.warn('Could not play shiny cue', error))
-      }
-      lastEncounter = id
+  if (panel || location.pathname === '/encounter') {
+    const encounter = state.encounter
+    const id = encounter?.id ?? encounter?.endsAt ?? null
+    if (lastEncounter !== undefined && id !== lastEncounter && encounter?.shiny && encounter.endsAt > Date.now()) {
+      playShinyCue().catch(error => console.warn('Could not play shiny cue', error))
     }
-    return
+    lastEncounter = id
   }
+  if (!panel) return
   $('connection').textContent = connectionMessage(state.syncStatus) || ''
   $('chat').closest('section').hidden = state.live || !state.battleLab
   if (!setupLoaded && state.setup) {
@@ -319,6 +347,7 @@ async function refresh() {
     translate()
   }
   if (!settingsLoaded) {
+    loadCapturePercentages(state.config.capturePercentages)
     for (const [id, price] of Object.entries(state.config.shopPrices ?? {})) $('shop-prices').elements.namedItem(id).value = price
     for (const [name, value] of Object.entries(state.config)) {
       const field = document.getElementById("settings").elements.namedItem(name)
@@ -451,11 +480,23 @@ if (panel) {
     button.addEventListener('click', () => showPane(button.dataset.view))
   }
 }
+function loadCapturePercentages(percentages) {
+  for (const { id, defaults } of captureCategories) {
+    for (let index = 0; index < defaults.length; index++) {
+      $('capture-settings').elements.namedItem(id + '-' + index).value = percentages?.[id]?.[index] ?? defaults[index]
+    }
+  }
+}
+
 function translate() {
   for (const element of document.querySelectorAll('[data-about]')) element.textContent = aboutCopy[$('language').value][element.dataset.about]
   renderUpdateStatus()
   for (const item of document.querySelectorAll('[data-shop-item]')) {
     item.textContent = shopItems[item.dataset.shopItem].names[Number($('language').value === 'en')]
+  }
+  for (const item of document.querySelectorAll('[data-capture-category]')) {
+    const category = captureCategories.find(({ id }) => id === item.dataset.captureCategory)
+    item.textContent = category.names[Number($('language').value === 'en')]
   }
   translateLab?.()
   document.documentElement.lang = $('language').value
@@ -491,6 +532,38 @@ function translate() {
 }
 
 if (panel) {
+  for (const { id, defaults } of captureCategories) {
+    const row = $('capture-rows').insertRow()
+    const heading = document.createElement('th')
+    heading.scope = 'row'
+    heading.id = 'capture-category-' + id
+    heading.dataset.captureCategory = id
+    row.append(heading)
+    defaults.forEach((rate, index) => {
+      const input = document.createElement('input')
+      Object.assign(input, { name: id + '-' + index, type: 'number', min: '0', max: '100', step: '0.01', value: rate, required: true })
+      input.setAttribute('aria-label', ['Poké Ball %', 'Great Ball / Super Ball %', 'Ultra Ball %'][index])
+      input.setAttribute('aria-describedby', heading.id)
+      row.insertCell().append(input)
+    })
+  }
+  $('capture-defaults').addEventListener('click', () => {
+    loadCapturePercentages()
+    $('capture-status').textContent = ''
+  })
+  $('capture-settings').addEventListener('submit', async event => {
+    event.preventDefault()
+    const copy = labels[$('language').value]
+    const form = event.currentTarget
+    const capturePercentages = Object.fromEntries(captureCategories.map(({ id, defaults }) => [
+      id, defaults.map((_, index) => form.elements.namedItem(id + '-' + index).valueAsNumber)
+    ]))
+    try {
+      const response = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ capturePercentages }) })
+      $('capture-status').textContent = response.ok ? copy.captureSaved : copy.invalidSettings
+    } catch { $('capture-status').textContent = copy.invalidSettings }
+  })
   $('shop-prices').addEventListener('submit', async event => {
     event.preventDefault()
     const copy = labels[$('language').value]
@@ -613,7 +686,8 @@ if (panel) {
   $('bot-form').addEventListener('submit', async event => {
     event.preventDefault()
     const form = event.target
-    const bot = { nickname: '', responses: {} }
+    const bot = { nickname: '', announceInChat: $('announce-in-chat').checked, captureInChat: $('capture-in-chat').checked,
+      actionInChat: $('action-in-chat').checked, responses: {} }
     for (const key of botActions) {
       const input = form.elements.namedItem(key)
       if (input.dataset.custom === 'true') bot.responses[key] = input.value

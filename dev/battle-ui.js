@@ -338,8 +338,11 @@ export function mountBattleLab({ catalog, mount, language, advanced = false }) {
     for (const actor of battle.actors) {
       const faintAge = actor.hp ? 0 : visualTime - actor.faintedAt
       if (!actor.hp && (!Number.isFinite(faintAge) || faintAge >= .62)) continue
-      const pokemon = art.get(actor.id)
-      const animations = (actor.shiny ? pokemon?.shiny ?? pokemon?.normal : pokemon?.normal)?.animations
+      const appearance = actor.appearance ?? actor
+      const base = art.get(appearance.id)
+      const form = base?.battleForms?.[appearance.form]
+      const pokemon = form ? { ...base, normal: form.normal ?? base.normal, shiny: form.shiny ?? base.shiny } : base
+      const animations = (appearance.shiny ? pokemon?.shiny ?? pokemon?.normal : pokemon?.normal)?.animations
       const hurt = actor.hurtUntil > battle.time
       const frozen = actor.status?.kind === 'freeze'
       const asleep = actor.status?.kind === 'sleep'
@@ -396,7 +399,7 @@ export function mountBattleLab({ catalog, mount, language, advanced = false }) {
         text(symbol, x + (index - (activeEffects.length - 1) / 2) * 27 + Math.cos(phase) * 8,
           y - 106 + Math.sin(phase) * 7, 24, color)
       })
-      text((actor.ownerName ? actor.ownerName + ' · ' : '') + actor.name + ' · Lv. ' + actor.level, x, y - 76)
+      text((actor.ownerName ? actor.ownerName + ' · ' : '') + (appearance.disguised ? appearance.name : actor.name) + ' · Lv. ' + actor.level, x, y - 76)
       drawHealth(actor, x, y, visualTime, delta)
       if (ultimate?.index === actor.index) drawUltimateMarker(x, y, visualTime)
       ctx.restore()

@@ -91,7 +91,7 @@ export async function eraseAccount(db, accountId) {
     db.prepare('INSERT INTO erased_viewers (viewer_id) ' + identities +
       ' ON CONFLICT(viewer_id) DO UPDATE SET generation = generation + 1').bind(accountId),
     db.prepare('INSERT OR IGNORE INTO erasure_devices SELECT community_id, viewer_id FROM viewer_progress WHERE viewer_id IN (' + identities + ')').bind(accountId),
-    ...['viewer_progress', 'viewer_movesets', 'viewer_held_items', 'shop_orders', 'web_sessions', 'kick_messages']
+    ...['viewer_progress', 'viewer_movesets', 'viewer_held_items', 'shop_orders', 'web_game_actions', 'web_sessions', 'kick_messages']
       .map(table => db.prepare('DELETE FROM ' + table + ' WHERE viewer_id IN (' + identities + ')').bind(accountId)),
     db.prepare('DELETE FROM account_identities WHERE account_id = ?').bind(accountId),
     db.prepare('DELETE FROM accounts WHERE id = ?').bind(accountId)

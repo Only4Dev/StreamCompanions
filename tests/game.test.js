@@ -1,7 +1,48 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { catchChance, createGame } from '../desktop/game.js'
+import { captureCategories } from '../ui/capture-rates.js'
 import { xpAtLevel } from '../ui/levels.js'
+
+test('a Poké Egg hatches only a regular base species and keeps its receipt across restart', () => {
+  const catalog = [{ id: 150, name: 'Mewtwo', legendary: true }, { id: 151, name: 'Mew' },
+    { id: 793, name: 'Nihilego' }, { id: 984, name: 'Great Tusk' },
+    { id: 19, name: 'Rattata' }, { id: 20, name: 'Raticate' }]
+  const options = { catalog, now: () => 0, random: () => .99 }
+  const game = createGame({ ...options, progress: { viewers: { A: { collection: {}, pokeDollars: 11000 } } } })
+  const order = { id: 'egg', viewerId: 'A', item: 'poke-egg', price: 5000 }
+  assert.equal(game.fulfillOrder(order), 'purchased')
+  assert.deepEqual(game.shopHatch('egg'), { id: 19, name: 'Rattata', rarity: 'common', duplicate: false, xp: 0 })
+  const restarted = createGame({ ...options, progress: game.progress() })
+  assert.equal(restarted.fulfillOrder(order), 'purchased')
+  assert.deepEqual(restarted.shopHatch('egg'), game.shopHatch('egg'))
+  assert.deepEqual(restarted.progress().viewers.A.collection, { Rattata: 0 })
+  assert.equal(restarted.progress().viewers.A.pokeDollars, 6000)
+  assert.equal(restarted.fulfillOrder({ ...order, id: 'egg-two' }), 'purchased')
+  assert.equal(restarted.shopHatch('egg-two').duplicate, true)
+  assert.ok(restarted.progress().viewers.A.collection.Rattata > 0)
+})
+
+test('Legendary Tracker survives restart, protects the last five minutes and is unavailable during battle', () => {
+  let time = 0
+  const options = { now: () => time, random: () => 0, catalog: [
+    { id: 19, name: 'Rattata' }, { id: 151, name: 'Mew' }, { id: 150, name: 'Mewtwo', legendary: true }] }
+  const game = createGame({ ...options, progress: { viewers: { A: { collection: {}, pokeDollars: 210000 } } } })
+  for (const id of ['first', 'second']) assert.equal(game.fulfillOrder({ id, viewerId: 'A', item: 'legendary-tracker', price: 100000 }), 'purchased')
+  const ordinary = game.schedule()
+  time = ordinary - 60_000
+  game.setBattleActive(true)
+  assert.equal(game.chat('A', '!legendaryticket'), 'battleLocked')
+  assert.equal(game.progress().viewers.A.legendaryTrackers, 2)
+  game.setBattleActive(false)
+  assert.equal(game.chat('A', '!legendaryticket'), 'trackerUsed')
+  assert.equal(game.chat('A', '!legendaryticket'), 'trackerQueued')
+  assert.equal(game.schedule(), time + 300_000)
+  const restarted = createGame({ ...options, progress: game.progress() })
+  assert.equal(restarted.progress().viewers.A.legendaryTrackers, 1)
+  time = restarted.schedule()
+  assert.equal(restarted.currentEncounter().name, 'Mewtwo')
+})
 
 test('an existing viewer with no Pokémon can claim a starter without a community reset', () => {
   const catalog = [{ id: 1, name: 'Bulbasaur' }, { id: 150, name: 'Mewtwo', legendary: true }]
@@ -45,12 +86,14 @@ test('DNA purchases share one cap across an evolution branch and survive reconne
   const catalog = [{ id: 79, name: 'Slowpoke', shiny: true }, { id: 80, name: 'Slowbro', shiny: true }, { id: 199, name: 'Slowking', shiny: true }]
   const game = createGame({ catalog, progress: { viewers: { [id]: {
     collection: { Slowpoke: xpAtLevel(16), 'Slowpoke ✦': 0 },
-    dnaBoosters: { Slowpoke: 4, Slowbro: 5 }, pokeDollars: 30_000
+    dnaBoosters: { Slowpoke: 4, Slowbro: 3 }, pokeDollars: 50_000
   } } } })
-  const buy = (idempotencyKey, speciesKey) => game.fulfillOrder({ id: idempotencyKey, viewerId: id, item: 'dna-booster', speciesKey })
-  assert.equal(buy('shared', 'Slowking'), 'purchased')
+  const buy = (idempotencyKey, speciesKey, quantity) => game.fulfillOrder({ id: idempotencyKey, viewerId: id, item: 'dna-booster', speciesKey, quantity })
+  assert.equal(buy('too-many', 'Slowking', 4), 'maxed')
+  assert.equal(buy('shared', 'Slowking', 3), 'purchased')
   assert.equal(buy('cap', 'Slowpoke'), 'maxed')
   const reopened = createGame({ catalog, progress: game.progress() })
+  assert.equal(reopened.fulfillOrder({ id: 'shared', viewerId: id, item: 'dna-booster', speciesKey: 'Slowking', quantity: 3 }), 'purchased')
   const viewer = reopened.progress().viewers[id]
   for (const key of ['Slowpoke', 'Slowbro', 'Slowking']) assert.equal(reopened.dnaCount(viewer, key), 10)
   assert.equal(reopened.dnaCount(viewer, 'Slowpoke ✦'), 10)
@@ -91,11 +134,91 @@ test('the desktop shop denies insufficient funds and preserves inventory', () =>
   assert.equal(game.progress().viewers[viewerId].balls.normal, 5)
 })
 
+test('bulk purchases use the current unit price and deliver the entire order once', () => {
+  const viewerId = 'twitch:1'
+  const game = createGame({ progress: { viewers: { [viewerId]: { collection: {}, balls: { normal: 5 }, pokeDollars: 500 } } } })
+  const order = { id: 'bulk', viewerId, item: 'poke-ball', price: 100, quantity: 3 }
+  assert.equal(game.fulfillOrder({ ...order, id: 'stale', price: 90 }), 'repriced')
+  assert.equal(game.fulfillOrder({ ...order, id: 'too-many', quantity: 6 }), 'funds')
+  assert.equal(game.fulfillOrder({ ...order, id: 'unique', item: 'sitrus-berry' }), 'unavailable')
+  assert.equal(game.fulfillOrder(order), 'purchased')
+  assert.equal(createGame({ progress: game.progress() }).fulfillOrder(order), 'purchased')
+  assert.equal(game.progress().viewers[viewerId].pokeDollars, 200)
+  assert.equal(game.progress().viewers[viewerId].balls.normal, 8)
+})
+
+test('Master Balls cost 500,000 by default and use the configured purchase price', () => {
+  const viewerId = 'twitch:1'
+  const game = createGame({ progress: { viewers: { [viewerId]: {
+    collection: {}, balls: { normal: 5, great: 0, ultra: 0, master: 0 }, pokeDollars: 1_000_000
+  } } } })
+  const order = { viewerId, item: 'master-ball', price: 500_000 }
+  assert.equal(game.config.shopPrices['master-ball'], 500_000)
+  assert.equal(game.fulfillOrder({ ...order, id: 'first' }), 'purchased')
+  game.setShopPrices({ ...game.config.shopPrices, 'master-ball': 450_000 })
+  assert.equal(game.fulfillOrder({ ...order, id: 'stale' }), 'repriced')
+  assert.equal(game.fulfillOrder({ ...order, id: 'second', price: 450_000 }), 'purchased')
+  assert.equal(game.ballInventory(viewerId).master, 2)
+  assert.equal(game.progress().viewers[viewerId].pokeDollars, 50_000)
+})
+
+test('a configured battle prize pays only the winner of a completed contested round', () => {
+  const game = createGame({ progress: { viewers: {
+    A: { collection: { Brasa: 0 }, pokeDollars: 10 },
+    B: { collection: { Gota: 0 }, pokeDollars: 10 }
+  } } })
+  assert.equal(game.config.battleMoneyPerWin, 0)
+  assert.throws(() => game.configure({ ...game.config, battleMoneyPerWin: -1 }))
+  game.configure({ ...game.config, battleMoneyPerWin: 250 })
+  assert.equal(game.recordBattle(['A', 'B'], null), 0)
+  assert.equal(game.recordBattle(['A'], 'A'), 0)
+  assert.equal(game.recordBattle(['A', 'B', 'B'], 'A', 'Brasa'), 250)
+  assert.equal(game.progress().viewers.A.pokeDollars, 260)
+  assert.equal(game.progress().viewers.B.pokeDollars, 10)
+  assert.equal(createGame({ progress: game.progress() }).config.battleMoneyPerWin, 250)
+})
+
 test('capture rates vary by species and ball, with guaranteed Master Ball', () => {
   assert.ok(catchChance('normal', 19) > catchChance('normal', 1))
   assert.ok(catchChance('ultra', 1) > catchChance('great', 1))
-  assert.equal(catchChance('normal', 150, true), .03)
+  assert.equal(catchChance('normal', 150, true), .01)
   assert.equal(catchChance('master', 150, true), 1)
+})
+
+test('streamer capture settings apply to throws and persist without changing Master Ball', () => {
+  const percentages = Object.fromEntries(captureCategories.map(({ id, defaults }) => [id, [...defaults]]))
+  percentages.superEasy[0] = 0
+  const catalog = [{ id: 19, name: 'Rattata' }]
+  const game = createGame({ catalog, random: () => 0 })
+  game.setCapturePercentages(percentages)
+  game.chat('player', '!poke join')
+  game.spawn('Rattata')
+  assert.equal(game.chat('player', '!catch'), 'escaped')
+  assert.throws(() => game.setCapturePercentages({ ...percentages, superEasy: [101, 56, 75] }))
+  assert.deepEqual(createGame({ catalog, progress: game.progress() }).config.capturePercentages, percentages)
+  assert.equal(catchChance('master', 19, false, percentages), 1)
+})
+
+test('the regular pool excludes legendary, mythical, Ultra Beast, and Paradox species', () => {
+  const catalog = [
+    { id: 19, name: 'Rattata' }, { id: 150, name: 'Mewtwo', legendary: true },
+    { id: 151, name: 'Mew' }, { id: 793, name: 'Nihilego' },
+    { id: 804, name: 'Naganadel' }, { id: 984, name: 'Great Tusk' }
+  ]
+  let time = 0
+  const game = createGame({ catalog, now: () => time, random: () => .999,
+    progress: { config: { legendaryChancePercent: 0 } } })
+  time = game.schedule()
+  assert.equal(game.snapshot().encounter.name, 'Rattata')
+  assert.equal(game.snapshot().encounter.specialTag, null)
+  game.queueLegendary('Naganadel')
+  time = game.schedule()
+  assert.equal(game.snapshot().encounter.specialTag, 'ultraBeast')
+  assert.equal(game.snapshot().encounter.endsAt - time, 300_000)
+  game.spawn('Great Tusk')
+  assert.equal(game.snapshot().encounter.specialTag, 'paradox')
+  game.spawn('Mew')
+  assert.equal(game.snapshot().encounter.specialTag, 'mythical')
 })
 
 test('a scheduled legendary survives restart and appears at level 1 for five minutes', () => {
@@ -113,11 +236,91 @@ test('a scheduled legendary survives restart and appears at level 1 for five min
   assert.equal(game.snapshot().nextLegendary, undefined)
 })
 
+test('linked accounts share one summon and candy evolution replaces the sprite in the same layer', () => {
+  const twitch = 'twitch:1'
+  const kick = 'kick:2'
+  const catalog = [{ id: 884, name: 'Duraludon' }, { id: 1018, name: 'Archaludon' }]
+  const diagnostics = []
+  const game = createGame({ catalog, onSummonChange: change => diagnostics.push(change), progress: { viewers: {
+    [twitch]: { collection: { Duraludon: xpAtLevel(30) }, rareCandies: 1 },
+    [kick]: { collection: { Duraludon: xpAtLevel(30) }, rareCandies: 1 }
+  } } })
+  assert.equal(game.chat(twitch, '!summon duraludon', 'Viewer', 'twitch'), 'summoned')
+  assert.equal(game.chat(kick, '!summon duraludon', 'Viewer', 'kick'), 'summoned')
+  const before = game.overlay('companions').viewers[twitch].active.layer
+  game.linkKickViewer(kick, twitch)
+  const web = { sharedSummon: true }
+  assert.equal(game.chat(twitch, '!candy', undefined, 'kick', web), 'candyUsed')
+  const visible = game.overlay('companions').viewers
+  assert.deepEqual(Object.keys(visible), [twitch])
+  assert.equal(visible[twitch].active.key, 'Archaludon')
+  assert.equal(visible[twitch].active.layer, before)
+  assert.equal(game.chat(twitch, '!summon out', undefined, 'kick', web), 'removed')
+  assert.deepEqual(game.overlay('companions').viewers, {})
+  assert.equal(diagnostics.filter(change => change.event === 'evolved').length, 1)
+})
+
 test('Rare Candy levels the owned variant and preserves candy at the cap', () => {
   const game = createGame({ progress: { viewers: { a: { collection: { Brasa: xpAtLevel(49) }, rareCandies: 2 } } } })
-  assert.equal(game.chat('a', '!caramelo brasa'), 'candyUsed')
-  assert.equal(game.chat('a', '!candy brasa'), 'candyMaxLevel')
+  assert.equal(game.chat('a', '!candy'), 'candyNoSummon')
+  assert.equal(game.chat('a', '!summon brasa'), 'summoned')
+  assert.equal(game.chat('a', '!candy 0'), 'candyQuantity')
+  assert.equal(game.chat('a', '!candy 2'), 'candyMaxLevel')
+  assert.equal(game.chat('a', '!caramelo 1'), 'candyUsed')
+  assert.equal(game.chat('a', '!candy'), 'candyMaxLevel')
   assert.equal(game.progress().viewers.a.rareCandies, 1)
+})
+
+test('a real battle blocks game commands and never catches up paused summon rewards', () => {
+  let time = 0
+  const game = createGame({ now: () => time, random: () => 0, progress: { viewers: {
+    viewer: { collection: { Brasa: 0 }, rareCandies: 2 }
+  } } })
+  assert.equal(game.chat('viewer', '!summon brasa', 'Viewer', 'twitch'), 'summoned')
+  game.setBattleActive(true)
+  time = 120_000
+  assert.equal(game.chat('viewer', '!candy 2', 'Viewer', 'twitch'), 'battleLocked')
+  assert.equal(game.chat('viewer', '!summon out', 'Viewer', 'twitch'), 'battleLocked')
+  assert.equal(game.snapshot().viewers.viewer.metrics.summonSeconds, 0)
+  assert.equal(game.snapshot().viewers.viewer.rareCandies, 2)
+  game.setBattleActive(false)
+  time += 1000
+  assert.equal(game.snapshot().viewers.viewer.metrics.summonSeconds, 1)
+  assert.equal(game.chat('viewer', '!candy 2', 'Viewer', 'twitch'), 'candyUsed')
+  assert.equal(game.snapshot().viewers.viewer.rareCandies, 0)
+})
+
+test('Master Ball drops use one 0.01 percent roll per active minute and persist in inventory', () => {
+  for (const [roll, expected] of [[.000099, 1], [.0001, 0]]) {
+    let time = 0
+    const values = [.5, .5, roll]
+    const game = createGame({ now: () => time, random: () => values.shift() ?? .5,
+      progress: { viewers: { A: { collection: { Brasa: 0 }, balls: { normal: 5, great: 0, ultra: 0, master: 0 } } } } })
+    game.chat('A', '!summon brasa')
+    time = 59_999
+    assert.equal(game.snapshot().viewers.A.balls.master, 0)
+    time = 60_000
+    assert.equal(game.snapshot().viewers.A.balls.master, expected)
+    const restarted = createGame({ progress: game.progress(), random: () => .99 })
+    assert.equal(restarted.ballInventory('A').master, expected)
+    restarted.spawn('Gota')
+    assert.equal(restarted.chat('A', '!catch master'), expected ? 'caught' : 'noBalls')
+    assert.equal(restarted.ballInventory('A').master, 0)
+  }
+})
+
+test('Pickup boosts held-item drops without boosting the Master Ball roll', () => {
+  const catalog = [{ id: 19, name: 'Rattata' }, { id: 4, name: 'Charmander' }]
+  for (const [name, expected] of [['Rattata', 1], ['Charmander', 0]]) {
+    let time = 0
+    const game = createGame({ catalog, now: () => time, random: () => .03,
+      progress: { viewers: { A: { collection: { [name]: 0 } } } } })
+    assert.equal(game.chat('A', '!summon ' + name.toLowerCase()), 'summoned')
+    time = 60_000
+    const viewer = game.snapshot().viewers.A
+    assert.equal(viewer.heldItems?.length ?? 0, expected)
+    assert.equal(game.ballInventory('A')?.master ?? 0, 0)
+  }
 })
 
 test('roaming rewards roll once per completed active minute and survive restart', () => {
@@ -129,23 +332,30 @@ test('roaming rewards roll once per completed active minute and survive restart'
   assert.equal(game.snapshot().viewers.A.rareCandies, undefined)
   time = 60_000
   const viewer = game.overlay('companions').viewers.A
-  assert.deepEqual(viewer.active.pickup, { at: 60_000, candy: true, money: 50 })
+  assert.deepEqual(viewer.active.pickup, { at: 60_000, candy: true, money: 50, masterBall: true })
   assert.equal(viewer.collection.Brasa, 480)
   const restarted = createGame({ progress: game.progress() })
   assert.equal(restarted.progress().viewers.A.rareCandies, 1)
   assert.equal(restarted.progress().viewers.A.pokeDollars, 50)
 })
 
-test('a community battle rewards the winning variant per unique opponent', () => {
+test('each battle win awards the same percentage of the winner’s current level span', () => {
   const game = createGame({ random: () => 0, progress: { viewers: {
     A: { collection: { Brasa: 5, 'Brasa ✦': 10 } },
     B: { collection: { Gota: 0 } }, C: { collection: { Musgo: 0 } }
   } } })
   game.recordBattle(['A', 'B', 'B', 'C'], 'A', 'Brasa ✦')
   const viewers = game.progress().viewers
-  assert.deepEqual(viewers.A.collection, { Brasa: 5, 'Brasa ✦': 250 })
+  assert.deepEqual(viewers.A.collection, { Brasa: 5, 'Brasa ✦': 40 })
   assert.deepEqual(viewers.A.heldItems, ['sitrus-berry'])
   assert.equal(viewers.B.collection.Gota, 0)
+  const veteran = createGame({ progress: { config: { battleXpPerOpponent: 120 }, viewers: {
+    A: { collection: { Brasa: xpAtLevel(40) } }, B: { collection: { Gota: 0 } }
+  } } })
+  veteran.configure({ ...veteran.config, battleXpPercentPerWin: 50 })
+  veteran.recordBattle(['A', 'B'], 'A', 'Brasa')
+  assert.equal(veteran.progress().viewers.A.collection.Brasa, (xpAtLevel(40) + xpAtLevel(41)) / 2)
+  assert.throws(() => veteran.configure({ ...veteran.config, battleXpPercentPerWin: 101 }))
 })
 
 test('stopping hides the encounter and summons, preserves XP and persists across restart', () => {
@@ -169,7 +379,7 @@ test('stopping hides the encounter and summons, preserves XP and persists across
   assert.equal(restarted.chat('viewer', '!summon brasa'), 'summoned')
 })
 
-test('evolution forms unlock at 16 and 31 and keep shared XP without replacing active summon', () => {
+test('evolution forms unlock at 16 and 31 and keep shared XP and evolve the active summon', () => {
   let now = 0
   const catalog = [{ id: 885, name: 'Dreepy' }, { id: 886, name: 'Drakloak' }, { id: 887, name: 'Dragapult' }]
   const saved = { config: { summonXpPerSecond: 1, summonXpTuned: true }, viewers: { owner: { collection: { Dreepy: xpAtLevel(16) - 1 } } } }
@@ -177,7 +387,7 @@ test('evolution forms unlock at 16 and 31 and keep shared XP without replacing a
   assert.equal(game.chat('owner', '!summon drakloak'), 'missingCreature')
   assert.equal(game.chat('owner', '!summon dreepy'), 'summoned')
   now = 1000
-  assert.equal(game.snapshot().viewers.owner.active.key, 'Dreepy')
+  assert.equal(game.snapshot().viewers.owner.active.key, 'Drakloak')
   assert.equal(game.snapshot().viewers.owner.collection.Drakloak, xpAtLevel(16))
   assert.equal(game.chat('owner', '!summon drakloak'), 'summoned')
   now += 3000
@@ -216,7 +426,7 @@ test('one account can catch once per channel and can summon from only one channe
   assert.equal(game.chat('linked-account', '!catch', 'Viewer', 'kick'), 'duplicateReward')
   assert.equal(game.snapshot().recentCaptures.length, 2)
   assert.equal(game.chat('linked-account', '!summon brasa', 'Viewer', 'twitch'), 'summoned')
-  assert.equal(game.chat('linked-account', '!summon brasa', 'Viewer', 'kick'), 'summonOtherChannel')
+  assert.equal(game.chat('linked-account', '!summon brasa', 'Viewer', 'kick'), 'summoned')
   assert.equal(game.chat('linked-account', '!summon out', 'Viewer', 'twitch'), 'removed')
   assert.equal(game.chat('linked-account', '!summon brasa', 'Viewer', 'kick'), 'summoned')
 })
@@ -236,7 +446,7 @@ test('a verified Kick link uses the Twitch record without doubling its inventory
   assert.equal(viewers['twitch:22'].balls.normal, 4)
   assert.equal(viewers['twitch:22'].active.channel, 'twitch')
   assert.equal(game.chat('twitch:22', '!catch', 'Kick viewer', 'kick'), 'alreadyCaught')
-  assert.equal(game.chat('twitch:22', '!summon brasa', 'Kick viewer', 'kick'), 'summonOtherChannel')
+  assert.equal(game.chat('twitch:22', '!summon brasa', 'Kick viewer', 'kick'), 'summoned')
 })
 
 test('manual spawn resets schedule and both viewers can catch', () => {

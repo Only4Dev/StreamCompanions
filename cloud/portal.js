@@ -1,3 +1,5 @@
+import { enqueueWebGame, webGameStatus, webGameViewer } from './web-game.js'
+import { botCopy } from '../ui/bot-copy.js'
 import { helpPage } from './help.js'
 import { aboutCopy, projectLinks } from '../ui/about.js'
 import appPackage from '../package.json' with { type: 'json' }
@@ -8,10 +10,306 @@ import { kanto } from './kanto.js'
 import { equippedMoves, moveCooldown, movePp, moves } from '../dev/battle.js'
 import { familyDnaCount, familyRoot, maxDnaBoosters } from '../ui/evolution.js'
 import { creatureMoves, parseLoadout, speciesName, validMoveset } from './movesets.js'
-import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles } from './portal-style.js'
+import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles, mobileStyles, liveReactionStyles } from './portal-style.js'
 import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
-import { heldItems } from '../ui/held-items.js'
-import { shopItems } from '../ui/shop.js'
+import { arenaShopItems, heldItems } from '../ui/held-items.js'
+import { featuredShopItems, maxShopQuantity, shopIconUrl, shopItems, validShopQuantity } from '../ui/shop.js'
+
+function communityTabs(community, language, current, region = 'kanto') {
+  const en = language === 'en'
+  const tabs = [['dex', 'Pokédex'], ['inventory', en ? 'Inventory' : 'Inventario'], ['shop', en ? 'Shop' : 'Tienda'],
+    ['overview', en ? 'Overview' : 'Resumen'], ['log', en ? 'Log' : 'Registro'], ['live', en ? 'Play on the web' : 'Jugar en web'],
+    ['help', en ? 'Help' : 'Ayuda']]
+  return '<nav class="tabs community-tabs" aria-label="' + (en ? 'Community' : 'Comunidad') + '">' + tabs.map(([tab, label]) =>
+    '<a href="/?' + escape(new URLSearchParams({ community, tab, region })) + '"' + (current === tab ? ' aria-current="page"' : '') +
+    '>' + label + '</a>').join('') + '</nav>'
+}
+
+const announcementsScript = `(() => {
+const feed = document.querySelector('[data-announcements]');
+const query = new URLSearchParams({community: feed.dataset.announcements});
+const list = feed.querySelector('ol');
+const empty = feed.querySelector('[data-announcements-empty]');
+let latest = '';
+async function refresh() {
+  try {
+    if (!document.hidden) {
+      const response = await fetch('/live/announcements?' + query);
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const { events } = await response.json();
+      const key = events.map(event => event.id).join(',');
+      if (key !== latest) {
+        latest = key;
+        list.replaceChildren(...events.map(({ message }) => {
+          const row = document.createElement('li');
+          row.textContent = message;
+          return row;
+        }));
+        empty.hidden = events.length > 0;
+      }
+    }
+  } catch {}
+  setTimeout(refresh, document.hidden ? 10000 : 2500);
+}
+refresh();
+})();`
+
+function renderAnnouncements(community, language) {
+  const en = language === 'en'
+  return '<section class="sheet" data-announcements="' + escape(community) + '"><h2>' +
+    (en ? 'Bot announcements' : 'Avisos del bot') + '</h2><p class="meta" data-announcements-empty>' +
+    (en ? 'No announcements yet.' : 'Todavía no hay avisos.') +
+    '</p><ol class="announcement-feed" role="log" aria-live="polite" aria-relevant="additions"></ol></section>' +
+    '<script src="/assets/announcements.js" defer></script>'
+}
+
+const webGameScript = `(() => {
+const root = document.querySelector('[data-web-game]');
+const status = root.querySelector('[role=status]');
+const capture = root.querySelector('[data-capture-form]');
+const endpoint = new URL('/live/status', location.origin);
+endpoint.search = location.search;
+let submitting = false;
+let timer;
+let version = 0;
+let lastLog = '';
+let clearReaction;
+const reaction = document.querySelector('[data-live-reaction]');
+const shinyOptIn = root.querySelector('[data-shiny-audio]');
+const shinyUrl = new URL('/live/shiny-cue', endpoint);
+shinyUrl.searchParams.set('community', endpoint.searchParams.get('community'));
+shinyUrl.searchParams.set('platform', endpoint.searchParams.get('platform'));
+const shinyAudio = new Audio();
+let lastEncounter;
+const shinyPreference = 'sc-web-shiny-audio';
+try { shinyOptIn.checked = localStorage.getItem(shinyPreference) === '1'; } catch {}
+function playShiny() {
+  shinyUrl.searchParams.set('play', Date.now());
+  shinyAudio.src = shinyUrl;
+  shinyAudio.volume = .55;
+  return shinyAudio.play();
+}
+shinyOptIn.addEventListener('change', () => {
+  try { localStorage.setItem(shinyPreference, shinyOptIn.checked ? '1' : '0'); } catch {}
+  if (shinyOptIn.checked) playShiny().catch(() => {});
+  else shinyAudio.pause();
+});
+function showFeedback(message, result, captureAction = false) {
+  const kind = result === 'catchSuccess' ? 'catch' : captureAction || result === 'escaped' ? 'miss' :
+    ['summoned', 'removed', 'candyUsed', 'trackerUsed'].includes(result) ? 'success' : 'warning';
+  status.dataset.feedback = kind;
+  status.textContent = message;
+  if (!reaction) return;
+  clearTimeout(clearReaction);
+  const badge = document.createElement('span');
+  badge.className = 'live-reaction-badge';
+  badge.dataset.effect = kind;
+  const icon = document.createElement('span');
+  icon.className = kind === 'catch' || kind === 'miss' ? 'live-reaction-ball' : 'live-reaction-symbol';
+  icon.textContent = kind === 'success' ? '✓' : kind === 'warning' ? '!' : '';
+  const text = document.createElement('span');
+  text.textContent = message;
+  badge.append(icon, text);
+  reaction.replaceChildren(badge);
+  clearReaction = setTimeout(() => reaction.replaceChildren(), 4200);
+}
+let actionType = '';
+function schedule(delay) {
+  clearTimeout(timer);
+  timer = setTimeout(refresh, delay);
+}
+root.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (submitting || endpoint.searchParams.has('game')) return;
+  const form = event.target;
+  const data = new URLSearchParams(new FormData(form));
+  actionType = data.get('action');
+  delete status.dataset.feedback;
+  submitting = true;
+  version++;
+  clearTimeout(timer);
+  status.textContent = root.dataset.waiting;
+  for (const button of root.querySelectorAll('button')) button.disabled = true;
+  try {
+    const response = await fetch(form.getAttribute('action'), {method: 'POST', body: data, headers: {Accept: 'application/json'}, signal: AbortSignal.timeout(8000)});
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const result = await response.json();
+    status.textContent = result.message || root.dataset.waiting;
+    if (result.id) endpoint.searchParams.set('game', result.id);
+    else if (result.message) showFeedback(result.message, result.result, actionType === 'catch');
+    form.elements.namedItem('id').value = crypto.randomUUID();
+  } catch {
+    showFeedback(root.dataset.failed, 'network');
+  } finally {
+    submitting = false;
+    void refresh();
+  }
+});
+async function refresh() {
+  const current = version;
+  try {
+    const response = await fetch(endpoint, {cache: 'no-store', signal: AbortSignal.timeout(8000)});
+    if (current !== version) return;
+    if (response.status === 401 || response.status === 404) {
+      status.textContent = root.dataset.failed;
+      return;
+    }
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const state = await response.json();
+    if (current !== version) return;
+    if (lastEncounter !== undefined && state.encounter && state.encounter !== lastEncounter && state.shiny && shinyOptIn.checked) {
+      playShiny().catch(() => {});
+    }
+    lastEncounter = state.encounter;
+    capture.querySelector('input[name="encounter"]').value = state.encounter || '';
+    root.querySelector('[data-capture-difficulty]').textContent = state.difficulty || root.dataset.noEncounter;
+    for (const input of capture.querySelectorAll('input[name="ball"]')) {
+      const amount = state.balls?.[input.value] ?? 0;
+      input.disabled = amount < 1;
+      input.parentElement.querySelector('[data-ball-count]').textContent = '×' + amount;
+    }
+    if (!capture.querySelector('input[name="ball"]:checked:not(:disabled)')) {
+      const available = capture.querySelector('input[name="ball"]:not(:disabled)');
+      if (available) available.checked = true;
+    }
+    capture.querySelector('button').disabled = submitting || state.pending || !state.encounter ||
+      !capture.querySelector('input[name="ball"]:checked:not(:disabled)');
+    for (const button of root.querySelectorAll('form:not([data-capture-form]) button')) {
+      const maximum = button.hasAttribute('data-tracker-use') ? state.legendaryTrackers || 0 : button.hasAttribute('data-candy-use') ? state.rareCandies || 0 : Infinity;
+      button.disabled = submitting || state.pending || !state.online || maximum < 1;
+    }
+    root.querySelector('[data-tracker-count]').textContent = '×' + (state.legendaryTrackers || 0);
+    root.querySelector('[data-candy-count]').textContent = '×' + (state.rareCandies || 0);
+    const activity = root.querySelector('[data-live-activity]');
+    const key = JSON.stringify(state.activity ?? []);
+    if (key !== lastLog) {
+      lastLog = key;
+      activity.replaceChildren(...(state.activity ?? []).map(entry => {
+        const row = document.createElement('li');
+        row.textContent = entry.action + ' · ' + entry.message;
+        return row;
+      }));
+    }
+    if (!state.pending && state.result && endpoint.searchParams.has('game')) {
+      showFeedback(state.message, state.result, actionType === 'catch');
+    } else if (state.message) status.textContent = state.message;
+    else if (!state.online) status.textContent = root.dataset.offline;
+    else if (status.textContent === root.dataset.offline) status.textContent = '';
+    if (!state.pending) endpoint.searchParams.delete('game');
+    schedule(state.pending ? 500 : 2500);
+  } catch (error) {
+    console.warn('Could not refresh live game status', error);
+    if (current === version) schedule(2500);
+  }
+}
+refresh();
+})();`
+
+function defaultShinyCue() {
+  const rate = 16000
+  const samples = 10080
+  const bytes = new ArrayBuffer(44 + samples * 2)
+  const header = new DataView(bytes)
+  for (const [offset, tag] of [[0, 'RIFF'], [8, 'WAVE'], [12, 'fmt '], [36, 'data']]) {
+    for (let index = 0; index < tag.length; index++) header.setUint8(offset + index, tag.charCodeAt(index))
+  }
+  for (const [offset, value] of [[4, bytes.byteLength - 8], [16, 16], [24, rate], [28, rate * 2], [40, samples * 2]]) header.setUint32(offset, value, true)
+  for (const [offset, value] of [[20, 1], [22, 1], [32, 2], [34, 16]]) header.setUint16(offset, value, true)
+  for (let index = 0; index < samples; index++) {
+    const time = index / rate
+    const note = Math.floor(time / .21)
+    const phase = time - note * .21
+    const frequency = [659.25, 880, 1318.51][note]
+    header.setInt16(44 + index * 2, Math.round(Math.sin(2 * Math.PI * frequency * phase) *
+      Math.min(1, phase * 80) * Math.max(0, 1 - phase / .21) * 13000), true)
+  }
+  return bytes
+}
+
+function webGameState(runtime, row, language) {
+  const en = language === 'en'
+  const online = Boolean(runtime?.seen_at > Date.now() - 20000)
+  const pending = Boolean(row && !row.result && row.created_at > Date.now() - 15000)
+  const result = row?.result || (row && !pending ? 'expired' : '')
+  const messages = {
+    catchSuccess: en ? 'You caught the Pokémon!' : '¡Capturaste al Pokémon!',
+    ballInventory: en ? 'Checked Poké Ball inventory.' : 'Consultó el inventario de Poké Balls.',
+    summoned: en ? 'Companion summoned.' : 'Compañero invocado.',
+    removed: en ? 'Companion withdrawn.' : 'Compañero retirado.',
+    expired: en ? 'The encounter or request expired.' : 'El encuentro o la solicitud caducó.',
+    pending: en ? 'An action is already pending.' : 'Ya hay una acción pendiente.',
+    offline: en ? 'The streamer’s app is offline.' : 'La app del streamer está desconectada.',
+    cooldown: en ? 'Wait five seconds between commands in this channel.' : 'Espera cinco segundos entre comandos en este canal.',
+    noBalls: en ? 'You have none of the selected Poké Ball.' : 'No te quedan Poké Balls del tipo elegido.',
+    escaped: en ? 'The Pokémon escaped.' : 'El Pokémon escapó.'
+  }
+  const message = pending ? (en ? 'Waiting for the streamer’s app…' : 'Esperando a la app del streamer…') :
+    result ? messages[result] || botCopy[language][result] || (en ? 'The action could not be completed.' : 'No se pudo completar la acción.') : ''
+  return { online, pending, message, ...(result ? { result } : {}), encounter: online ? runtime.encounter_id : null,
+    difficulty: online ? runtime[en ? 'difficulty_en' : 'difficulty_es'] : null, ...(online && runtime.shiny ? { shiny: true } : {}) }
+}
+
+async function viewerSession(request, db) {
+  const session = getCookie(request, 'sc_session')
+  const key = /^[a-f0-9]{64}$/.test(session ?? '') ? await sessionKey(session) : null
+  const identity = key ? await db.prepare(
+    'SELECT s.viewer_id, s.login, ident.account_id FROM web_sessions s ' +
+    'JOIN account_identities ident ON ident.viewer_id = s.viewer_id WHERE s.id IN (?, ?) AND s.expires_at > ? AND ident.detached_at IS NULL'
+  ).bind(session, key, Date.now()).first() : null
+  return { session, key, identity }
+}
+
+async function renderLiveGame(request, db, url, language) {
+  const en = language === 'en'
+  const community = url.searchParams.get('community')
+  const platform = url.searchParams.get('platform')
+  const { identity } = await viewerSession(request, db)
+  const viewer = identity && await webGameViewer(db, identity.account_id, community, platform)
+  if (!viewer) return '<section class="sheet" id="play-web"><h2>' + (en ? 'Play on the web' : 'Jugar en web') + '</h2><p>' + (en ? 'Sign in and link your channel account to play.' : 'Inicia sesión y vincula tu cuenta del canal para jugar.') + ' <a href="/">' +
+    (en ? 'Viewer portal' : 'Portal de viewers') + '</a></p></section>'
+  const { collection, balls, legendaryTrackers = 0, rareCandies = 0 } = JSON.parse(viewer.payload)
+  const runtime = await db.prepare('SELECT * FROM web_game_runtime WHERE community_id = ?').bind(community).first()
+  const id = url.searchParams.get('game')
+  const row = ['offline', 'expired', 'pending'].includes(id) ? { result: id } : await webGameStatus(db, identity.account_id, community, id)
+  const state = webGameState(runtime, row, language)
+  const destination = escape('/live/action?' + new URLSearchParams({ community, platform }))
+  const open = (action, extra = '') => '<form method="post" action="' + destination + '"' + extra + '>' +
+    '<input type="hidden" name="id" value="' + crypto.randomUUID() + '"><input type="hidden" name="action" value="' + action + '">'
+  const disabled = !state.online || state.pending ? ' disabled' : ''
+  const names = [['normal', 'Poké Ball', 'poke-ball'], ['great', en ? 'Great Ball' : 'Super Ball', 'great-ball'],
+    ['ultra', 'Ultra Ball', 'ultra-ball'], ['master', 'Master Ball', 'master-ball']]
+  const firstAvailable = names.find(([type]) => balls[type] > 0)?.[0]
+  const options = names.map(([type, name, icon]) =>
+    '<label class="live-ball"><input type="radio" name="ball" value="' + type + '" required' +
+    (type === firstAvailable ? ' checked' : '') + (balls[type] > 0 ? '' : ' disabled') + '>' +
+    itemIcon(icon) + '<span>' + name + '</span><strong data-ball-count>×' + escape(balls[type] ?? 0) + '</strong></label>').join('')
+  const creatures = Object.keys(collection).sort().map(name => '<option>' + escape(name) + '</option>').join('')
+  const noEncounter = en ? 'No Pokémon available to catch.' : 'No hay un Pokémon disponible para capturar.'
+  return '<section class="sheet" id="play-web" data-web-game data-waiting="' + (en ? 'Sending action…' : 'Enviando acción…') +
+    '" data-failed="' + (en ? 'Could not send the action. Try again.' : 'No se pudo enviar la acción. Intenta de nuevo.') +
+    '" data-offline="' + (en ? 'Waiting for the streamer to start the app…' : 'Esperando a que el streamer inicie la app…') +
+    '" data-no-encounter="' + noEncounter + '"><h2>' + (en ? 'Play on the web' : 'Jugar en web') +
+    '</h2><p class="live-game-status" role="status">' + escape(state.message) + '</p><div class="live-game-grid">' +
+    '<section class="live-game-card"><h3>' + (en ? 'Catch' : 'Captura') + '</h3><p class="meta" data-capture-difficulty>' +
+    escape(state.difficulty ?? noEncounter) + '</p>' +
+    open('catch', ' data-capture-form') + '<input type="hidden" name="encounter" value="' + escape(state.encounter ?? '') + '">' +
+    '<fieldset class="live-balls"><legend>' + (en ? 'Choose a Poké Ball' : 'Elige una Poké Ball') + '</legend>' + options +
+    '</fieldset><button' + (state.encounter && firstAvailable ? disabled : ' disabled') + '>' +
+    (en ? 'Catch' : 'Capturar') + '</button></form></section>' +
+    '<section class="live-game-card"><h3>' + (en ? 'Companion' : 'Compañero') + '</h3><div class="live-companion">' +
+    (creatures ? open('summon') + '<label>Pokémon <select name="pokemon">' + creatures + '</select></label><button' +
+      disabled + '>' + (en ? 'Summon' : 'Invocar') + '</button></form>' : '') +
+    open('withdraw') + '<button class="live-secondary"' + disabled + '>' + (en ? 'Withdraw' : 'Retirar') + '</button></form></div>' +
+    open('candy', ' class="live-candy"') + '<p class="meta live-item-count">' + itemIcon('rare-candy') + ' <strong data-candy-count>×' + rareCandies + '</strong></p><label>' + (en ? 'Rare Candy quantity' : 'Cantidad de Caramelos Raros') +
+    ' <input type="number" name="quantity" min="1" max="50" value="1" required></label><button' +
+    (rareCandies ? disabled : ' disabled') + ' data-candy-use>' + (en ? 'Use Rare Candy' : 'Usar Caramelo Raro') + '</button></form></section>' +
+    '<section class="live-game-card"><h3>' + (en ? 'Key Items' : 'Objetos clave') + '</h3>' + open('tracker') +
+    '<p class="meta live-item-count">' + itemIcon('dowsing-machine') + ' Legendary Tracker <strong data-tracker-count>×' + legendaryTrackers + '</strong></p><button data-tracker-use' +
+    (legendaryTrackers ? disabled : ' disabled') + '>' + (en ? 'Use Legendary Tracker' : 'Usar Legendary Tracker') + '</button></form></section>' +
+    '</div><label><input type="checkbox" data-shiny-audio> ' + (en ? 'Play shiny sounds' : 'Reproducir sonidos shiny') + '</label><details class="live-activity" open><summary>' + (en ? 'Your game activity' : 'Tu actividad de juego') +
+    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=6" defer></script>'
+
+}
 
 const families = new Map()
 for (const entry of nationalDex) {
@@ -100,12 +398,13 @@ function renderPage(body, status, language, theme, url) {
   const themeLabel = theme === 'dark' ? (language === 'en' ? 'Light mode' : 'Modo claro') : (language === 'en' ? 'Dark mode' : 'Modo oscuro')
   const themeLink = '<a href="/?' + escape(themeQuery) + '">' + themeLabel + '</a>'
   const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'same-origin',
-    'Content-Security-Policy': "default-src 'none'; script-src 'self'; img-src https://raw.githubusercontent.com https://static-cdn.jtvnw.net https://*.kick.com; style-src 'unsafe-inline'; form-action 'self' https://id.kick.com https://id.twitch.tv; frame-ancestors 'none'" })
+    'Content-Security-Policy': "default-src 'none'; script-src 'self'; connect-src 'self'; media-src 'self'; frame-src https://player.twitch.tv https://player.kick.com; img-src https://raw.githubusercontent.com https://static-cdn.jtvnw.net https://*.kick.com; style-src 'unsafe-inline'; form-action 'self' https://id.kick.com https://id.twitch.tv; frame-ancestors 'none'" })
   headers.append('Set-Cookie', cookie('sc_lang', language, 31_536_000))
   headers.append('Set-Cookie', cookie('sc_theme', theme, 31_536_000))
   return new Response('<!doctype html><html lang="' + language + '" data-theme="' + theme + '"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
-    '<title>Stream Companions</title><style>' + portalStyles + dexStyles + providerStyles + languageStyles + helpStyles + darkStyles + '</style>' +
-    '<main><header class="mast"><span class="mark" aria-hidden="true">✦</span>Stream Companions<nav class="web-language" aria-label="Language">' + '<a class="help-header" href="?' + escape(new URLSearchParams({
+    '<title>Stream Companions</title><style>' + portalStyles + dexStyles + providerStyles + languageStyles + helpStyles + darkStyles + mobileStyles + liveReactionStyles + '</style>' +
+    '<main><header class="mast"><span class="mark" aria-hidden="true">✦</span>Stream Companions<nav class="web-language" aria-label="' + (language === 'en' ? 'Portal navigation' : 'Navegación del portal') + '"><a href="/">' +
+    (language === 'en' ? 'Home' : 'Inicio') + '</a>' + '<a class="help-header" href="?' + escape(new URLSearchParams({
       tab: 'help', ...(url.searchParams.get('community') ? { community: url.searchParams.get('community') } : {})
     })) + '">' + (language === 'en' ? 'Help' : 'Ayuda') + '</a><a href="/?tab=about">' + aboutCopy[language].about + '</a><a href="/?tab=live">' + (language === 'en' ? 'Live' : 'En directo') + '</a>' + themeLink + languageLinks + '</nav></header>' + body + '</main></html>', { status, headers })
 }
@@ -126,32 +425,147 @@ function platformButton(provider, enabled, t, language) {
     : '<span class="button provider unavailable" aria-disabled="true">' + icon + name + ' <small>' + t('Próximamente') + '</small></span>'
 }
 
+function quantityField(en, price, limit) {
+  return '<div class="shop-quantity"><label>' + (en ? 'Quantity' : 'Cantidad') + ' <input type="number" name="quantity" data-shop-quantity="' +
+    price + '" min="1" max="' + Math.max(1, limit) + '" value="1" required></label><span>Total <output aria-live="polite">$' + price + '</output></span></div>'
+}
+
+function submittingPurchase(en) {
+  return '<span role="status" data-shop-submitting hidden>' + (en ? 'Sending order…' : 'Enviando pedido…') + '</span>'
+}
+
+function hatchDialog(en) {
+  return '<dialog class="egg-dialog" data-hatch aria-labelledby="egg-title" data-opening="' + (en ? 'The egg is hatching…' : '¡El huevo está eclosionando!') +
+    '" data-reveal="' + (en ? 'Your egg hatched!' : '¡Tu huevo eclosionó!') + '"><h2 id="egg-title"></h2>' +
+    '<div class="egg-stage" aria-hidden="true"><div class="egg-rays"></div><div class="egg-shell"><i></i><i></i></div><img width="104" height="104" alt=""></div>' +
+    '<p data-hatch-result aria-live="polite"></p><form method="dialog"><button>' + (en ? 'Close' : 'Cerrar') + '</button></form></dialog>'
+}
+
 function pendingPurchase(en) {
-  return ' data-order-pending data-waiting="' + (en ? 'Still waiting. Check again in a moment.' : 'El pedido sigue pendiente. Vuelve a consultar en un momento.') + '"'
+  return ' data-order-pending aria-live="polite" data-waiting="' +
+    (en ? 'Still waiting for the streamer’s app. Please wait.' : 'Seguimos esperando a la app del streamer. Espera un momento.') + '"'
 }
 
 export async function portal(request, url, env) {
   if (request.method === 'GET' && url.pathname === '/assets/shop-status.js') {
-    return new Response(`const receipt = document.querySelector('[data-order-pending]');
-      if (receipt) {
-        const refresh = async () => {
-          for (let attempt = 0; attempt < 15; attempt++) {
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            try {
-              const response = await fetch(location.href, {cache: 'no-store'});
-              if (!response.ok || response.redirected) continue;
-              const page = new DOMParser().parseFromString(await response.text(), 'text/html');
-              if (page.querySelector('[data-order-pending]')) continue;
-              const result = page.querySelector('[data-order-receipt]');
-              if (!result) continue;
-              receipt.textContent = result.textContent;
-              location.reload();
-              return;
-            } catch {}
+    return new Response(`for (const input of document.querySelectorAll('[data-shop-quantity]')) {
+        const total = input.form.querySelector('output');
+        input.addEventListener('input', () => {
+          total.value = input.validity.valid ? '$' + (input.valueAsNumber * Number(input.dataset.shopQuantity)) : '—';
+        });
+      }
+      const submitting = document.querySelector('[data-shop-submitting]');
+      let submitted = false;
+      for (const form of document.querySelectorAll('[data-shop-buy]')) {
+        form.addEventListener('submit', event => {
+          if (submitted) {
+            event.preventDefault();
+            return;
           }
-          receipt.textContent = receipt.dataset.waiting;
-        };
-        refresh();
+          submitted = true;
+          for (const button of document.querySelectorAll('[data-shop-buy] button')) button.disabled = true;
+          if (submitting) submitting.hidden = false;
+        });
+      }
+      const dialog = document.querySelector('[data-hatch]');
+      let didHatch = false;
+      function revealHatch(hatch) {
+        if (!dialog || didHatch) return;
+        didHatch = true;
+        const title = dialog.querySelector('h2');
+        const result = dialog.querySelector('[data-hatch-result]');
+        const sprite = dialog.querySelector('.egg-stage img');
+        dialog.dataset.rarity = hatch.rarity;
+        sprite.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' + hatch.id + '.png';
+        title.textContent = dialog.dataset.opening;
+        dialog.showModal();
+        setTimeout(() => {
+          dialog.classList.add('hatched');
+          title.textContent = dialog.dataset.reveal;
+          result.textContent = hatch.name + (hatch.xp > 0 ? ' · +' + hatch.xp + ' XP' : '');
+        }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1450);
+      }
+      const receipt = document.querySelector('[data-order-pending], [data-order-receipt]');
+      const wallet = document.querySelector('[data-shop-wallet]');
+      const controls = [...document.querySelectorAll('[data-shop-product]')];
+      const availability = document.querySelector('[data-shop-availability]');
+      let latestState;
+      function updateControl(form, state) {
+        const {shopProduct, shopPrice, shopBall} = form.dataset;
+        const dna = shopProduct === 'dna-booster';
+        const owned = state.heldItems.includes(shopProduct);
+        const cap = dna ? (state.dna ? ${maxDnaBoosters} - state.dnaCount : 0) : ${maxShopQuantity};
+        const limit = Math.min(cap, Math.floor(state.balance / Number(shopPrice)));
+        const input = form.querySelector('[data-shop-quantity]');
+        if (input) input.max = Math.max(1, limit);
+        const button = form.querySelector('button');
+        button.disabled = submitted || !state.online || state.pending || owned || limit < 1 ||
+          (shopProduct === 'master-ball' && !state.master) ||
+          (form.hasAttribute('data-shop-feature') && !state.featured?.includes(shopProduct)) ||
+          Boolean(input && (!input.validity.valid || (!state.bulk && input.valueAsNumber > 1)));
+        button.textContent = owned ? button.dataset.owned : button.dataset.buy;
+        const feature = form.parentElement.querySelector('[data-feature-upgrade]');
+        if (feature) feature.hidden = !state.online || Boolean(state.featured?.includes(shopProduct));
+        const upgrade = form.parentElement.querySelector('[data-shop-master-upgrade]');
+        if (upgrade) upgrade.hidden = !state.online || Boolean(state.master);
+        const count = form.querySelector('[data-shop-count]');
+        if (count) count.textContent = '×' + (state.balls[shopBall] ?? 0);
+      }
+      for (const form of controls) form.addEventListener('input', () => {
+        if (latestState) updateControl(form, latestState);
+      });
+      if (receipt || wallet) {
+        const query = new URLSearchParams(location.search);
+        const status = new URL('/shop/status', location.origin);
+        status.searchParams.set('community', query.get('community'));
+        if (receipt) status.searchParams.set('purchase', query.get('purchase'));
+        if (query.has('pokemon')) status.searchParams.set('pokemon', query.get('pokemon'));
+        const dnaCount = document.querySelector('[data-shop-dna-count]');
+        const delta = document.querySelector('[data-shop-delta]');
+        let balance = wallet ? Number(wallet.dataset.shopWallet) : null;
+        let attempts = 0;
+        async function refresh() {
+          try {
+            if (document.hidden) return void setTimeout(refresh, 5000);
+            const response = await fetch(status, {cache: 'no-store'});
+            if (response.status === 401 || response.status === 404) return;
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const state = await response.json();
+            attempts = 0;
+            if (dnaCount && Number.isInteger(state.dnaCount)) {
+              dnaCount.textContent = state.dnaCount >= ${maxDnaBoosters} ? 'MAX' : state.dnaCount + '/${maxDnaBoosters}';
+            }
+            if (wallet && Number.isSafeInteger(state.balance)) {
+              if (state.balance !== balance) {
+                if (delta) delta.textContent = state.balance > balance ? '+$' + (state.balance - balance) : '';
+                balance = state.balance;
+                wallet.textContent = '$' + balance;
+              }
+              latestState = state;
+              if (availability) {
+                availability.hidden = state.online && state.bulk;
+                availability.textContent = state.online ? availability.dataset.upgrade : availability.dataset.offline;
+              }
+              for (const form of controls) updateControl(form, state);
+            }
+            if (state.hatch) revealHatch(state.hatch);
+            if (receipt && state.message) {
+              receipt.textContent = state.message;
+              if (!state.pending) {
+                receipt.removeAttribute('data-order-pending');
+                status.searchParams.delete('purchase');
+                if (!wallet) return;
+              }
+            }
+          } catch {
+            if (receipt?.hasAttribute('data-order-pending') && ++attempts >= 3) {
+              receipt.textContent = receipt.dataset.waiting;
+            }
+          }
+          setTimeout(refresh, receipt?.hasAttribute('data-order-pending') ? 500 : 5000);
+        }
+        if (receipt) refresh();
+        else setTimeout(refresh, 1000);
       }`, { headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=300' } })
   }
   if (request.method === 'GET' && url.pathname === '/assets/moveset.js') {
@@ -167,6 +581,19 @@ export async function portal(request, url, env) {
       form.addEventListener('change', update);
       update();`, { headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=300' } })
   }
+  if (request.method === 'GET' && url.pathname === '/assets/announcements.js') return new Response(announcementsScript, {
+    headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff' }
+  })
+  if (request.method === 'GET' && url.pathname === '/live/announcements') {
+    const community = url.searchParams.get('community')
+    if (!community || community.length > 100) return new Response(null, { status: 400 })
+    const { results } = await env.DB.prepare('SELECT id, message FROM portal_announcements WHERE community_id = ? AND created_at >= ? ' +
+      'ORDER BY created_at DESC, id DESC LIMIT 12').bind(community, Date.now() - 6 * 60 * 60_000).all()
+    return Response.json({ events: results.reverse() }, { headers: { 'Cache-Control': 'public, max-age=1' } })
+  }
+  if (request.method === 'GET' && url.pathname === '/assets/web-game.js') return new Response(webGameScript, {
+    headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff' }
+  })
   const requested = url.searchParams.get('lang') ?? getCookie(request, 'sc_lang')
   const language = requested === 'en' ? 'en' : 'es'
   const t = text => language === 'en' ? webEnglish[text] ?? text : text
@@ -175,25 +602,56 @@ export async function portal(request, url, env) {
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'live') {
     const { results } = await env.DB.prepare('SELECT community_id, seen_at, platforms FROM community_stream_status ORDER BY seen_at DESC LIMIT 100').all()
     const title = language === 'en' ? 'Streaming communities' : 'Comunidades de streaming'
-    const cards = results.map(({ community_id, seen_at, platforms }) => {
-      const channels = JSON.parse(platforms)
-      const live = seen_at > Date.now() - 90_000
-      const links = channels.map(channel => {
-        if (!['twitch', 'kick'].includes(channel.provider) || !/^[a-z0-9_-]{1,30}$/i.test(channel.login)) return ''
-        const name = channel.provider === 'twitch' ? 'Twitch' : 'Kick'
-        const href = (channel.provider === 'twitch' ? 'https://www.twitch.tv/' : 'https://kick.com/') + channel.login
-        let thumbnail = ''
-        if (live && channel.live) try {
-          const url = new URL(channel.thumbnail.replace('{width}', '320').replace('{height}', '180'))
-          if (url.protocol === 'https:' && (url.hostname === 'static-cdn.jtvnw.net' || url.hostname.endsWith('.kick.com'))) {
-            thumbnail = '<img width="160" height="90" loading="lazy" alt="" src="' + escape(url.href) + '">'
-          }
-        } catch { /* platform did not supply a usable thumbnail */ }
-        return '<a href="' + escape(href) + '">' + thumbnail + escape(name + ' · ' + (live && channel.live ? (language === 'en' ? 'Live' : 'En directo') : 'Offline')) + '</a>'
-      }).join(' ')
-      return '<li><strong>' + escape(channels[0]?.login ?? community_id) + '</strong><div>' + links + '</div></li>'
-    }).join('')
-    return page('<section class="sheet"><h1>' + title + '</h1><ul class="community-list">' + cards + '</ul></section>')
+    const selectedStream = results.find(row => row.community_id === url.searchParams.get('community'))
+    const platform = url.searchParams.get('platform')
+    if (selectedStream && !platform && selectedStream.seen_at > Date.now() - 90_000) {
+      const available = JSON.parse(selectedStream.platforms).find(item => item.live && ['twitch', 'kick'].includes(item.provider))
+      if (available) {
+        url.searchParams.set('platform', available.provider)
+        return redirect(url.pathname + url.search, [])
+      }
+    }
+    const stream = selectedStream?.seen_at > Date.now() - 90_000 && JSON.parse(selectedStream.platforms).find(channel =>
+      channel.provider === platform && ['twitch', 'kick'].includes(platform) && channel.live && /^[a-z0-9_-]{1,30}$/i.test(channel.login))
+    const player = stream && url.protocol === 'https:' && (platform === 'twitch'
+      ? 'https://player.twitch.tv/?' + new URLSearchParams({ channel: stream.login, parent: url.hostname, autoplay: 'false' })
+      : 'https://player.kick.com/' + encodeURIComponent(stream.login) + '?autoplay=false')
+    const en = language === 'en'
+    const liveUrl = (community, provider) => '/?' + new URLSearchParams({ tab: 'live', community, platform: provider })
+    const validChannel = channel => ['twitch', 'kick'].includes(channel.provider) && /^[a-z0-9_-]{1,30}$/i.test(channel.login)
+    const liveChannels = row => row.seen_at > Date.now() - 90_000
+      ? JSON.parse(row.platforms).filter(channel => channel.live && validChannel(channel)) : []
+    const communities = results.map(row => ({ row, channels: liveChannels(row) })).filter(({ channels }) => channels.length)
+    const channelTabs = selectedStream ? '<nav class="tabs live-platforms" aria-label="' + (en ? 'Streaming platform' : 'Plataforma de streaming') + '">' +
+      ['twitch', 'kick'].map(provider => {
+        const name = provider === 'twitch' ? 'Twitch' : 'Kick'
+        const channel = liveChannels(selectedStream).find(item => item.provider === provider)
+        return channel ? '<a href="' + escape(liveUrl(selectedStream.community_id, provider)) + '"' +
+          (provider === platform ? ' aria-current="page"' : '') + '>' + name + '</a>' :
+          '<span aria-disabled="true">' + name + '</span>'
+      }).join('') + '</nav>' : ''
+    const cards = communities.map(({ row, channels }) =>
+      '<li><a class="button" href="' + escape(liveUrl(row.community_id, channels[0].provider)) + '">' +
+      escape(channels[0].login) + '</a></li>').join('')
+    const mainTabs = stream ? '<nav class="tabs live-sections" aria-label="' + (en ? 'Live sections' : 'Secciones del directo') +
+      '"><a href="#watch-live">' + (en ? 'Watch stream' : 'Ver directo') + '</a><a href="#play-web">' +
+      (en ? 'Play on the web' : 'Jugar en web') + '</a></nav>' : ''
+    const channelUrl = stream && (platform === 'twitch' ? 'https://www.twitch.tv/' : 'https://kick.com/') + encodeURIComponent(stream.login)
+    const watch = '<section class="sheet live-watch" id="watch-live"><h1>' + title + '</h1>' + mainTabs + channelTabs +
+      (stream ? '<div class="live-reaction" data-live-reaction aria-hidden="true"></div>' : '') +
+      (player ? '<div class="live-player"><iframe title="' + escape(stream.login) + '" src="' + escape(player) +
+        '" width="960" height="540" allowfullscreen></iframe></div>' +
+        '<a class="live-mobile-channel" href="' + escape(channelUrl) + '">' +
+        (en ? 'Open on ' : 'Abrir en ') + (platform === 'twitch' ? 'Twitch' : 'Kick') + '</a>' :
+        '<p class="meta">' + (communities.length
+          ? (en ? 'Choose a live channel to watch and play here.' : 'Elige un canal en directo para ver el stream y jugar aquí.')
+          : (en ? 'No channels are live right now.' : 'No hay canales en directo en este momento.')) + '</p>') +
+      '<ul class="community-list live-communities">' + cards + '</ul></section>'
+    const game = stream ? await renderLiveGame(request, env.DB, url, language) : ''
+    const community = url.searchParams.get('community')
+    return page((community ? communityTabs(community, language, 'live', url.searchParams.get('region') ?? 'kanto') : '') +
+      (game ? '<div class="live-layout">' + watch + game + '</div>' : watch) +
+      (selectedStream ? renderAnnouncements(selectedStream.community_id, language) : ''))
   }
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'about') {
     const about = aboutCopy[language]
@@ -202,23 +660,92 @@ export async function portal(request, url, env) {
       '</p><p>' + about.credits + '</p><ul><li><a href="' + projectLinks.sprites + '">PMDCollab / SpriteCollab</a></li><li><a href="' +
       projectLinks.spriteLicense + '">' + about.license + '</a></li><li><a href="' + projectLinks.pokeapi + '">PokéAPI Sprites</a></li></ul></section>')
   }
-  const helpLabel = language === 'en' ? 'Help' : 'Ayuda'
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'help') {
     const community = url.searchParams.get('community')
-    const nav = community ? '<nav class="tabs" aria-label="Stream Companions">' +
-      ['dex', 'inventory', 'overview'].map(tab => '<a href="?' + escape(new URLSearchParams({ community, tab })) +
-        '">' + (tab === 'overview' ? (language === 'en' ? 'Overview' : 'Resumen') : tab === 'dex' ? 'Dex' : 'Inventory') + '</a>').join('') + '<a aria-current="page" href="?' +
-      escape(new URLSearchParams({ community, tab: 'help' })) + '">' + helpLabel + '</a></nav>' :
+    const nav = community ? communityTabs(community, language, 'help', url.searchParams.get('region') ?? 'kanto') :
       '<nav class="tabs"><a href="/">' + (language === 'en' ? 'Back to portal' : 'Volver al portal') + '</a></nav>'
     return page(helpPage(language, nav))
   }
   const route = url.pathname.match(/^\/auth\/(twitch|kick)(?:\/(callback|link))?$/)
-  const session = getCookie(request, 'sc_session')
-  const key = /^[a-f0-9]{64}$/.test(session ?? '') ? await sessionKey(session) : null
-  const identity = key ? await env.DB.prepare(
-    'SELECT s.viewer_id, s.login, ident.account_id FROM web_sessions s ' +
-    'JOIN account_identities ident ON ident.viewer_id = s.viewer_id WHERE s.id IN (?, ?) AND s.expires_at > ? AND ident.detached_at IS NULL'
-  ).bind(session, key, Date.now()).first() : null
+  const { session, key, identity } = await viewerSession(request, env.DB)
+
+  if (request.method === 'GET' && url.pathname === '/shop/status') {
+    const json = (body, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } })
+    if (!identity) return json({ error: 'authentication required' }, 401)
+    const community = url.searchParams.get('community')
+    const viewer = await env.DB.prepare(
+      'SELECT p.payload, s.seen_at, s.supports_quantity, s.supports_dna, s.prices, o.id AS order_id, o.result, o.hatch FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
+      'LEFT JOIN shop_online s ON s.community_id = p.community_id ' +
+      'LEFT JOIN shop_orders o ON o.community_id = p.community_id AND o.viewer_id = p.viewer_id AND o.id = ? ' +
+      'WHERE i.account_id = ? AND p.community_id = ? ORDER BY o.id IS NOT NULL DESC, p.updated_at DESC, p.viewer_id LIMIT 1'
+    ).bind(url.searchParams.get('purchase'), identity.account_id, community).first()
+    if (!viewer) return json({ error: 'community not found' }, 404)
+    const pending = Boolean(viewer.order_id && viewer.result === null)
+    const online = viewer.seen_at > Date.now() - 70_000
+    const { pokeDollars: balance = 0, balls = {}, heldItems = [], dnaBoosters = {}, collection = {} } = JSON.parse(viewer.payload)
+    const species = url.searchParams.get('pokemon')
+    const dnaCount = species && Object.hasOwn(collection, species) ? sharedDna(dnaBoosters, species) : undefined
+    const messages = {
+      purchased: language === 'en' ? 'Purchase complete.' : 'Compra realizada.',
+      owned: language === 'en' ? 'Already owned.' : 'Ya tienes ese objeto.',
+      funds: language === 'en' ? 'Not enough Pokédollars.' : 'No tienes suficientes Pokédólares.',
+      repriced: language === 'en' ? 'The price changed.' : 'El precio cambió.',
+      battleLocked: botCopy[language].battleLocked,
+      maxed: language === 'en' ? 'That Pokémon is at the DNA limit.' : 'Ese Pokémon ya alcanzó el máximo de DNA.',
+      unavailable: language === 'en' ? 'Purchase could not be completed.' : 'No se pudo completar la compra.'
+    }
+    const message = pending && !online
+      ? (language === 'en' ? 'Streamer app disconnected. Order still pending.' : 'App del streamer desconectada. El pedido sigue pendiente.')
+      : (viewer.result && messages[viewer.result]) || ''
+    const prices = viewer.prices ? JSON.parse(viewer.prices) : {}
+    const master = Object.hasOwn(prices, 'master-ball')
+    const featured = featuredShopItems.filter(id => Object.hasOwn(prices, id))
+    const hatch = viewer.hatch ? JSON.parse(viewer.hatch) : null
+    return json({ balance, balls, heldItems, pending, online, ...(master ? { master: true } : {}), ...(featured.length ? { featured } : {}), ...(hatch ? { hatch } : {}), bulk: Boolean(viewer.supports_quantity), dnaCount, ...(dnaCount !== undefined ? { dna: viewer.supports_dna >= 3 } : {}), message })
+  }
+
+  if (url.pathname === '/live/shiny-cue' && request.method === 'GET') {
+    if (!identity) return new Response(null, { status: 401 })
+    const community = url.searchParams.get('community')
+    const platform = url.searchParams.get('platform')
+    if (!await webGameViewer(env.DB, identity.account_id, community, platform)) return new Response(null, { status: 404 })
+    const cue = await env.DB.prepare('SELECT type, audio FROM shiny_cues WHERE community_id = ?').bind(community).first()
+    return new Response(cue ? new Uint8Array(cue.audio) : defaultShinyCue(), { headers: {
+      'Content-Type': cue?.type ?? 'audio/wav', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'
+    } })
+  }
+
+  if (url.pathname === '/live/action' || url.pathname === '/live/status') {
+    if (!identity) return new Response(null, { status: 401 })
+    const community = url.searchParams.get('community')
+    const platform = url.searchParams.get('platform')
+    if (request.method === 'POST' && url.pathname === '/live/action') {
+      if (request.headers.get('Origin') !== url.origin) return new Response(null, { status: 403 })
+      let form
+      try {
+        const body = await request.text()
+        if (body.length > 2048) return new Response(null, { status: 400 })
+        form = new URLSearchParams(body)
+      } catch { return new Response(null, { status: 400 }) }
+      const result = await enqueueWebGame(env.DB, identity.account_id, community, platform, form)
+      if (!result) return new Response(null, { status: 400 })
+      if (request.headers.get('Accept') === 'application/json') {
+        const id = /^[a-f0-9-]{36}$/.test(result) ? result : null
+        const state = webGameState(null, id ? { created_at: Date.now() } : { result }, language)
+        return Response.json({ id, message: state.message, ...(state.result ? { result: state.result } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
+      }
+      return redirect('/?' + new URLSearchParams({ tab: 'live', community, platform, game: result }) + '#play-web', [])
+    }
+    if (request.method !== 'GET' || url.pathname !== '/live/status') return new Response(null, { status: 405 })
+    const viewer = await webGameViewer(env.DB, identity.account_id, community, platform)
+    if (!viewer) return new Response(null, { status: 404 })
+    const runtime = await env.DB.prepare('SELECT * FROM web_game_runtime WHERE community_id = ?').bind(community).first()
+    const row = await webGameStatus(env.DB, identity.account_id, community, url.searchParams.get('game'))
+    const { balls = {}, log = [], legendaryTrackers = 0, rareCandies = 0 } = JSON.parse(viewer.payload)
+    const activity = log.slice(-8).reverse().map(({ action, result }) => ({ action,
+      message: webGameState(null, { result: result === 'caught' || result === 'duplicateReward' ? 'catchSuccess' : result }, language).message }))
+    return Response.json({ ...webGameState(runtime, row, language), balls, activity, ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(rareCandies ? { rareCandies } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
+  }
 
   if (route) {
     const [, provider, action] = route
@@ -354,9 +881,9 @@ export async function portal(request, url, env) {
         '<p class="empty">' + t("Aún no tienes comunidades sincronizadas. Usa !poke join en el chat de un streamer participante.") + '</p>') +
       '</section>')
   }
-  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, pokeDollars = 0, dnaBoosters = {}, log = [] } = JSON.parse(selected.payload)
+  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, legendaryTrackers = 0, pokeDollars = 0, dnaBoosters = {}, log = [] } = JSON.parse(selected.payload)
   const online = buying || url.searchParams.get('tab') === 'shop' || !editing && url.searchParams.has('pokemon')
-    ? await env.DB.prepare('SELECT seen_at, prices, supports_dna FROM shop_online WHERE community_id = ?').bind(selected.community_id).first() : null
+    ? await env.DB.prepare('SELECT seen_at, prices, supports_dna, supports_quantity FROM shop_online WHERE community_id = ?').bind(selected.community_id).first() : null
   const published = online?.prices ? JSON.parse(online.prices) : null
   const shopOpen = Boolean(online && online.seen_at > Date.now() - 70_000)
   const walletText = (en ? 'Current balance: ' : 'Saldo actual: ') + '$' + pokeDollars
@@ -365,7 +892,10 @@ export async function portal(request, url, env) {
   const fundsText = (en ? 'Not enough Pokédollars. ' : 'No tienes suficientes Pokédólares. ') + walletText
   const upgradeText = en ? 'The streamer’s app does not support DNA Booster purchases yet.' :
     'La app del streamer aún no admite compras de DNA Booster.'
-  const reasons = { offline: offlineText, funds: fundsText, upgrade: upgradeText }
+  const reasons = { offline: offlineText, funds: fundsText, upgrade: upgradeText,
+    master: en ? 'The streamer’s app must be updated to sell Master Balls.' : 'La app del streamer debe actualizarse para vender Master Balls.',
+    feature: en ? 'The streamer’s app must be updated for this item.' : 'La app del streamer debe actualizarse para vender este objeto.',
+    quantity: en ? 'The streamer’s app does not support buying multiple items yet.' : 'La app del streamer aún no permite comprar varias unidades.' }
   const reason = url.searchParams.get('reason')
   const purchaseWarning = Object.hasOwn(reasons, reason ?? '') ? reasons[reason] : ''
   if (buying) {
@@ -373,27 +903,37 @@ export async function portal(request, url, env) {
     const orderId = url.searchParams.get('order')
     if (!Object.hasOwn(shopItems, item ?? '') || !/^[a-f0-9-]{36}$/.test(orderId ?? '')) return new Response(null, { status: 400 })
     const product = shopItems[item]
+    const form = request.headers.get('Content-Type')?.startsWith('application/x-www-form-urlencoded') ? await request.formData() : null
+    const quantity = Number(form?.get('quantity') ?? 1)
+    if (!validShopQuantity(product, quantity)) return new Response(null, { status: 400 })
     const target = product.dna ? url.searchParams.get('pokemon') : null
-    if (product.dna && (!Object.hasOwn(collection, target ?? '') || sharedDna(dnaBoosters, target) >= maxDnaBoosters)) {
+    if (product.dna && (!Object.hasOwn(collection, target ?? '') || sharedDna(dnaBoosters, target) + quantity > maxDnaBoosters)) {
       return new Response(null, { status: 409 })
     }
-    const destination = target ? { pokemon: target } : { tab: 'shop' }
+    const destination = target ? { pokemon: target } : { tab: 'shop', ...(product.held || product.section ? { section: product.section ?? 'held' } : {}) }
+    const existingOrder = await env.DB.prepare('SELECT item FROM shop_orders WHERE id = ? AND community_id = ? AND viewer_id = ?')
+      .bind(orderId, selected.community_id, selected.viewer_id).first()
+    if (existingOrder?.item === item) return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, purchase: orderId }), [])
     const blocked = !shopOpen ? 'offline' : product.dna && !(online?.supports_dna >= 3) ? 'upgrade' : null
     const returnBlocked = reason => redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, reason }), [])
-    if (blocked) return returnBlocked(blocked)
+    if (blocked || (quantity > 1 && !online.supports_quantity)) return returnBlocked(blocked ?? 'quantity')
+    if (item === 'master-ball' && !Object.hasOwn(published ?? {}, item)) return returnBlocked('master')
+    if ((arenaShopItems.includes(item) || featuredShopItems.includes(item)) && !Object.hasOwn(published ?? {}, item)) return returnBlocked('feature')
     const price = published?.[item] ?? product.price
     const quote = url.searchParams.get('price')
     if ((!published && quote === null) || quote === String(price)) {
-      if (pokeDollars < price) return returnBlocked('funds')
+      if (pokeDollars < price * quantity) return returnBlocked('funds')
       if (product.held && ownedItems.includes(item)) return new Response(null, { status: 409 })
     } else return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, repriced: '1' }), [])
+    const findExistingOrder = () => env.DB.prepare('SELECT id FROM shop_orders WHERE id = ? AND community_id = ? AND viewer_id = ?')
+      .bind(orderId, selected.community_id, selected.viewer_id).first()
     const now = Date.now()
-    const queued = await env.DB.prepare('INSERT OR IGNORE INTO shop_orders (id, community_id, viewer_id, item, created_at, price, species_key) ' +
-      'SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM shop_online WHERE community_id = ? AND seen_at > ? AND prices IS ? AND (? IS NULL OR supports_dna >= 3)) ' +
+    const queued = await env.DB.prepare('INSERT OR IGNORE INTO shop_orders (id, community_id, viewer_id, item, created_at, price, species_key, quantity) ' +
+      'SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM shop_online WHERE community_id = ? AND seen_at > ? AND prices IS ? AND (? IS NULL OR supports_dna >= 3) AND (? = 1 OR supports_quantity = 1)) ' +
       'AND EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ? AND account_id = ?) AND EXISTS (SELECT 1 FROM web_sessions WHERE id IN (?, ?) AND expires_at > ?)')
-      .bind(orderId, selected.community_id, selected.viewer_id, item, now, published ? price : null, target,
-        selected.community_id, now - 70_000, online?.prices ?? null, target, selected.viewer_id, identity.account_id, session, key, Date.now()).run()
-    return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, ...(queued.meta.changes ? { purchase: orderId } : { retry: '1' }) }), [])
+      .bind(orderId, selected.community_id, selected.viewer_id, item, now, published ? price : null, target, quantity,
+        selected.community_id, now - 70_000, online?.prices ?? null, target, quantity, selected.viewer_id, identity.account_id, session, key, Date.now()).run()
+    return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, ...(queued.meta.changes || await findExistingOrder() ? { purchase: orderId } : { retry: '1' }) }), [])
   }
   const availableItems = [...new Set(ownedItems)].filter(item => Object.hasOwn(heldItems, item))
   const itemName = item => escape(heldItems[item][Number(language === 'en')])
@@ -444,17 +984,19 @@ export async function portal(request, url, env) {
     const dnaBlocked = !shopOpen ? offlineText : !(online?.supports_dna >= 3) ? upgradeText : pokeDollars < dnaPrice ? fundsText : ''
     const dnaMessage = purchaseWarning || (url.searchParams.has('repriced') ? (en ? 'The price changed.' : 'El precio cambió.') :
       url.searchParams.has('retry') ? (en ? 'Purchase unavailable. Check for a pending order.' : 'Compra no disponible. Revisa si hay un pedido pendiente.') :
-      dnaOrder ? (dnaOrder.result === 'purchased' ? (en ? 'Purchase complete.' : 'Compra realizada.') :
-        dnaOrder.result === 'funds' ? fundsText : dnaOrder.result ? (en ? 'Purchase could not be completed.' : 'No se pudo completar la compra.') :
-          (en ? 'Order sent. Waiting for confirmation…' : 'Pedido enviado. Esperando confirmación…')) : '')
-    const dnaSection = '<div class="held-frame"><strong>DNA Booster ' + (dna >= maxDnaBoosters ? 'MAX' : dna + '/' + maxDnaBoosters) + '</strong>' +
+      dnaOrder ? (dnaOrder.result === 'battleLocked' ? botCopy[language].battleLocked : dnaOrder.result === 'purchased' ? (en ? 'Purchase complete.' : 'Compra realizada.') :
+        dnaOrder.result === 'funds' ? fundsText : dnaOrder.result === 'repriced' ? (en ? 'The price changed.' : 'El precio cambió.') : dnaOrder.result ? (en ? 'Purchase could not be completed.' : 'No se pudo completar la compra.') :
+          (en ? 'Order sent. Waiting for the streamer’s app to confirm…' : 'Pedido enviado. Esperando confirmación de la app del streamer…')) : '')
+    const dnaQuantity = quantityField(en, dnaPrice, Math.min(online?.supports_quantity ? maxDnaBoosters - dna : 1, Math.floor(pokeDollars / dnaPrice)))
+    const dnaSection = '<div class="held-frame"><strong>DNA Booster <span data-shop-dna-count>' + (dna >= maxDnaBoosters ? 'MAX' : dna + '/' + maxDnaBoosters) + '</span></strong>' +
       '<span>' + (en ? 'Shared across this evolution line' : 'Compartido en esta línea evolutiva') + '</span>' +
       helpHint(en ? 'About DNA Booster' : 'Sobre DNA Booster', en ?
         'Boosts the battle stats of the whole evolution line, including shiny Pokémon. Max 10.' :
         'Mejora las estadísticas de toda la línea evolutiva, incluidas las variantes shiny. Máximo 10.') +
-      '<span>' + escape(walletText) + '</span>' +
+      '<span>' + (en ? 'Current balance: ' : 'Saldo actual: ') + '<strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong></span>' + submittingPurchase(en) +
       (dnaMessage || dnaBlocked ? '<span role="status" data-order-receipt' + (dnaOrder && !dnaOrder.result ? pendingPurchase(en) : '') + '>' + escape(dnaMessage || dnaBlocked) + '</span>' : '') +
-      (dna < maxDnaBoosters ? '<form method="post" action="' + escape(dnaAction) + '"><button' +
+      (dna < maxDnaBoosters ? '<form method="post" data-shop-buy data-shop-product="dna-booster" data-shop-price="' + dnaPrice + '" action="' + escape(dnaAction) + '">' + dnaQuantity +
+        '<button data-buy="' + (en ? 'Buy · $' : 'Comprar · $') + dnaPrice + '"' +
         (dnaBlocked || (dnaOrder && !dnaOrder.result) ? ' disabled' : '') + '>' +
         (en ? 'Buy · $' : 'Comprar · $') + dnaPrice + '</button></form>' : '') + '</div>'
     const saved = await env.DB.prepare('SELECT moves FROM viewer_movesets WHERE community_id = ? AND viewer_id = ? AND species_key = ?')
@@ -503,7 +1045,7 @@ export async function portal(request, url, env) {
     const action = '/moveset?' + new URLSearchParams({ ...locationParams, pokemon: speciesKey })
     const sprite = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' +
       (speciesKey.endsWith(' ✦') ? 'shiny/' : '') + detail.id + '.png'
-    return page('<section class="sheet creature-summary"><p><a href="' + escape(returnToDex) + '">' +
+    return page(communityTabs(selected.community_id, language, 'dex', url.searchParams.get('region') ?? 'kanto') + '<section class="sheet creature-summary"><p><a href="' + escape(returnToDex) + '">' +
       (en ? 'Back to Pokédex' : 'Volver a la Pokédex') + '</a></p>' + familyNav + '<div class="summary-profile"><img alt="" width="120" height="120" src="' + sprite +
       '"><div><h1>' + escape(speciesKey) + '</h1><p class="summary-meta">#' + String(detail.id).padStart(3, '0') + ' · Lv. ' + detail.rank +
       detail.types.map(type => typeIcon(type, en)).join('') + '</p>' + (description ? '<p>' + escape(description) + '</p>' : '') +
@@ -529,27 +1071,47 @@ export async function portal(request, url, env) {
   if (tab === 'shop') {
     const en = language === 'en'
     const available = shopOpen
+    const requestedSection = url.searchParams.get('section')
+    const section = ['held', 'eggs', 'keys'].includes(requestedSection) ? requestedSection : 'balls'
+    const shopTabs = '<nav class="tabs shop-sections" aria-label="' + shopLabel + '">' +
+      [['balls', 'Poké Balls'], ['held', en ? 'Held items' : 'Objetos equipables'], ['eggs', 'Poké Egg'], ['keys', en ? 'Key Items' : 'Objetos clave']].map(([id, label]) =>
+        '<a href="/?' + escape(new URLSearchParams({ community: selected.community_id, tab: 'shop', section: id })) + '"' +
+        (section === id ? ' aria-current="page"' : '') + '>' + label + '</a>').join('') + '</nav>'
     const purchase = url.searchParams.get('purchase')
     const order = purchase && await env.DB.prepare('SELECT item, result FROM shop_orders WHERE community_id = ? AND viewer_id = ? AND id = ?')
       .bind(selected.community_id, selected.viewer_id, purchase).first()
     const status = { purchased: en ? 'Purchase complete' : 'Compra realizada', owned: en ? 'Already owned' : 'Ya tienes ese objeto',
-      funds: fundsText, unavailable: en ? 'Purchase could not be completed' : 'No se pudo completar la compra',
+      funds: fundsText, repriced: en ? 'The price changed.' : 'El precio cambió.', unavailable: en ? 'Purchase could not be completed' : 'No se pudo completar la compra',
+      battleLocked: botCopy[language].battleLocked,
       maxed: en ? 'That Pokémon is at the DNA limit' : 'Ese Pokémon ya alcanzó el máximo de DNA' }
     const pending = order && !order.result
-    shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong>$' + escape(pokeDollars) + '</strong></p>' +
+    const eggDialog = section === 'eggs' ? hatchDialog(en) : ''
+    shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong> <span data-shop-delta aria-live="polite"></span></p>' + shopTabs +
       (url.searchParams.has('repriced') ? '<p role="status">' + (en ? 'The price changed. Check it before buying again.' : 'El precio cambió. Revísalo antes de volver a comprar.') + '</p>' : '') +
-      (purchaseWarning || !available ? '<p role="status" class="empty">' + escape(purchaseWarning || offlineText) + '</p>' : '') +
-      (pending ? '<p role="status" data-order-receipt' + pendingPurchase(en) + '>' + (en ? 'Order sent. Waiting for confirmation…' : 'Pedido enviado. Esperando confirmación…') + '</p><script src="/assets/shop-status.js" defer></script>' :
+      (purchaseWarning ? '<p role="status" class="empty">' + escape(purchaseWarning) + '</p>' : '') +
+      '<p role="status" class="empty" data-shop-availability data-offline="' + escape(offlineText) + '" data-upgrade="' +
+      escape(reasons.quantity) + '"' + (available && online?.supports_quantity ? ' hidden' : '') + '>' +
+      escape(available ? reasons.quantity : offlineText) + '</p>' +
+      submittingPurchase(en) + (pending ? '<p role="status" data-order-receipt' + pendingPurchase(en) + '>' + (en ? 'Order sent. Waiting for the streamer’s app to confirm…' : 'Pedido enviado. Esperando confirmación de la app del streamer…') + '</p>' :
         order && status[order.result] ? '<p role="status" data-order-receipt>' + status[order.result] + '</p>' : '') +
-      '<ul class="held-grid">' + Object.entries(shopItems).filter(([, product]) => !product.dna).map(([id, product]) => {
+      '<ul class="held-grid shop-grid">' + Object.entries(shopItems).filter(([id, product]) =>
+        (!arenaShopItems.includes(id) || Object.hasOwn(published ?? {}, id)) && (section === 'held' ? product.held : section === 'balls' ? product.ball : product.section === section)
+      ).map(([id, product]) => {
         const owned = product.held && ownedItems.includes(id)
         const price = published?.[id] ?? product.price
+        const featured = featuredShopItems.includes(id)
+        const needsUpdate = (id === 'master-ball' || featured) && !Object.hasOwn(published ?? {}, id)
         const action = '/shop/buy?' + new URLSearchParams({ community: selected.community_id, item: id, order: crypto.randomUUID(), price })
-        const button = '<button' + (!available || pending || owned || pokeDollars < price ? ' disabled' : '') + '>' +
+        const button = '<button data-buy="' + (en ? 'Buy' : 'Comprar') + '" data-owned="' + (en ? 'Owned' : 'Ya lo tienes') + '"' + (!available || pending || owned || needsUpdate || pokeDollars < price ? ' disabled' : '') + '>' +
           (owned ? (en ? 'Owned' : 'Ya lo tienes') : (en ? 'Buy' : 'Comprar')) + '</button>'
-        return '<li>' + itemIcon(id) + '<strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
-          '<form method="post" action="' + escape(action) + '">' + button + '</form>' + (available && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
-      }).join('') + '</ul></section>'
+        const quantityInput = product.ball
+          ? quantityField(en, price, Math.min(maxShopQuantity, Math.floor(pokeDollars / price))) : ''
+        return '<li><img class="bag-icon" src="' + shopIconUrl(id) + '" alt="" width="30" height="30"><strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
+          '<form method="post" data-shop-buy data-shop-product="' + id + '" data-shop-price="' + price + '" action="' + escape(action) + '"' +
+          (product.ball ? ' data-shop-ball="' + product.ball + '"' : '') + (featured ? ' data-shop-feature' : '') + '>' +
+          (product.ball ? '<span class="shop-count">' + (en ? 'In bag' : 'En la bolsa') + ' <strong data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</strong></span>' : '') + quantityInput + button + '</form>' + (featured ? '<small data-feature-upgrade' + (needsUpdate ? '' : ' hidden') + '>' + reasons.feature + '</small>' : '') + (id === 'master-ball' ? '<small data-shop-master-upgrade' + (available && needsUpdate ? '' : ' hidden') + '>' + escape(reasons.master) + '</small>' : '') +
+          (available && !needsUpdate && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
+      }).join('') + '</ul>' + eggDialog + '</section><script src="/assets/shop-status.js?v=2" defer></script>'
   }
   const logDescription = entry => {
     const outcome = Object.hasOwn(outcomes, entry.result) ? outcomes[entry.result] : ''
@@ -577,11 +1139,12 @@ export async function portal(request, url, env) {
     ['hoenn', 'Hoenn', 252, 386], ['sinnoh', 'Sinnoh', 387, 493],
     ['unova', 'Unova', 494, 649], ['kalos', 'Kalos', 650, 721],
     ['alola', 'Alola', 722, 809], ['galar', 'Galar', 810, 898],
-    ['hisui', 'Hisui', 899, 905], ['paldea', 'Paldea', 906, 1025]
+    ['hisui', 'Hisui', 899, 905], ['paldea', 'Paldea', 906, 1025], ['all', language === 'en' ? 'All' : 'Todas', 1, nationalDex.length]
   ]
   const region = regions.find(([id]) => id === url.searchParams.get('region')) ?? regions[0]
-  const href = (name, regionId = region[0]) => '?' + new URLSearchParams({
-    tab: name, community: selected.community_id, region: regionId
+  const caughtOnly = url.searchParams.get('caught') === '1'
+  const href = (name, regionId = region[0], only = caughtOnly) => '?' + new URLSearchParams({
+    tab: name, community: selected.community_id, region: regionId, ...(name === 'dex' && only ? { caught: '1' } : {})
   })
   const spriteBase = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/'
   const inventory = [
@@ -591,14 +1154,16 @@ export async function portal(request, url, env) {
     .map(([id, name, icon]) => '<li class="bag-slot"><img class="bag-icon" src="' + spriteBase + 'items/' + icon +
       '.png" width="30" height="30" alt=""><span>' + name + '</span><strong>×' + escape(balls[id]) + '</strong></li>').join('')
   const pockets = [ ['balls', language === 'en' ? 'Poké Balls' : 'Poké Balls'],
-    ['held', language === 'en' ? 'Held items' : 'Objetos equipables'], ['key', language === 'en' ? 'Key items' : 'Objetos clave'] ]
+    ['held', language === 'en' ? 'Held items' : 'Objetos equipables'], ['key', language === 'en' ? 'Consumables' : 'Consumibles'] ]
   const pocket = pockets.some(([id]) => id === url.searchParams.get('pocket')) ? url.searchParams.get('pocket') : 'balls'
-  const wallet = '<p class="meta">Pokédólares · <strong>$' + escape(pokeDollars) + '</strong> · ' +
-    (language === 'en' ? 'Rare Candy' : 'Caramelo Raro') + ' <strong>×' + escape(rareCandies) + '</strong></p>'
-  const inventoryPage = '<section class="sheet"><h2>Inventory</h2>' + wallet + '<nav class="tabs pockets" aria-label="Inventory">' + pockets.map(([id, label]) =>
+  const wallet = '<p class="meta">Pokédólares · <strong>$' + escape(pokeDollars) + '</strong></p>'
+  const consumables = [['rare-candy', language === 'en' ? 'Rare Candy' : 'Caramelo Raro', rareCandies],
+    ['dowsing-machine', 'Legendary Tracker', legendaryTrackers]].map(([icon, label, amount]) =>
+    '<li class="bag-slot">' + itemIcon(icon) + '<span>' + label + '</span><strong>×' + escape(amount) + '</strong></li>').join('')
+  const inventoryPage = '<section class="sheet"><h2>' + (language === 'en' ? 'Inventory' : 'Inventario') + '</h2>' + wallet + '<nav class="tabs pockets" aria-label="Inventory">' + pockets.map(([id, label]) =>
     '<a href="?' + escape(new URLSearchParams({ community: selected.community_id, tab: 'inventory', pocket: id })) + '"' +
     (id === pocket ? ' aria-current="page"' : '') + '>' + label + '</a>').join('') + '</nav>' +
-    (pocket === 'key' ? '<p class="empty">' + (language === 'en' ? 'Coming soon' : 'Próximamente') + '</p>' : pocket === 'held' && availableItems.length ?
+    (pocket === 'key' ? '<ul class="bag">' + consumables + '</ul>' : pocket === 'held' && availableItems.length ?
       '<ul class="held-grid">' + availableItems.map(item => '<li>' + itemIcon(item) + '<strong>' + itemName(item) + '</strong></li>').join('') + '</ul>' :
       pocket === 'balls' && inventory ? '<ul class="bag">' + inventory + '</ul>' : '<p class="empty">' + t('Tu bolsa está vacía.') + '</p>') + '</section>'
   const regionSpecies = nationalDex.slice(region[2] - 1, region[3])
@@ -610,6 +1175,7 @@ export async function portal(request, url, env) {
     const normal = collection[key]
     const shiny = collection[key + ' ✦']
     const owned = normal !== undefined || shiny !== undefined
+    if (caughtOnly && !owned) return ''
     const sprite = spriteBase + 'pokemon/' +
       (normal === undefined && shiny !== undefined ? 'shiny/' : '') + dex + '.png'
     const summaryLink = (species, label, className = '') =>
@@ -634,12 +1200,11 @@ export async function portal(request, url, env) {
   const actions = '<div class="album-actions"><a class="button" href="/?account=1">' + t("Cuentas vinculadas") + '</a><a class="button" href="/">' + t("Cambiar streamer") + '</a>' + logout + '</div>'
   const regionNav = regions.map(([id, label]) => '<a href="' + escape(href('dex', id)) + '"' +
     (id === region[0] ? ' aria-current="page"' : '') + '>' + label + '</a>').join('')
-  const nav = [['dex', 'Dex'], ['inventory', 'Inventory'], ['shop', shopLabel], ['overview', overviewLabel], ['log', en ? 'Log' : 'Registro'], ['help', helpLabel]]
-    .map(([name, label]) => '<a href="' + escape(href(name)) + '"' +
-      (tab === name ? ' aria-current="page"' : '') + '>' + label + '</a>').join('')
+  const nav = communityTabs(selected.community_id, language, tab, region[0])
   return page('<div class="toolbar"><div><p class="meta">Viewer · ' + escape(displayName) + '</p><h1>' + t("Tu álbum") + '</h1></div>' +
-    actions + '</div><p class="meta community-label">' + t('Comunidad · ') + escape(selected.community_name ?? selected.community_id) + '</p><nav class="tabs" aria-label="Álbum">' + nav + '</nav>' +
-    (tab === 'dex' ? borders + '<section class="sheet"><h2>Pokédex</h2><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><ol class="dex-grid">' + slots + '</ol></section>'
+    actions + '</div><p class="meta community-label">' + t('Comunidad · ') + escape(selected.community_name ?? selected.community_id) + '</p>' + nav +
+    (tab === 'dex' ? borders + '<section class="sheet"><div class="dex-heading"><h2>Pokédex</h2><a class="button"' + (caughtOnly ? ' aria-current="true"' : '') + ' href="' + escape(href('dex', region[0], !caughtOnly)) + '">' +
+      (en ? 'Unlocked' : 'Desbloqueados') + '</a></div><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><ol class="dex-grid">' + slots + '</ol></section>'
       : tab === 'overview' ? overview : tab === 'shop' ? shopPage : tab === 'log' ?
         '<section class="sheet"><h2>' + (en ? 'Activity log' : 'Registro de actividad') + '</h2><ul>' +
         [...log].reverse().map(entry => '<li><time>' + escape(new Date(entry.at).toLocaleString(language, { timeZone: 'America/Lima' })) +

@@ -1,6 +1,19 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { battleClip, chooseBehavior, showScene, spriteScale } from '../ui/sprites.js'
+import { battleClip, chooseBehavior, createCaptureQueue, showScene, spriteScale } from '../ui/sprites.js'
+
+test('overlay capture feed reveals simultaneous catches in order and frees space as each fades', () => {
+  const queue = createCaptureQueue()
+  const catches = Array.from({ length: 5 }, (_, index) => ({ id: index + 1, encounterId: 'wild', at: 10_000 }))
+  const rows = time => queue(catches, time, 10_000 + time, .1)
+  assert.deepEqual(rows(0).map(row => row.id), [1])
+  assert.deepEqual(rows(450).map(row => row.id), [1, 2])
+  assert.deepEqual(rows(900).map(row => row.id), [1, 2, 3])
+  assert.ok(rows(3850)[0].opacity < 1)
+  assert.deepEqual(rows(4100).map(row => row.id), [2, 3, 4])
+  assert.deepEqual(rows(4550).map(row => row.id), [3, 4, 5])
+  assert.deepEqual(rows(9000), [])
+})
 
 test('large static fallback sprites shrink without changing PMD sprites or zoom behavior', () => {
   const clip = { url: '/pmd/0001/Static.png', width: 96, height: 96 }
@@ -71,7 +84,8 @@ test('a visible companion announces a level increase without announcing its init
   const original = globalThis.requestAnimationFrame
   globalThis.requestAnimationFrame = callback => { frame = callback }
   const labels = []
-  const context = { clearRect() {}, save() {}, restore() {}, strokeText() {},
+  const fills = []
+  const context = { clearRect() {}, fillRect(x, y, width, height) { fills.push([this.fillStyle, width, height]) }, save() {}, restore() {}, strokeText() {},
     fillText(text) { labels.push([text, this.font]) } }
   const companion = { active: { key: 'Brasa', expires: Infinity, layer: 1 }, collection: { Brasa: 0 } }
   const canvas = { clientWidth: 600, clientHeight: 338, getContext: () => context }
@@ -83,6 +97,9 @@ test('a visible companion announces a level increase without announcing its init
     frame(900)
     assert.ok(labels.some(([text]) => text === 'Lv. 1'))
     assert.ok(!labels.some(([text]) => text === 'Level up!!'))
+    companion.collection.Brasa = 60
+    frame(925)
+    assert.ok(fills.some(([color, width, height]) => color === '#79d7ff' && width > 0 && height === 5))
     companion.collection.Brasa = 120
     frame(950)
     frame(1150)

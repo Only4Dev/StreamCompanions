@@ -1,18 +1,20 @@
-import { app, BrowserWindow, safeStorage, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, safeStorage, session, shell } from 'electron'
 import { createHash, randomBytes } from 'node:crypto'
 import { dirname, join } from 'node:path'
-import { mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { cueType, maxCueBytes } from '../ui/shiny-cue.js'
 import { normalizeCommand } from './commands.js'
 import { connectTwitch } from './twitch.js'
 import { startCloudSync } from './cloud-sync.js'
 import { openProgress } from './progress.js'
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
-import { botCopy, botResponse, botSignature, defaultBot, formatBotReply, validateBot } from '../ui/bot-copy.js'
+import { botCategory, chatBotEnabled, botCopy, botResponse, botSignature, defaultBot, formatBotReply, validateBot } from '../ui/bot-copy.js'
 import { createEncounterNotices } from './notices.js'
 import { createGame, creatures } from './game.js'
 import { level } from '../ui/levels.js'
 import { spriteScale } from '../ui/sprites.js'
+import { specialEncounterTag } from '../ui/capture-rates.js'
 import { projectLinks } from '../ui/about.js'
 import { hasAppArchive, stageUpdate } from './install-update.js'
 import { checkForUpdate } from './update-check.js'
@@ -50,17 +52,39 @@ const botTestStatus = {}
 const lastBotTest = new Map()
 const liveChannels = new Map()
 const activityLog = []
+let diagnosticsFile
+let lastOverlayRoster = ''
+function logDiagnostic(event, fields = {}) {
+  if (!diagnosticsFile) return
+  try {
+    if ((statSync(diagnosticsFile, { throwIfNoEntry: false })?.size ?? 0) >= 2_000_000) {
+      rmSync(diagnosticsFile + '.previous', { force: true })
+      renameSync(diagnosticsFile, diagnosticsFile + '.previous')
+    }
+    appendFileSync(diagnosticsFile, JSON.stringify({ at: new Date().toISOString(), event, ...fields }) + '\n')
+  } catch (error) { console.warn('Could not write game diagnostics:', error.code ?? error.name) }
+}
 const localChat = []
 const commandTimes = new Map([['twitch', new Map()], ['kick', new Map()]])
 let lastWild = null
 const remember = (list, entry) => { list.push({ ...entry, at: Date.now() }); if (list.length > 100) list.shift() }
 const rememberChat = (platform, name, message) => remember(localChat, { platform, name, message: message.slice(0, 500) })
 const isLive = provider => liveChannels.get(provider)?.live === true
-function chatAction(viewer, displayName, text, platform) {
+function publicCommunityLink() {
+  const portal = new URL(setup.webUrl || syncDevice?.url || publicPortal)
+  portal.username = ''
+  portal.password = ''
+  portal.search = ''
+  portal.hash = ''
+  if (syncDevice?.community) portal.searchParams.set('community', syncDevice.community)
+  return portal.href
+}
+
+function chatAction(viewer, displayName, text, platform, save = true, sharedSummon = false) {
   if (pendingReset || !isLive(platform)) return ''
   const [action, ball = 'normal'] = normalizeCommand(text).split(' ')
-  if (action.startsWith('!')) {
-    if (!['!poke', '!catch', '!summon', '!summonshiny', '!evolve', '!candy', '!balls'].includes(action)) return ''
+  if (action.startsWith('!') && action !== '!balls') {
+    if (!['!poke', '!catch', '!summon', '!summonshiny', '!evolve', '!candy', '!balls', '!legendaryticket'].includes(action)) return ''
     const now = Date.now()
     const channelTimes = commandTimes.get(platform)
     for (const [id, at] of channelTimes) if (now - at >= 5000) channelTimes.delete(id)
@@ -72,11 +96,14 @@ function chatAction(viewer, displayName, text, platform) {
   const names = { normal: 'Poké Ball', great: en ? 'Great Ball' : 'Super Ball', ultra: 'Ultra Ball', master: 'Master Ball' }
   if (action === '!balls') {
     if (!balls) return { code: 'joinFirst', viewer: displayName }
+    game.recordAction(viewer, { platform, action: '!inventory', result: 'ballInventory' })
+    if (save) persistGame()
     const inventory = Object.entries(names).filter(([key]) => balls[key] > 0)
       .map(([key, name]) => name + ' ×' + balls[key]).join(' · ')
     return { code: 'ballInventory', viewer: displayName, inventory: inventory || (en ? 'No Poké Balls' : 'Sin Poké Balls') }
   }
-  const result = game.chat(viewer, text, displayName, platform)
+  const result = game.chat(viewer, text, displayName, platform, { sharedSummon })
+  if (action.startsWith('!')) logDiagnostic('game_command', { source: sharedSummon ? 'web' : 'chat', platform, command: action, result })
   const balance = { ball: names[ball], remaining: balls?.[ball] }
   if (action.startsWith('!')) {
     remember(activityLog, { platform, name: displayName, message: text.slice(0, 120), result })
@@ -84,7 +111,7 @@ function chatAction(viewer, displayName, text, platform) {
       ball, remaining: balance.remaining, ...(result !== 'escaped' ? { pokemon: game.latestCapture()?.pokemon } : {})
     } : undefined
     game.recordAction(viewer, { platform, action: normalizeCommand(text).slice(0, 120), result, ...(capture ? { capture } : {}) })
-    persistGame()
+    if (save) persistGame()
   }
   if (result === 'caught' || result === 'duplicateReward') return { code: 'catchSuccess', ...game.latestCapture(), ...balance }
   if (result === 'escaped' || result === 'noBalls') return { code: result, viewer: displayName, ...balance }
@@ -98,6 +125,38 @@ let twitchPaired = false
 const twitchAllowed = () => !syncDevice?.community.startsWith('kick-') || twitchPaired
 let lastKickLink = 0
 const kickAbort = new AbortController()
+
+let shinyCue
+let syncedShinyCue
+let syncingShinyCue = false
+const shinyCueFile = () => join(app.getPath('userData'), 'shiny-cue')
+
+async function syncShinyCue() {
+  if (!syncDevice || syncingShinyCue) return
+  const device = syncDevice
+  const cue = shinyCue
+  const key = cue?.key ?? 'default'
+  if (syncedShinyCue?.device === device && syncedShinyCue.key === key) return
+  syncingShinyCue = true
+  try {
+    const response = await fetch(new URL('/api/shiny-cue', device.url), {
+      method: cue ? 'PUT' : 'DELETE',
+      headers: { Authorization: 'Bearer ' + device.token, ...(cue ? { 'Content-Type': cue.type } : {}) },
+      body: cue?.bytes, signal: AbortSignal.timeout(5000), redirect: 'error'
+    })
+    if (response.ok) syncedShinyCue = { device, key }
+  } finally {
+    syncingShinyCue = false
+    if (device !== syncDevice || cue !== shinyCue) void syncShinyCue().catch(() => {})
+  }
+}
+
+function setShinyCue(bytes) {
+  const type = cueType(bytes)
+  if (!type || bytes.length > maxCueBytes) return false
+  shinyCue = { bytes, type, key: createHash('sha256').update(bytes).digest('hex') }
+  return true
+}
 
 let spriteFolder = join(app.getAppPath(), 'pmd')
 async function readSpriteManifest(folder) {
@@ -117,6 +176,7 @@ let progress
 let checkpoint
 let stopSync
 let shopTimer
+let nextShopMaintenance = 0
 let syncStatus = ''
 let disconnectTwitch
 let twitchStatus = ''
@@ -171,6 +231,8 @@ let setup
 let setupFile
 let botFile
 let bot = defaultBot
+const portalAnnouncements = []
+let publishingAnnouncements = false
 let setupComplete = false
 let noticeTimer
 
@@ -188,6 +250,7 @@ function applyPrivacy(erasures) {
   if (!changed.length) return
   if (communityBattle?.battle.actors.some(actor => changed.includes(actor.viewerId))) {
     clearInterval(battleTimer)
+    game.setBattleActive(false)
     communityBattle = undefined
   }
   persistGame()
@@ -216,45 +279,122 @@ async function refreshLiveChannels() {
 async function pollShop() {
   try {
     if (pendingReset) { await finishCommunityReset(); return }
-    await refreshLiveChannels()
-    if (!stopSync) return
-    const privacy = await fetch(new URL('/api/privacy', syncDevice.url), {
-      headers: { Authorization: 'Bearer ' + syncDevice.token }, redirect: 'error',
-      signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(6000)])
-    }).catch(() => null)
-    if (privacy?.ok && !kickAbort.signal.aborted) {
-      const { erasures } = await privacy.json()
-      if (!kickAbort.signal.aborted && Array.isArray(erasures)) applyPrivacy(erasures)
+    if (Date.now() >= nextShopMaintenance) {
+      nextShopMaintenance = Date.now() + 30_000
+      await refreshLiveChannels()
+      void syncShinyCue().catch(() => {})
+      if (!stopSync) return
+      const privacy = await fetch(new URL('/api/privacy', syncDevice.url), {
+        headers: { Authorization: 'Bearer ' + syncDevice.token }, redirect: 'error',
+        signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(6000)])
+      }).catch(() => null)
+      if (privacy?.ok && !kickAbort.signal.aborted) {
+        const { erasures } = await privacy.json()
+        if (!kickAbort.signal.aborted && Array.isArray(erasures)) applyPrivacy(erasures)
+      }
     }
+    if (!stopSync) return
+    void flushPortalAnnouncements()
     if (kickAbort.signal.aborted || game.config.running === false) return
+    const encounter = game.currentEncounter()
+    const webGame = encounter ? { id: encounter.id, shiny: Boolean(encounter.shiny), en: game.encounterDifficulty(encounter.name, 'en'), es: game.encounterDifficulty(encounter.name, 'es') } : {}
     const endpoint = new URL('/api/shop', syncDevice.url)
     const request = body => fetch(endpoint, {
       method: body ? 'POST' : 'GET', redirect: 'error',
       headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json',
-        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '2' } : {}) },
+        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '2', 'X-Shop-Quantity': '1', 'X-Web-Game': JSON.stringify(webGame) } : {}) },
       body: body && JSON.stringify({ viewers: body }),
       signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(8000)])
     })
     const response = await request()
     if (!response.ok || pendingReset || kickAbort.signal.aborted || game.config.running === false) return
-    const { orders } = await response.json()
+    const { orders, webActions } = await response.json()
     if (pendingReset || kickAbort.signal.aborted || game.config.running === false) return
+    if (Array.isArray(webActions) && webActions.length) await processWebGame(webActions)
     if (!Array.isArray(orders) || !orders.length || orders.length > 10 || orders.some(order =>
       !/^[a-f0-9-]{36}$/.test(order?.id ?? '') || !/^(twitch|kick):\d{1,24}$/.test(order?.viewerId ?? ''))) return
-    const receipts = orders.map(order => ({ id: order.id, result: game.fulfillOrder(order) }))
+    const receipts = orders.map(order => ({ id: order.id, result: game.fulfillOrder(order), hatch: game.shopHatch(order.id) }))
+    receipts.forEach(({ id, result }, index) => logDiagnostic('shop_order_result', {
+      requestId: id, result, item: orders[index].item, quantity: orders[index].quantity ?? 1
+    }))
     persistGame()
-    const acknowledgement = await request(receipts)
+    const acknowledgement = await request(receipts.map((receipt, index) => ({ ...receipt,
+      ...(receipt.result === 'purchased' ? { viewer: progress.viewer(orders[index].viewerId) } : {})
+    })))
+    if (!acknowledgement.ok) logDiagnostic('shop_ack_error', { status: acknowledgement.status, count: receipts.length })
     if (!acknowledgement.ok || kickAbort.signal.aborted) return
     const { received } = await acknowledgement.json()
     if (kickAbort.signal.aborted) return
     if (Array.isArray(received) && receipts.every(receipt => received.includes(receipt.id))) {
+      logDiagnostic('shop_ack', { requestIds: received })
       game.acknowledgeOrders(receipts.map(({ id }) => id))
       persistGame()
     }
   } catch (error) {
     if (!kickAbort.signal.aborted) console.warn('Could not sync shop:', error.message)
   } finally {
-    if (!kickAbort.signal.aborted) shopTimer = setTimeout(pollShop, 30_000)
+    if (!kickAbort.signal.aborted) shopTimer = setTimeout(pollShop, 1_000)
+  }
+}
+
+function mergeLinkedViewers(kickId, twitchId) {
+  game.linkKickViewer(kickId, twitchId)
+  for (const times of commandTimes.values()) {
+    if (!times.has(kickId)) continue
+    times.set(twitchId, Math.max(times.get(twitchId) ?? 0, times.get(kickId)))
+    times.delete(kickId)
+  }
+}
+
+async function processWebGame(actions) {
+  const receipts = []
+  const announcements = []
+  for (const action of actions.slice(0, 10)) {
+    const { id, viewerId, platform, command, encounterId, twitchId, kickId } = action
+    if (!/^[a-f0-9-]{36}$/.test(id) || !/^(twitch|kick):\d{1,24}$/.test(viewerId) ||
+        !['twitch', 'kick'].includes(platform) || typeof command !== 'string' || command.length > 90 ||
+        !/^!(?:catch (?:normal|great|ultra|master)|summon .+|summonshiny .+|candy \d{1,2}|legendaryticket)$/.test(command)) continue
+    let result = game.webReceipt(id)
+    const replay = Boolean(result)
+    if (!result) {
+      const linked = /^twitch:\d{1,24}$/.test(twitchId ?? '') && /^kick:\d{1,24}$/.test(kickId ?? '') &&
+        [twitchId, kickId].includes(viewerId)
+      if (linked) mergeLinkedViewers(kickId, twitchId)
+      const owner = linked ? twitchId : viewerId
+      if (!isLive(platform)) result = 'offline'
+      else if (encounterId && game.currentEncounter()?.id !== encounterId) result = 'expired'
+      else {
+        const response = chatAction(owner, undefined, command, platform, false, true)
+        result = response?.code || 'cooldown'
+        if (result === 'catchSuccess') announcements.push([platform, botSignature(bot, formatBotReply(bot, result, response))])
+      }
+      game.rememberWebReceipt(id, result)
+    }
+    logDiagnostic('web_game_result', { requestId: id, platform, command: command.split(' ')[0], result, replay })
+    receipts.push({ id, result })
+  }
+  if (!receipts.length) return
+  persistGame()
+  for (const [platform, message] of announcements) {
+    if (!message) continue
+    publishPortalMessage(message)
+    if (!chatBotEnabled(bot, 'capture')) continue
+    if (platform === 'kick') sendKickMessage(message).catch(() => {})
+    else disconnectTwitch?.announce(message)
+  }
+  const response = await fetch(new URL('/api/web-game', syncDevice.url), {
+    method: 'POST', redirect: 'error', headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ viewers: receipts }), signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(8000)])
+  })
+  if (!response.ok) {
+    logDiagnostic('web_game_ack_error', { status: response.status, count: receipts.length })
+    return
+  }
+  const { received } = await response.json()
+  if (Array.isArray(received)) {
+    logDiagnostic('web_game_ack', { requestIds: received })
+    game.acknowledgeOrders(receipts.filter(receipt => received.includes(receipt.id)).map(receipt => 'web:' + receipt.id))
+    persistGame()
   }
 }
 
@@ -321,6 +461,7 @@ function finishCommunityReset() {
       if (kickAbort.signal.aborted) return false
       const profile = app.getPath('userData')
       clearInterval(battleTimer)
+      game.setBattleActive(false)
       communityBattle = undefined
       battleDueAt = battleBannerUntil = 0
       game.resetCommunity()
@@ -409,7 +550,37 @@ function deviceRequest(path, body) {
   })
 }
 
+async function flushPortalAnnouncements() {
+  if (!syncDevice || pendingReset || kickAbort.signal.aborted || publishingAnnouncements || !portalAnnouncements.length) return
+  publishingAnnouncements = true
+  const community = syncDevice
+  const events = portalAnnouncements.filter(event => event.community === community).slice(0, 12)
+  try {
+    if (!events.length) return
+    const response = await deviceRequest('/api/announcements', { viewers: events.map(({ id, message }) => ({ id, message })) })
+    if (response.ok && community === syncDevice) {
+      const sent = new Set(events.map(event => event.id))
+      for (let i = portalAnnouncements.length - 1; i >= 0; i--) {
+        if (sent.has(portalAnnouncements[i].id)) portalAnnouncements.splice(i, 1)
+      }
+    }
+  } catch { /* retry on the next shop poll */ }
+  finally { publishingAnnouncements = false }
+}
+
+function publishPortalMessage(message) {
+  if (!message) return
+  if (syncDevice && !pendingReset) {
+    portalAnnouncements.push({ community: syncDevice, id: randomBytes(16).toString('hex'), message: message.slice(0, 500) })
+    if (portalAnnouncements.length > 24) portalAnnouncements.shift()
+    void flushPortalAnnouncements()
+  }
+}
+
 function announceInLiveChats(message) {
+  if (!message) return
+  publishPortalMessage(message)
+  if (!chatBotEnabled(bot, 'announcement')) return
   return Promise.allSettled([
     twitchAllowed() && isLive('twitch') ? disconnectTwitch?.announce(message) : undefined,
     kickConnected && isLive('kick') ? sendKickMessage(message) : undefined
@@ -447,19 +618,23 @@ async function pollKick() {
       if (!(event.received_at >= openedAt)) continue
       if (game.viewerGeneration(event.viewer_id) !== event.kick_generation ||
           (event.twitch_id && game.viewerGeneration(event.twitch_id) !== event.twitch_generation)) continue
-      if (event.twitch_id) game.linkKickViewer(event.viewer_id, event.twitch_id)
+      if (event.twitch_id) mergeLinkedViewers(event.viewer_id, event.twitch_id)
       const viewer = event.twitch_id || event.viewer_id
       const text = event.content
       rememberChat('kick', event.display_name, event.display_text ?? text)
       if (!isLive('kick') || game.config.running === false) continue
-      if (text.trim().toLowerCase() === '!web') {
+      if (['!web', '!poke web'].includes(text.trim().toLowerCase().replace(/\s+/g, ' '))) {
         if (Date.now() - lastKickLink >= 60_000) {
-          replies.push(formatBotReply(bot, 'web', { url: setup.webUrl || syncDevice.url }))
+          replies.push(formatBotReply(bot, 'web', { url: publicCommunityLink() }))
           lastKickLink = Date.now()
         }
       } else {
         const result = chatAction(viewer, event.display_name, text, 'kick')
-        if (text.startsWith('!') && result?.code) replies.push(formatBotReply(bot, result.code, result))
+        if (text.startsWith('!') && result?.code) {
+          const reply = formatBotReply(bot, result.code, result)
+          if (result.code === 'catchSuccess' && reply) publishPortalMessage(botSignature(bot, reply))
+          if (chatBotEnabled(bot, botCategory(result.code, normalizeCommand(text)))) replies.push(reply)
+        }
       }
       kickCursor = event.sequence
     }
@@ -478,13 +653,13 @@ function publicBattle(battle) {
     projectiles: battle.projectiles.map(({ x, move, direction, actor }) => ({ x, move, direction, actor: { types: actor.types } })),
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
-      return { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
+      return { name, ownerName, shiny, form: actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
         evasion: boosts.evasion > battle.time, flinched: flinchUntil > battle.time }
     }) }
 }
 
-const sheets = new Set(manifest.species.flatMap(item => [
+const sheets = new Set(manifest.species.flatMap(item => [item, ...Object.values(item.battleForms ?? {})]).flatMap(item => [
   item.portrait, item.shinyPortrait,
   ...[item.normal, item.shiny].filter(Boolean).flatMap(variant => Object.values(variant.animations).map(animation => animation.url))
 ].filter(path => /^\/pmd\/[a-z0-9-]+\/[a-z0-9_-]+\.(?:png|webp)$/i.test(path))))
@@ -550,14 +725,26 @@ async function runCommunityBattle(waitForBanner) {
   const active = game.overlay('companions').viewers
   entries = entries.filter(entry => active[entry.viewerId]?.active.key === entry.speciesKey)
   if (entries.length < 2) return 422
-  const battle = battleRules.createBattle(entries, { hpMultiplier: game.config.battleHpMultiplier })
+  const battle = battleRules.createBattle(entries, {
+    hpMultiplier: game.config.battleHpMultiplier,
+    onMoveReward(actor, amount) {
+      if (game.creditBattleMove(actor.viewerId, amount)) {
+        logDiagnostic('battle_move_reward', { species: actor.id, amount })
+        persistGame()
+      }
+    }
+  })
+  game.setBattleActive(true)
+  logDiagnostic('battle_started', { participants: entries.length })
   communityBattle = { battle, finishedAt: 0 }
   battleTimer = setInterval(() => {
     battle.step(1 / 30)
-    if (!battle.over) return
+    if (!battle.over || communityBattle.finishedAt) return
     communityBattle.finishedAt = Date.now()
     clearInterval(battleTimer)
-    game.recordBattle(entries.map(entry => entry.viewerId), battle.winner?.viewerId, battle.winner?.speciesKey)
+    game.setBattleActive(false)
+    const money = game.recordBattle(entries.map(entry => entry.viewerId), battle.winner?.viewerId, battle.winner?.speciesKey)
+    logDiagnostic('battle_finished', { winner: Boolean(battle.winner), money })
     persistGame()
   }, 1000 / 30)
   lastBattleEncounter = game.encounterCount()
@@ -593,6 +780,8 @@ const routes = new Map([
   ['/ui/levels.js', ['levels.js', 'text/javascript']],
   ['/ui/held-items.js', ['held-items.js', 'text/javascript']],
   ['/ui/shop.js', ['shop.js', 'text/javascript']],
+  ['/ui/capture-rates.js', ['capture-rates.js', 'text/javascript']],
+  ['/ui/abilities.js', ['abilities.js', 'text/javascript']],
   ['/ui/about.js', ['about.js', 'text/javascript']],
   ['/ui/evolution.js', ['evolution.js', 'text/javascript']],
   ['/ui/evolution-data.js', ['evolution-data.js', 'text/javascript']],
@@ -627,9 +816,13 @@ const server = createServer(async (req, res) => {
         ? { ...game.overlay(overlay), bot: { language: bot.language } }
         : { ...game.snapshot(), twitchStatus, kickStatus, syncStatus, setup, bot, setupComplete, version: app.getVersion(), updateStatus,
           twitchConnected: twitchAllowed() && Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, canInstallUpdate: app.isPackaged && process.platform === 'win32', activityLog, localChat, botTestStatus, canReset: syncDevice?.url === publicPortal, resettingCommunity: Boolean(pendingReset), live: setup.platform !== 'demo' }
+      if (overlay === 'encounter' && state.encounter) state.encounter = { ...state.encounter,
+        difficulty: game.encounterDifficulty(state.encounter.name, bot.language) }
       if (overlay === 'companions' && ['summon', 'battle'].includes(searchParams.get('preview'))) {
-        const samples = manifest.species.filter(entry => entry.normal && !evolutionParent(Number(entry.id))).slice(0, 3)
         const demo = searchParams.get('preview')
+        const samples = demo === 'battle'
+          ? [132, 774, 6].map(id => manifest.species.find(entry => Number(entry.id) === id)).filter(Boolean)
+          : manifest.species.filter(entry => entry.normal && !evolutionParent(Number(entry.id))).slice(0, 3)
         state.viewers = Object.fromEntries(samples.map(({ name }, index) => [index, {
           displayName: 'Preview ' + (index + 1), active: { key: name, layer: index + 1, expires: Date.now() + 60_000 },
           collection: { [name]: 0 }
@@ -651,6 +844,12 @@ const server = createServer(async (req, res) => {
           state.battle = publicBattle(preview.battle)
         }
       } else if (overlay === 'companions') {
+        const roster = Object.values(state.viewers).map(({ active }) => ({ layer: active.layer, species: active.key }))
+        const packed = JSON.stringify(roster)
+        if (packed !== lastOverlayRoster) {
+          lastOverlayRoster = packed
+          logDiagnostic('overlay_roster', { summons: roster })
+        }
         state.viewers = Object.fromEntries(Object.values(state.viewers).map(viewer => [viewer.active.layer, { ...viewer, displayName: viewer.displayName || 'Viewer' }]))
         state.battleStart = battleBannerUntil > Date.now()
         const current = communityBattle
@@ -660,6 +859,11 @@ const server = createServer(async (req, res) => {
         }
       }
       res.end(JSON.stringify(state))
+      return
+    }
+    if (req.method === 'GET' && pathname === '/sfx/shiny.wav' && shinyCue) {
+      res.writeHead(200, { 'Content-Type': shinyCue.type, 'Cache-Control': 'no-store' })
+      res.end(shinyCue.bytes)
       return
     }
     if (req.method === 'POST' && pathname === '/demo') {
@@ -673,6 +877,26 @@ const server = createServer(async (req, res) => {
         if (body.length > 16384) throw new Error('Request too large')
       }
       const action = JSON.parse(body)
+      if (action.shinyCue === 'choose' || action.shinyCue === 'reset') {
+        if (action.shinyCue === 'reset') {
+          rmSync(shinyCueFile(), { force: true })
+          shinyCue = undefined
+        } else {
+          const selection = await dialog.showOpenDialog(mainWindow, {
+            properties: ['openFile'], filters: [{ name: 'MP3 / WAV', extensions: ['mp3', 'wav'] }]
+          })
+          if (selection.canceled) { res.writeHead(204).end(); return }
+          const file = selection.filePaths[0]
+          if (statSync(file).size > maxCueBytes || !setShinyCue(await readFile(file))) {
+            res.writeHead(422).end()
+            return
+          }
+          writeFileSync(shinyCueFile(), shinyCue.bytes)
+        }
+        void syncShinyCue().catch(() => {})
+        res.writeHead(204).end()
+        return
+      }
       if (action.checkUpdates === true) {
         await refreshUpdateStatus()
         res.writeHead(204).end()
@@ -715,7 +939,7 @@ const server = createServer(async (req, res) => {
       if (action.startCommunityBattle === true) {
         if (!game.config.battleEnabled || game.config.running === false || battleDueAt || battleStarting ||
             (communityBattle && !communityBattle.battle.over)) return res.writeHead(409).end()
-        const active = Object.keys(game.overlay('companions').viewers).filter(id => /^(twitch|kick):d+$/.test(id))
+        const active = Object.keys(game.overlay('companions').viewers).filter(id => /^(twitch|kick):\d+$/.test(id))
         if (active.length < 2) return res.writeHead(422).end()
         battleDueAt = Date.now() + 60_000
         game.setWildPaused(true)
@@ -819,21 +1043,25 @@ const server = createServer(async (req, res) => {
         game.setRunning(action.running)
         if (!action.running) {
           clearInterval(battleTimer)
+          game.setBattleActive(false)
           communityBattle = undefined
           battleDueAt = 0
           battleBannerUntil = 0
           lastBattleEncounter = game.encounterCount()
         }
       }
-      else if (action.queueLegendary) game.queueLegendary(action.queueLegendary)
+      else if (action.queueLegendary) {
+        if (game.queueLegendary(action.queueLegendary) === false) { res.writeHead(409).end(); return }
+      }
       else if (action.demoMasterBall && !app.isPackaged && !twitchClientId && !syncDevice) {
         if (!game.grantDemoMasterBall(String(action.demoMasterBall))) { res.writeHead(404).end(); return }
       }
       else if (action.spawn) {
-        if (game.config.running === false) { res.writeHead(409).end(); return }
+        if (game.config.running === false || game.trackerPending()) { res.writeHead(409).end(); return }
         game.spawn(action.spawn)
       }
       else if (action.clearStatistics === true) game.clearStatistics()
+      else if (action.capturePercentages) game.setCapturePercentages(action.capturePercentages)
       else if (action.shopPrices) game.setShopPrices(action.shopPrices)
       else if (action.config) {
         const enabled = game.config.battleEnabled
@@ -856,7 +1084,8 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ ...manifest, species: manifest.species.map(item => {
         const id = Number(item.id)
         const legendary = Boolean(battleStats[id - 1]?.[5])
-        return { ...item, legendary, wildEligible: legendary || !evolutionParent(id) }
+        const specialTag = specialEncounterTag(id, legendary)
+        return { ...item, legendary, specialTag, wildEligible: Boolean(specialTag) || !evolutionParent(id) }
       }) }))
       return
     }
@@ -878,7 +1107,7 @@ const server = createServer(async (req, res) => {
       return
     }
     const file = await readFile(new URL('../ui/' + route[0], import.meta.url))
-    res.writeHead(200, { 'Content-Type': route[1], 'X-Content-Type-Options': 'nosniff' })
+    res.writeHead(200, { 'Content-Type': route[1], 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' })
     res.end(file)
   } catch {
     res.writeHead(400).end()
@@ -888,6 +1117,7 @@ const server = createServer(async (req, res) => {
 app.whenReady().then(() => {
   const profile = app.getPath('userData')
   mkdirSync(profile, { recursive: true })
+  try { setShinyCue(readFileSync(shinyCueFile())) } catch { /* use the built-in cue */ }
   if (useInstalledUpdate(profile)) return
   setupFile = join(profile, 'startup.json')
   setup = {
@@ -917,7 +1147,18 @@ app.whenReady().then(() => {
   const savedProgress = progress.load()
   activityLog.push(...(savedProgress?.activityLog ?? []).slice(-100))
   kickCursor = savedProgress?.kickCursor ?? 0
-  game = createGame({ catalog, progress: savedProgress, streamStarters: setup.platform !== 'demo' })
+  diagnosticsFile = join(profile, 'game-diagnostics.jsonl')
+  logDiagnostic('app_started', { version: app.getVersion() })
+  game = createGame({ catalog, progress: savedProgress, streamStarters: setup.platform !== 'demo',
+    onSummonChange(change) { logDiagnostic('summon_change', { change }) },
+    onEvolution(viewer, forms) {
+      for (const pokemon of forms) {
+        const command = pokemon.endsWith(' ✦') ? '!summonshiny ' + pokemon.slice(0, -2) : '!summon ' + pokemon
+        const message = bot.language === 'en' ? 'You unlocked ' + pokemon + '. Summon it with ' + command :
+          'Desbloqueaste a ' + pokemon + '. Invócalo con ' + command
+        announceInLiveChats(botSignature(bot, (viewer ? '@' + viewer + ' · ' : '') + message))
+      }
+    } })
   if (!savedProgress) game.setRunning(false)
   if (setup.platform !== 'demo' && safeStorage.isEncryptionAvailable()) {
     const file = join(profile, 'cloud-device.enc')
@@ -979,7 +1220,7 @@ app.whenReady().then(() => {
         renameSync(sessionFile + '.tmp', sessionFile)
       },
       clientId: twitchClientId,
-      webUrl: setup.webUrl || syncDevice?.url || publicPortal,
+      webUrl: publicCommunityLink,
       onAuthorized(identity, token) {
         pairNewCommunity(profile, identity, token).catch(() => {
           if (!kickAbort.signal.aborted) syncStatus = 'No se pudo vincular la comunidad'
@@ -989,6 +1230,7 @@ app.whenReady().then(() => {
       isRunning: () => twitchAllowed() && isLive('twitch') && game.config.running !== false,
       allowOwner: true,
       onChat: (name, message) => rememberChat('twitch', name, message),
+      onBotMessage: publishPortalMessage,
       botOnly: true,
       async sendReply(_broadcaster, message) {
         if (!syncDevice || syncDevice.url !== publicPortal) return false
@@ -1020,9 +1262,11 @@ app.whenReady().then(() => {
       if (wild && wild.id !== lastWild) {
         lastWild = wild.id
         const pokemon = wild.name + (wild.shiny ? ' ✦' : '')
-        const chance = Math.round(game.encounterChance(wild.name) * 100)
-        remember(activityLog, { name: pokemon, message: 'Wild encounter', result: chance + '%' })
-        const message = botSignature(bot, formatBotReply(bot, 'wildAppeared', { pokemon, chance }))
+        const difficulty = game.encounterDifficulty(wild.name, bot.language)
+        remember(activityLog, { name: pokemon, message: wild.specialTag ? 'Ultra-rare encounter' : 'Wild encounter', result: difficulty })
+        const encounterReply = formatBotReply(bot, 'wildAppeared', { pokemon, difficulty, chance: difficulty })
+        const specialPrefix = wild.specialTag ? (bot.language === 'en' ? 'Ultra-rare encounter · ' : 'Aparición ultrarrara · ') : ''
+        const message = botSignature(bot, encounterReply && specialPrefix + encounterReply)
         if (message) announceInLiveChats(message)
       }
       notices(game.schedule(), botResponse(bot, 'notice'), bot.language).catch(error => {
@@ -1030,7 +1274,7 @@ app.whenReady().then(() => {
       })
     }, 1000)
   }
-  checkpoint = setInterval(persistGame, 15_000)
+  checkpoint = setInterval(persistGame, 5_000)
   shopTimer = setTimeout(pollShop, 1000)
   server.once('error', error => {
     console.error(error.code === 'EADDRINUSE' ? 'El puerto 43127 está ocupado. Cierra la otra instancia de Stream Companions.' : error.message)

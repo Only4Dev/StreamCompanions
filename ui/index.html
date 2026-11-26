@@ -24,6 +24,7 @@
     <button type="button" data-view="game" data-copy="config"></button>
     <button type="button" data-view="obs" data-copy="sourcesTab"></button>
     <button type="button" data-view="bot" data-copy="botTab"></button>
+    <button type="button" data-view="capture" data-copy="captureTab"></button>
     <button type="button" data-view="shop" data-copy="shopTab"></button>
     <button type="button" data-view="connections" data-copy="connectionsTab"></button>
     <button type="button" data-view="activity" data-copy="activityTab"></button>
@@ -66,6 +67,13 @@
     <p id="portal-status" role="status"></p>
     <p id="statistics-status" role="status"></p>
   </div>
+  <div data-pane="capture" hidden><section><h2 data-copy="captureTab"></h2><p data-copy="captureHelp"></p>
+    <form id="capture-settings"><div class="capture-table-wrap"><table class="capture-table">
+      <thead><tr><th scope="col" data-copy="captureDifficulty"></th><th scope="col">Poké Ball</th><th scope="col" data-copy="captureGreatBall"></th><th scope="col">Ultra Ball</th></tr></thead>
+      <tbody id="capture-rows"></tbody>
+    </table></div><button data-copy="save"></button><button type="button" id="capture-defaults" data-copy="captureDefaults"></button></form>
+    <p id="capture-status" role="status"></p>
+  </section></div>
   <div data-pane="shop" hidden><section><h2 data-copy="shopTab"></h2><p data-copy="shopPricesHelp"></p>
     <form id="shop-prices"><div id="shop-price-fields"></div><button data-copy="publishShopPrices"></button></form>
     <p id="shop-price-status" role="status"></p>
@@ -87,6 +95,10 @@
   <div data-pane="bot" hidden><section><h2>@streamcompanionsbot</h2><div class="connection-cards"><article><h3>Twitch</h3><p data-copy="botAccountHelp"></p><div class="overview-actions"><button type="button" data-copy-mod="twitch" data-copy="copyBotMod"></button><button type="button" id="test-twitch-bot" data-copy="testTwitchBot"></button></div></article><article><h3>Kick</h3><p data-copy="kickBotHelp"></p><div class="overview-actions"><button type="button" data-copy-mod="kick" data-copy="copyBotMod"></button><button type="button" id="test-kick-bot" data-copy="testKickBot"></button></div></article></div><p id="bot-test-result" role="status"></p>
     <h2 data-copy="botTab"></h2>
     <form id="bot-form">
+      <label class="bot-announcement-switch"><input type="checkbox" id="announce-in-chat" role="switch" checked aria-describedby="bot-announcement-help"> <span data-copy="botAnnounceInChat"></span></label>
+      <label class="bot-announcement-switch"><input type="checkbox" id="capture-in-chat" role="switch" checked> <span data-copy="botCaptureInChat"></span></label>
+      <label class="bot-announcement-switch"><input type="checkbox" id="action-in-chat" role="switch" checked> <span data-copy="botActionInChat"></span></label>
+      <p id="bot-announcement-help" data-copy="botAnnouncementHelp"></p>
 
       <p class="bot-help" data-copy="botHelp"></p>
       <details class="bot-replies"><summary data-copy="editBotReplies"></summary><div id="bot-responses"></div></details>
@@ -101,6 +113,7 @@
     <label><span data-copy="duration"></span><input name="duration" type="number" min="1" value="3" required></label>
     <label><span data-copy="legendaryChancePercent"></span><input name="legendaryChancePercent" type="number" min="0" max="100" step="0.01" value="0.01" required></label>
     <label><span data-copy="catchGraceSeconds"></span><input name="catchGraceSeconds" type="number" min="0" max="120" value="10" required></label>
+    <div><span data-copy="shinyCue"></span><div><button type="button" id="choose-shiny-cue" data-copy="chooseShinyCue"></button> <button type="button" id="preview-shiny-cue" data-copy="preview"></button> <button type="button" id="reset-shiny-cue" data-copy="resetShinyCue"></button></div><small id="shiny-cue-status" role="status"></small></div>
     <label><span data-copy="shiny"></span><input name="shiny" type="number" min="1" max="100000" value="128" required></label>
     <label><span data-copy="duplicateMode"></span><select name="duplicateMode"><option value="1">XP</option><option value="2">+1 Lv.</option><option value="0" data-copy="duplicateOff"></option></select></label>
     <label><span data-copy="duplicateXpPercent"></span><input name="duplicateXpPercent" type="number" min="1" max="100" value="25" required></label>
@@ -111,7 +124,8 @@
     <label><span data-copy="summonMoneyPerMinute"></span><input name="summonMoneyPerMinute" type="number" min="0" max="100000" required></label>
     <label><span data-copy="summonXpPerSecond"></span><input name="summonXpPerSecond" type="number" min="0" max="100" step="0.1" required></label>
   </div></section><section><h2 data-copy="battleSettings"></h2><div class="settings-grid">
-    <label><span data-copy="battleXpPerOpponent"></span><input name="battleXpPerOpponent" type="number" min="0" max="10000" required></label>
+    <label><span data-copy="battleMoneyPerWin"></span><input name="battleMoneyPerWin" type="number" min="0" max="1000000" required></label>
+    <label><span data-copy="battleXpPercentPerWin"></span><input name="battleXpPercentPerWin" type="number" min="0" max="100" step="0.1" required></label>
     <label><span data-copy="battleEveryEncounters"></span><input name="battleEveryEncounters" type="number" min="0" max="100" required></label>
     <label><span data-copy="battleEnabled"></span><select name="battleEnabled"><option value="0" data-copy="battleOff"></option><option value="1" data-copy="battleOn"></option></select></label>
     <label><span data-copy="battleHpMultiplier"></span><select name="battleHpMultiplier"><option value="1">1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>

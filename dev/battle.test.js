@@ -11,6 +11,124 @@ const run = (battle, seconds) => {
   for (let i = 0; i < seconds * 30; i++) battle.step(1 / 30)
 }
 
+test('Toxic Orb poisons eligible holders and Poison Heal restores HP on its ticks', () => {
+  const entries = [285, 19, 81].map(id => ({ ...example(id), heldItem: 'toxic-orb' }))
+  const battle = createBattle(entries, { auto: false, random: () => .5 })
+  const [shroomish, rattata, magnemite] = battle.actors
+  shroomish.hp = Math.floor(shroomish.maxHp / 2)
+  const before = shroomish.hp
+  run(battle, 3.2)
+  assert.equal(shroomish.status.kind, 'poison')
+  assert.equal(shroomish.hp - before, Math.round(shroomish.maxHp * .04))
+  assert.equal(rattata.status.kind, 'poison')
+  assert.ok(rattata.hp < rattata.maxHp)
+  assert.equal(magnemite.status, null)
+})
+
+test('Damp Rock keeps rain active five extra seconds', () => {
+  const battle = createBattle([{ ...example(131), heldItem: 'damp-rock' }, example(19)], { auto: false })
+  assert.ok(battle.manual(0, 'rain'))
+  run(battle, 10)
+  assert.equal(battle.field.kind, 'rain')
+  run(battle, 5)
+  assert.equal(battle.field, null)
+})
+
+test('Ditto copies the nearest eligible rival in place with its own HP and five PP at most', () => {
+  const entries = [example(132), example(570), example(52), example(6, 31)]
+  const battle = createBattle(entries, { auto: false })
+  const [ditto, zorua, meowth] = battle.actors
+  const original = createBattle([example(132), example(132)], { auto: false }).actors[0]
+  assert.equal(ditto.id, 132)
+  assert.equal(ditto.maxHp, original.maxHp)
+  assert.equal(ditto.x, original.x)
+  assert.equal(ditto.appearance.id, 52)
+  assert.equal(ditto.attack, meowth.attack)
+  assert.deepEqual(ditto.types, meowth.types)
+  assert.notEqual(ditto.pp, meowth.pp)
+  assert.ok(ditto.kit.includes('payday'))
+  assert.equal(ditto.pp.payday, 5)
+  assert.equal(zorua.appearance.disguised, true)
+})
+
+test('Illusion breaks on damage while equipment changes the form and signature type', () => {
+  const battle = createBattle([example(570), { ...example(649), heldItem: 'burn-drive' },
+    { ...example(493), heldItem: 'mystic-water' }, { ...example(888), heldItem: 'rusted-sword' }], { auto: false, random: () => .5 })
+  const [zorua, genesect, arceus, zacian] = battle.actors
+  assert.equal(zorua.appearance.id, 649)
+  assert.equal(genesect.form, 'fire')
+  assert.deepEqual(arceus.types, ['water'])
+  assert.ok(zacian.types.includes('steel'))
+  assert.equal(zacian.form, 'crowned')
+  zorua.x = 500
+  genesect.x = 700
+  assert.ok(battle.manual(1, 'technoblast'))
+  run(battle, .5)
+  assert.equal(battle.projectiles[0].move.type, 'fire')
+  run(battle, .5)
+  assert.equal(zorua.appearance, undefined)
+})
+
+test('signature moves unlock and reward once per completed cast even with multiple targets', () => {
+  const entries = [example(1000), example(19), example(20), example(52)]
+  const rewards = []
+  const battle = createBattle(entries, { auto: false, random: () => .5, onMoveReward: (actor, amount) => rewards.push([actor.id, amount]) })
+  assert.ok(battle.actors[0].kit.includes('makeitrain'))
+  assert.ok(battle.actors[3].kit.includes('payday'))
+  battle.actors.forEach((actor, index) => { actor.x = 500 + index * 75 })
+  assert.ok(battle.manual(0, 'makeitrain'))
+  run(battle, 1)
+  assert.deepEqual(rewards, [[1000, 100]])
+  run(battle, 1)
+  assert.ok(battle.manual(3, 'payday'))
+  run(battle, 1)
+  assert.deepEqual(rewards, [[1000, 100], [52, 50]])
+})
+
+test('Dragon Darts emits two separate Dreepy shots', () => {
+  const battle = createBattle([example(887), example(19)], { auto: false, random: () => .5 })
+  assert.ok(battle.actors[0].kit.includes('dragondarts'))
+  assert.ok(battle.manual(0, 'dragondarts'))
+  run(battle, .5)
+  assert.equal(battle.projectiles.length, 1)
+  run(battle, .2)
+  assert.equal(battle.projectiles.length, 2)
+  assert.ok(battle.projectiles.every(shot => shot.move.visual === 'dreepy'))
+})
+
+test('Minior switches in place at half HP and Castform follows changing weather', () => {
+  const battle = createBattle([example(774), example(351), example(19)], { auto: false })
+  const [minior, castform] = battle.actors
+  const { x, maxHp } = minior
+  minior.hp = Math.floor(maxHp / 2)
+  run(battle, .1)
+  assert.equal(minior.form, 'core')
+  assert.equal(minior.x, x)
+  assert.equal(minior.hp, Math.floor(maxHp / 2))
+  assert.equal(battle.actors.length, 3)
+  assert.ok(battle.manual(1, 'rain'))
+  run(battle, 1)
+  assert.equal(castform.form, 'rain')
+  assert.deepEqual(castform.types, ['water'])
+  run(battle, 10)
+  assert.equal(castform.form, null)
+  assert.deepEqual(castform.types, ['normal'])
+})
+
+test('Leppa Berry adds two regular PP and Leftovers improves Recover', () => {
+  const entries = [{ ...example(120), heldItem: 'leftovers' }, { ...example(19), heldItem: 'leppa-berry' }]
+  const battle = createBattle(entries, { auto: false })
+  const [, basic] = battle.actors
+  const unboosted = createBattle([example(120), example(19)], { auto: false })
+  for (const key of Object.keys(basic.pp)) assert.equal(basic.pp[key], unboosted.actors[1].pp[key] + 2)
+  const [holder] = battle.actors
+  holder.hp = Math.floor(holder.maxHp * .1)
+  const before = holder.hp
+  assert.ok(battle.manual(0, 'recover'))
+  run(battle, 1)
+  assert.equal(holder.hp - before, Math.round(holder.maxHp * .5))
+})
+
 test('hail chips non-Ice Pokémon on three-second ticks and Sun launches Solar Beam immediately', () => {
   const battle = createBattle([example(131), example(1)], { auto: false, random: () => .5 })
   battle.manual(0, 'hail')

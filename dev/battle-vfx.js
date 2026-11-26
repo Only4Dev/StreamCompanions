@@ -43,7 +43,11 @@ export function drawProjectile(ctx, shot, y, time) {
   ctx.scale(direction, 1)
   ctx.lineCap = 'round'
   const silhouette = silhouettes[type]
-  if (move.visual === 'swift') {
+  if (move.visual === 'dreepy') {
+    polygon(ctx, [[-34, 4], [-18, -3], [-10, -2], [1, -11], [17, -8], [10, -1], [21, 3], [5, 9], [-8, 5]], '#7fe0a5', '#254f52')
+    polygon(ctx, [[-10, -4], [-15, -13], [2, -8], [0, -2]], '#e87697', '#864569')
+    polygon(ctx, [[9, -5], [14, -4], [10, -1]], '#ffeba1', '#f3da89')
+  } else if (move.visual === 'swift') {
     for (let i = 2; i >= 0; i--) {
       const points = Array.from({ length: 10 }, (_, j) => {
         const angle = j * tau / 10 + phase * .17

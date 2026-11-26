@@ -42,6 +42,16 @@ for (const entry of species) {
     else if (variant) parts.push('- ' + label + ' sprites: ' + contributors(credit?.sprite_credit) + ' · [artist history](' + source + 'sprite/' + id + suffix + '/credits.txt)')
     if (portrait) parts.push('- ' + label + ' portrait: ' + contributors(credit?.portrait_credit) + ' · [artist history](' + source + 'portrait/' + id + suffix + '/credits.txt)')
   }
+  for (const [form, assets] of Object.entries(entry.battleForms ?? {})) {
+    const credit = normal?.subgroups?.[assets.code]
+    for (const [label, variant, credits, suffix] of [
+      ['Normal', assets.normal, credit, ''], ['Shiny', assets.shiny, credit?.subgroups?.['0001'], '/0001']
+    ]) {
+      if (variant?.source === 'pokeapi') parts.push('- ' + form + ' (' + label + '): [PokéAPI](' + variant.credits + ')')
+      else if (variant) parts.push('- ' + form + ' (' + label + '): ' + contributors(credits?.sprite_credit) +
+        ' · [artist history](' + source + 'sprite/' + id + '/' + assets.code + suffix + '/credits.txt)')
+    }
+  }
   summary.push('## ' + id + ' ' + entry.name, '', ...parts, '')
 }
 

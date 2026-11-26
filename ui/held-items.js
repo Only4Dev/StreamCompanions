@@ -1,5 +1,22 @@
+export const arenaShopItems = ['toxic-orb', 'quick-claw', 'damp-rock', 'heat-rock', 'grip-claw', 'wise-glasses', 'shell-bell', 'leppa-berry', 'leftovers', 'rusted-sword', 'rusted-shield', 'douse-drive', 'shock-drive', 'burn-drive', 'chill-drive']
+
 export const heldItems = {
   'sitrus-berry': ['Baya Zidra', 'Sitrus Berry'],
+  'toxic-orb': ['Toxisfera', 'Toxic Orb'],
+  'quick-claw': ['Garra Rápida', 'Quick Claw'],
+  'damp-rock': ['Roca Lluvia', 'Damp Rock'],
+  'heat-rock': ['Roca Calor', 'Heat Rock'],
+  'grip-claw': ['Garra Garfio', 'Grip Claw'],
+  'wise-glasses': ['Gafas Especiales', 'Wise Glasses'],
+  'shell-bell': ['Cascabel Concha', 'Shell Bell'],
+  'leppa-berry': ['Baya Zanama', 'Leppa Berry'],
+  leftovers: ['Restos', 'Leftovers'],
+  'rusted-sword': ['Espada Oxidada', 'Rusted Sword'],
+  'rusted-shield': ['Escudo Oxidado', 'Rusted Shield'],
+  'douse-drive': ['HidroROM', 'Douse Drive', 'water'],
+  'shock-drive': ['FulgoROM', 'Shock Drive', 'electric'],
+  'burn-drive': ['PiroROM', 'Burn Drive', 'fire'],
+  'chill-drive': ['CrioROM', 'Chill Drive', 'ice'],
   'silk-scarf': ['Pañuelo Seda', 'Silk Scarf', 'normal'],
   'black-belt': ['Cinturón Negro', 'Black Belt', 'fighting'],
   'sharp-beak': ['Pico Afilado', 'Sharp Beak', 'flying'],

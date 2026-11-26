@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.2.0
+
+- Add configurable Poké Eggs with four hatch effects and the Legendary Tracker, usable from the web or with `!legendaryticket`.
+- Show Rare Candy and Legendary Tracker quantities in the portal’s Consumables pocket.
+
+- Add Ditto’s battle copy, Zorua and Zoroark’s Illusion, and equipment-driven forms for Arceus, Genesect, Silvally, Zacian, and Zamazenta.
+
+- Add 15 battle-form species with normal and shiny sprite support, more than 20 passive abilities, and six additional held items.
+- Add Pay Day and Make It Rain rewards on completed moves and two sequential Dreepy shots for Dragon Darts.
+- Let streamers choose, preview, and reset a shiny encounter sound. Add optional shiny audio to Play on web.
+
+- Add Pickup for selected route Pokémon, Poison Heal, Toxic Orb, Quick Claw, and Damp Rock.
+- Award battle XP as a configurable percentage of the winner’s level span, once per victory.
+
+- Use a light blue summon XP bar, center action feedback on phones, and let streamers set Pokédollars awarded per battle win.
+
+- Sell Master Balls for 500,000 Pokédollars by default, with a configurable shop price.
+
+- Keep community navigation available in Help and Live, add an All regions Pokédex filter, and organize the shop by item type.
+- Let viewers replace their active companion from either platform, add inventory command aliases, and provide separate chat controls for bot messages.
+
+- Reserve Legendary, Mythical, Ultra Beast, and Paradox Pokémon for ultra-rare encounters with a distinct overlay effect.
+
+- Add a live portal feed for automatic bot announcements and let streamers mute those announcements in Twitch and Kick chat.
+
+- Active summons have a 0.01% chance per completed minute to find a Master Ball. It appears in inventory and is available with `!catch master`.
+
+- Make shop quantities visible on every connection state, add persistent portal navigation and an Unlocked Pokédex toggle, and let streamers customize catch percentages.
+
+- Add bulk Poké Ball and DNA Booster purchases with live order, wallet, and inventory updates.
+- Add Twitch and Kick players to the Live portal, with signed-in controls for catching, summoning, withdrawing, and using Rare Candy.
+- Support `!poke web` and apply counted Rare Candy purchases to the active companion with `!candy` and `!caramelo`.
+- Pause game actions and passive summon rewards during battles. Show XP progress outside battle and announce new evolutions.
+- Balance catch rates by species difficulty and add a caught-only Pokédex filter.
+
 ## 1.1.2
 
 - Command cooldowns are independent in Twitch and Kick. Encounter and battle announcements are sent to both live chats without waiting for either platform.

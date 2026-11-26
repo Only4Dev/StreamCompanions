@@ -39,7 +39,7 @@ test('a signed-in viewer can save unlocked moves for an owned variant only', asy
   const summaryHtml = await summary.text()
   assert.match(summaryHtml, /Rattata.*Ataques activos.*Placaje.*Ataques guardados/)
   assert.match(summaryHtml, /CD 1,1 s · PP 20/)
-  assert.match(summaryHtml, /Saldo actual: \$0/)
+  assert.match(summaryHtml, /Saldo actual: <strong data-shop-wallet="0">\$0<\/strong>/)
   assert.match(summaryHtml, /Puedes comprar cuando la app del streamer esté conectada y el juego activo/)
   assert.equal((await save('Charizard', 'ember', ['ultimate-fire', 'ultimate-flying'])).status, 400)
   assert.equal((await save('Charmander', 'ember', ['ultimate-flying'])).status, 400)

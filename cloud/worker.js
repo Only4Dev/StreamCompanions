@@ -1,9 +1,13 @@
 import { completeProjectBot, projectBotAuthorization, twitchProjectReply } from './project-bots.js'
+import { cueType, maxCueBytes } from '../ui/shiny-cue.js'
+import { deviceWebGame, finishWebGame } from './web-game.js'
 import { portal } from './portal.js'
 import { readMovesets } from './movesets.js'
 import { completeKickLink, kickDevice, kickWebhook, seal, startKickLink } from './kick.js'
-import { heldItems } from '../ui/held-items.js'
-import { normalizeShopPrices } from '../ui/shop.js'
+import { arenaShopItems, heldItems } from '../ui/held-items.js'
+import { nationalStats } from '../dev/national-stats.js'
+import { eggRarity, specialEncounterTag } from '../ui/capture-rates.js'
+import { eggRarities, featuredShopItems, normalizeShopPrices } from '../ui/shop.js'
 
 const json = (data, status = 200) => Response.json(data, {
   status, headers: { 'Cache-Control': 'no-store' }
@@ -78,7 +82,13 @@ async function synchronize(request, db) {
   let viewers
   try { viewers = await readBatch(request) } catch { return json({ error: 'invalid batch' }, 400) }
   if (!Array.isArray(viewers) || viewers.length < 1 || viewers.length > 10) return json({ error: 'invalid batch' }, 400)
+  const writes = viewerWrites(db, device, viewers)
+  if (writes instanceof Response) return writes
+  await db.batch(writes)
+  return json({ received: viewers.map(({ id, revision }) => ({ id, revision })) })
+}
 
+function viewerWrites(db, device, viewers) {
   const ids = new Set()
   const writes = []
   for (const viewer of viewers) {
@@ -100,11 +110,12 @@ async function synchronize(request, db) {
       }
     const items = viewer.heldItems ?? []
     const rareCandies = viewer.rareCandies ?? 0
+    const legendaryTrackers = viewer.legendaryTrackers ?? 0
     const pokeDollars = viewer.pokeDollars ?? 0
     const dnaBoosters = viewer.dnaBoosters ?? {}
     if (typeof dnaBoosters !== 'object' || Array.isArray(dnaBoosters) || Object.entries(dnaBoosters).some(([key, count]) =>
       !Object.hasOwn(viewer.collection, key) || !Number.isInteger(count) || count < 0 || count > 10)) return json({ error: 'invalid DNA boosters' }, 400)
-    if (![rareCandies, pokeDollars].every(value => Number.isSafeInteger(value) && value >= 0)) return json({ error: 'invalid rewards' }, 400)
+    if (![rareCandies, legendaryTrackers, pokeDollars].every(value => Number.isSafeInteger(value) && value >= 0)) return json({ error: 'invalid rewards' }, 400)
     if (!Array.isArray(items) || items.length > Object.keys(heldItems).length ||
         items.some(item => typeof item !== 'string' || !Object.hasOwn(heldItems, item))) return json({ error: 'invalid items' }, 400)
     const generation = viewer.generation ?? 0
@@ -130,15 +141,14 @@ async function synchronize(request, db) {
       'ON CONFLICT(community_id, viewer_id) DO UPDATE SET revision = excluded.revision, payload = excluded.payload, updated_at = excluded.updated_at ' +
       'WHERE excluded.revision > viewer_progress.revision'
     ).bind(device.community_id, viewer.id, viewer.revision,
-        JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters,
+        JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters, ...(legendaryTrackers ? { legendaryTrackers } : {}),
           log: log.map(({ at, platform, action, result, capture }) => ({
             at, platform, action, result, ...(capture ? { capture: { ball: capture.ball, remaining: capture.remaining, pokemon: capture.pokemon } } : {})
           })), metrics: { wins: metrics.wins, losses: metrics.losses, summonMinutes: metrics.summonMinutes } }), Date.now(), viewer.id, generation, generation, viewer.id, device.key_hash))
     writes.push(db.prepare('INSERT OR IGNORE INTO erasure_devices SELECT ?, viewer_id FROM erased_viewers WHERE viewer_id = ?')
       .bind(device.community_id, viewer.id))
   }
-  await db.batch(writes)
-  return json({ received: viewers.map(({ id, revision }) => ({ id, revision })) })
+  return writes
 }
 
 async function deviceErasure(request, db) {
@@ -178,31 +188,65 @@ async function deviceShop(request, db) {
         const raw = header.length <= 2048 ? JSON.parse(header) : null
         prices = normalizeShopPrices(raw)
         dna = Boolean(prices && Object.hasOwn(raw, 'dna-booster'))
+        for (const item of ['master-ball', ...arenaShopItems, ...featuredShopItems]) {
+          if (prices && !Object.hasOwn(raw, item)) delete prices[item]
+        }
       } catch { /* invalid header */ }
       if (!prices) return json({ error: 'invalid prices' }, 400)
     }
     const packed = prices ? JSON.stringify(prices) : null
     const familyDna = request.headers.get('X-Shop-Family-Dna')
+    const supportsQuantity = Number(request.headers.get('X-Shop-Quantity') === '1')
     const dnaLevel = dna ? (familyDna === '2' ? 3 : familyDna === '1' ? 2 : 1) : 0
     const [, pending] = await db.batch([
-      db.prepare('INSERT INTO shop_online (community_id, seen_at, prices, supports_dna) VALUES (?, ?, ?, ?) ' +
-        'ON CONFLICT (community_id) DO UPDATE SET seen_at = excluded.seen_at, prices = excluded.prices, supports_dna = excluded.supports_dna ' +
-        'WHERE excluded.prices IS NOT NULL OR shop_online.prices IS NULL').bind(community, Date.now(), packed, dnaLevel),
-      db.prepare('SELECT id, viewer_id AS viewerId, item, price, species_key AS speciesKey FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
-        'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) ORDER BY created_at LIMIT 10').bind(community, packed, dnaLevel)
+      db.prepare('INSERT INTO shop_online (community_id, seen_at, prices, supports_dna, supports_quantity) VALUES (?, ?, ?, ?, ?) ' +
+        'ON CONFLICT (community_id) DO UPDATE SET seen_at = excluded.seen_at, prices = excluded.prices, supports_dna = excluded.supports_dna, supports_quantity = excluded.supports_quantity ' +
+        'WHERE (excluded.prices IS NOT NULL OR shop_online.prices IS NULL) AND ' +
+        '(shop_online.seen_at <= excluded.seen_at - 15000 OR shop_online.prices IS NOT excluded.prices OR ' +
+        'shop_online.supports_dna != excluded.supports_dna OR shop_online.supports_quantity != excluded.supports_quantity)').bind(community, Date.now(), packed, dnaLevel, supportsQuantity),
+      db.prepare('SELECT id, viewer_id AS viewerId, item, price, species_key AS speciesKey, quantity FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
+        'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) AND (? = 1 OR quantity = 1) ' +
+        "AND (item NOT IN (SELECT value FROM json_each(?)) OR item IN (SELECT key FROM json_each(?))) " +
+        'ORDER BY created_at, id LIMIT 10').bind(community, packed, dnaLevel, supportsQuantity, JSON.stringify(['master-ball', ...arenaShopItems, ...featuredShopItems]), packed)
     ])
-    return json({ orders: pending.results.map(({ price, speciesKey, ...order }) => ({ ...order,
-      ...(price === null ? {} : { price }), ...(speciesKey === null ? {} : { speciesKey }) })) })
+    const state = request.headers.get('X-Web-Game')
+    const webActions = state === null ? undefined : await deviceWebGame(db, device, state)
+    return json({ webActions, orders: pending.results.map(({ price, speciesKey, quantity, ...order }) => ({ ...order,
+      ...(quantity === 1 ? {} : { quantity }), ...(price === null ? {} : { price }), ...(speciesKey === null ? {} : { speciesKey }) })) })
   }
   if (request.method !== 'POST') return json({ error: 'invalid method' }, 405)
   let receipts
   try { receipts = (await readBatch(request)) } catch { return json({ error: 'invalid receipts' }, 400) }
   if (!Array.isArray(receipts) || receipts.length < 1 || receipts.length > 10 || receipts.some(row =>
-    !/^[a-f0-9-]{36}$/.test(row?.id ?? '') || !['unavailable', 'owned', 'funds', 'purchased', 'maxed'].includes(row?.result))) {
+    !/^[a-f0-9-]{36}$/.test(row?.id ?? '') || !['unavailable', 'owned', 'funds', 'purchased', 'maxed', 'repriced', 'battleLocked'].includes(row?.result))) {
     return json({ error: 'invalid receipts' }, 400)
   }
-  await db.batch(receipts.map(({ id, result }) => db.prepare('UPDATE shop_orders SET result = ? WHERE community_id = ? AND id = ? AND result IS NULL')
-    .bind(result, community, id)))
+  const viewers = []
+  for (const receipt of receipts) {
+    if (receipt.viewer === undefined && receipt.hatch === undefined) continue
+    const order = await db.prepare('SELECT viewer_id, result, item FROM shop_orders WHERE community_id = ? AND id = ?')
+      .bind(community, receipt.id).first()
+    if (!order || receipt.result !== 'purchased' || receipt.viewer?.id !== order.viewer_id) {
+      return json({ error: 'invalid purchase viewer' }, 400)
+    }
+    const hatch = receipt.hatch
+    if (order.item === 'poke-egg' || hatch !== undefined) {
+      const row = nationalStats[hatch?.id - 1]
+      if (order.item !== 'poke-egg' || !row || row[0] !== hatch.id || specialEncounterTag(hatch.id, Boolean(row[5])) ||
+          typeof hatch.name !== 'string' || !Object.hasOwn(receipt.viewer.collection ?? {}, hatch.name) ||
+          !eggRarities.includes(hatch.rarity) || hatch.rarity !== eggRarity(hatch.id) ||
+          typeof hatch.duplicate !== 'boolean' || !Number.isSafeInteger(hatch.xp) || hatch.xp < 0) {
+        return json({ error: 'invalid egg hatch' }, 400)
+      }
+    }
+    if (order.result === null) viewers.push(receipt.viewer)
+  }
+  const writes = viewerWrites(db, device, viewers)
+  if (writes instanceof Response) return writes
+  await db.batch([...writes, ...receipts.map(({ id, result, hatch }) => db.prepare(
+    'UPDATE shop_orders SET result = ?, hatch = ? WHERE community_id = ? AND id = ? AND result IS NULL AND ' +
+    'EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
+  ).bind(result, hatch ? JSON.stringify(hatch) : null, community, id, device.key_hash))])
   return json({ received: receipts.map(({ id }) => id) })
 }
 
@@ -236,7 +280,7 @@ export default {
       const statements = [
         db.prepare('INSERT INTO devices (key_hash, community_id) SELECT ?, ? WHERE ' + active)
           .bind(replacement, device.community_id, device.key_hash),
-        ...['viewer_progress', 'viewer_movesets', 'viewer_held_items', 'shop_orders', 'kick_messages', 'shop_online', 'community_stream_status']
+        ...['viewer_progress', 'viewer_movesets', 'viewer_held_items', 'shop_orders', 'kick_messages', 'shop_online', 'community_stream_status', 'web_game_runtime', 'web_game_actions', 'portal_announcements']
           .map(table => db.prepare('DELETE FROM ' + table + ' WHERE community_id = ? AND ' + active).bind(device.community_id, device.key_hash)),
         db.prepare('UPDATE community_owners SET key_hash = ? WHERE key_hash = ? AND ' + active).bind(replacement, device.key_hash, device.key_hash),
         db.prepare('UPDATE devices SET revoked_at = ? WHERE key_hash = ? AND revoked_at IS NULL').bind(Date.now(), device.key_hash)
@@ -265,6 +309,63 @@ export default {
         'seen_at = excluded.seen_at, platforms = excluded.platforms')
         .bind(device.community_id, Date.now(), JSON.stringify(platforms)).run()
       return new Response(null, { status: 204 })
+    }
+    if (request.method === 'POST' && path === '/api/announcements') {
+      const device = await authorizedDevice(request, env.DB)
+      if (!device) return json({ error: 'unauthorized' }, 401)
+      let events
+      try { events = await readBatch(request) } catch { return json({ error: 'invalid announcements' }, 400) }
+      if (!Array.isArray(events) || !events.length || events.length > 12 || events.some(event =>
+        !/^[a-f0-9]{32}$/.test(event?.id ?? '') || typeof event.message !== 'string' ||
+        !event.message.trim() || event.message.length > 500)) return json({ error: 'invalid announcements' }, 400)
+      const now = Date.now()
+      await env.DB.batch([
+        ...events.map(({ id, message }, index) => env.DB.prepare(
+          'INSERT OR IGNORE INTO portal_announcements SELECT ?, ?, ?, ? ' +
+          'WHERE EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
+        ).bind(device.community_id, id, message, now + index, device.key_hash)),
+        env.DB.prepare('DELETE FROM portal_announcements WHERE community_id = ? AND id NOT IN ' +
+          '(SELECT id FROM portal_announcements WHERE community_id = ? ORDER BY created_at DESC, id DESC LIMIT 30)')
+          .bind(device.community_id, device.community_id)
+      ])
+      return json({ received: events.length })
+    }
+    if (path === '/api/shiny-cue') {
+      const device = await authorizedDevice(request, env.DB)
+      if (!device) return json({ error: 'unauthorized' }, 401)
+      if (request.method === 'DELETE') {
+        await env.DB.prepare('DELETE FROM shiny_cues WHERE community_id = ?').bind(device.community_id).run()
+        return new Response(null, { status: 204 })
+      }
+      if (request.method !== 'PUT') return new Response(null, { status: 405 })
+      const reader = request.body?.getReader()
+      if (!reader) return new Response(null, { status: 400 })
+      const bytes = new Uint8Array(maxCueBytes)
+      let count = 0
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (count + value.length > maxCueBytes) {
+          await reader.cancel()
+          return new Response(null, { status: 413 })
+        }
+        bytes.set(value, count)
+        count += value.length
+      }
+      const audio = bytes.slice(0, count)
+      const type = cueType(audio)
+      if (!type) return new Response(null, { status: 415 })
+      await env.DB.prepare('INSERT INTO shiny_cues VALUES (?, ?, ?) ON CONFLICT (community_id) DO UPDATE SET type = excluded.type, audio = excluded.audio')
+        .bind(device.community_id, type, audio.buffer).run()
+      return new Response(null, { status: 204 })
+    }
+    if (path === '/api/web-game') {
+      const device = await authorizedDevice(request, env.DB)
+      if (!device) return json({ error: 'unauthorized' }, 401)
+      let receipts
+      try { receipts = await readBatch(request) } catch { return json({ error: 'invalid receipts' }, 400) }
+      const received = await finishWebGame(request, env.DB, device, receipts)
+      return received ? json({ received }) : json({ error: 'invalid receipts' }, 400)
     }
     if (request.method === 'POST' && path === '/api/sync') return synchronize(request, env.DB)
     if (request.method === 'POST' && path === '/api/devices/register') return registerDevice(request, env.DB)

@@ -22,6 +22,7 @@ export function openProgress(path) {
     ON CONFLICT (id) DO UPDATE SET revision = viewer_sync.revision + 1, payload = excluded.payload
     WHERE viewer_sync.payload != excluded.payload
   `)
+  const readViewer = database.prepare('SELECT id, revision, payload FROM viewer_sync WHERE id = ?')
   const pending = database.prepare('SELECT id, revision, payload FROM viewer_sync WHERE revision > acknowledged ORDER BY acknowledged, id LIMIT 10')
   const acknowledge = database.prepare("UPDATE viewer_sync SET acknowledged = max(acknowledged, ?) WHERE id = ? AND revision >= ? AND COALESCE(json_extract(payload, '$.generation'), 0) = ?")
   const erasePrevious = database.prepare("DELETE FROM viewer_sync WHERE id = ? AND COALESCE(json_extract(payload, '$.generation'), 0) != ?")
@@ -59,12 +60,16 @@ export function openProgress(path) {
           const { wins = 0, losses = 0, summonSeconds = 0 } = viewer.metrics ?? {}
           const metrics = { wins, losses, summonMinutes: Math.floor(summonSeconds / 60) }
           queue.run(id, JSON.stringify({ ...(progress.viewerGenerations?.[id] ? { generation: progress.viewerGenerations[id] } : {}), displayName: viewer.displayName ?? '', balls: viewer.balls, collection, metrics,
-            heldItems: viewer.heldItems ?? [], rareCandies: viewer.rareCandies ?? 0, pokeDollars: viewer.pokeDollars ?? 0,
+            heldItems: viewer.heldItems ?? [], rareCandies: viewer.rareCandies ?? 0, ...(viewer.legendaryTrackers ? { legendaryTrackers: viewer.legendaryTrackers } : {}), pokeDollars: viewer.pokeDollars ?? 0,
             dnaBoosters: viewer.dnaBoosters ?? {}, ...(viewer.log?.length ? { log: viewer.log } : {}) }))
         }
       })
       last = snapshot
       initialized = true
+    },
+    viewer(id) {
+      const row = readViewer.get(id)
+      return row && { id: row.id, revision: row.revision, ...JSON.parse(row.payload) }
     },
     pending: () => pending.all().map(row => ({ id: row.id, revision: row.revision, ...JSON.parse(row.payload) })),
     acknowledge(batch) {
