@@ -1,3 +1,4 @@
+import { maxDnaBoosters } from './evolution.js'
 import { heldItems } from './held-items.js'
 
 export const shopItems = {
@@ -14,7 +15,7 @@ export const validShopPrice = value => Number.isSafeInteger(value) && value >= 1
 export const maxShopQuantity = 99
 
 export const validShopQuantity = (product, quantity) => Number.isSafeInteger(quantity) &&
-  quantity >= 1 && quantity <= (product.ball ? maxShopQuantity : 1)
+  quantity >= 1 && quantity <= (product.ball ? maxShopQuantity : product.dna ? maxDnaBoosters : 1)
 
 export function normalizeShopPrices(values) {
   if (!values || typeof values !== 'object' || Array.isArray(values) || Object.entries(values).some(([id, value]) =>

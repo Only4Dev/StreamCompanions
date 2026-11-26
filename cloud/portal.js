@@ -126,6 +126,15 @@ function platformButton(provider, enabled, t, language) {
     : '<span class="button provider unavailable" aria-disabled="true">' + icon + name + ' <small>' + t('Próximamente') + '</small></span>'
 }
 
+function quantityField(en, price, limit) {
+  return '<label>' + (en ? 'Quantity' : 'Cantidad') + ' <input type="number" name="quantity" data-shop-quantity="' +
+    price + '" min="1" max="' + Math.max(1, limit) + '" value="1" required></label> <label>Total <output>$' + price + '</output></label> '
+}
+
+function submittingPurchase(en) {
+  return '<span role="status" data-shop-submitting hidden>' + (en ? 'Sending order…' : 'Enviando pedido…') + '</span>'
+}
+
 function pendingPurchase(en) {
   return ' data-order-pending aria-live="polite" data-waiting="' +
     (en ? 'Still waiting for the streamer’s app. Please wait.' : 'Seguimos esperando a la app del streamer. Espera un momento.') + '"'
@@ -137,6 +146,19 @@ export async function portal(request, url, env) {
         const total = input.form.querySelector('output');
         input.addEventListener('input', () => {
           total.value = input.validity.valid ? '$' + (input.valueAsNumber * Number(input.dataset.shopQuantity)) : '—';
+        });
+      }
+      const submitting = document.querySelector('[data-shop-submitting]');
+      let submitted = false;
+      for (const form of document.querySelectorAll('[data-shop-buy]')) {
+        form.addEventListener('submit', event => {
+          if (submitted) {
+            event.preventDefault();
+            return;
+          }
+          submitted = true;
+          for (const button of document.querySelectorAll('[data-shop-buy] button')) button.disabled = true;
+          if (submitting) submitting.hidden = false;
         });
       }
       const receipt = document.querySelector('[data-order-pending]');
@@ -175,7 +197,7 @@ export async function portal(request, url, env) {
                   input.dispatchEvent(new Event('input'));
                 }
                 const button = form.querySelector('button');
-                button.disabled = !state.online || state.pending || owned || limit < 1;
+                button.disabled = submitted || !state.online || state.pending || owned || limit < 1;
                 button.textContent = owned ? button.dataset.owned : button.dataset.buy;
                 const count = form.querySelector('[data-shop-count]');
                 if (count) count.textContent = '×' + (state.balls[shopBall] ?? 0);
@@ -454,7 +476,7 @@ export async function portal(request, url, env) {
     const quantity = Number(form?.get('quantity') ?? 1)
     if (!validShopQuantity(product, quantity)) return new Response(null, { status: 400 })
     const target = product.dna ? url.searchParams.get('pokemon') : null
-    if (product.dna && (!Object.hasOwn(collection, target ?? '') || sharedDna(dnaBoosters, target) >= maxDnaBoosters)) {
+    if (product.dna && (!Object.hasOwn(collection, target ?? '') || sharedDna(dnaBoosters, target) + quantity > maxDnaBoosters)) {
       return new Response(null, { status: 409 })
     }
     const destination = target ? { pokemon: target } : { tab: 'shop' }
@@ -529,14 +551,16 @@ export async function portal(request, url, env) {
       dnaOrder ? (dnaOrder.result === 'purchased' ? (en ? 'Purchase complete.' : 'Compra realizada.') :
         dnaOrder.result === 'funds' ? fundsText : dnaOrder.result === 'repriced' ? (en ? 'The price changed.' : 'El precio cambió.') : dnaOrder.result ? (en ? 'Purchase could not be completed.' : 'No se pudo completar la compra.') :
           (en ? 'Order sent. Waiting for the streamer’s app to confirm…' : 'Pedido enviado. Esperando confirmación de la app del streamer…')) : '')
+    const dnaQuantity = online?.supports_quantity
+      ? quantityField(en, dnaPrice, Math.min(maxDnaBoosters - dna, Math.floor(pokeDollars / dnaPrice))) : ''
     const dnaSection = '<div class="held-frame"><strong>DNA Booster ' + (dna >= maxDnaBoosters ? 'MAX' : dna + '/' + maxDnaBoosters) + '</strong>' +
       '<span>' + (en ? 'Shared across this evolution line' : 'Compartido en esta línea evolutiva') + '</span>' +
       helpHint(en ? 'About DNA Booster' : 'Sobre DNA Booster', en ?
         'Boosts the battle stats of the whole evolution line, including shiny Pokémon. Max 10.' :
         'Mejora las estadísticas de toda la línea evolutiva, incluidas las variantes shiny. Máximo 10.') +
-      '<span>' + escape(walletText) + '</span>' +
+      '<span>' + escape(walletText) + '</span>' + submittingPurchase(en) +
       (dnaMessage || dnaBlocked ? '<span role="status" data-order-receipt' + (dnaOrder && !dnaOrder.result ? pendingPurchase(en) : '') + '>' + escape(dnaMessage || dnaBlocked) + '</span>' : '') +
-      (dna < maxDnaBoosters ? '<form method="post" action="' + escape(dnaAction) + '"><button' +
+      (dna < maxDnaBoosters ? '<form method="post" data-shop-buy action="' + escape(dnaAction) + '">' + dnaQuantity + '<button' +
         (dnaBlocked || (dnaOrder && !dnaOrder.result) ? ' disabled' : '') + '>' +
         (en ? 'Buy · $' : 'Comprar · $') + dnaPrice + '</button></form>' : '') + '</div>'
     const saved = await env.DB.prepare('SELECT moves FROM viewer_movesets WHERE community_id = ? AND viewer_id = ? AND species_key = ?')
@@ -621,7 +645,7 @@ export async function portal(request, url, env) {
     shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong> <span data-shop-delta aria-live="polite"></span></p>' +
       (url.searchParams.has('repriced') ? '<p role="status">' + (en ? 'The price changed. Check it before buying again.' : 'El precio cambió. Revísalo antes de volver a comprar.') + '</p>' : '') +
       (purchaseWarning || !available ? '<p role="status" class="empty">' + escape(purchaseWarning || offlineText) + '</p>' : '') +
-      (pending ? '<p role="status" data-order-receipt' + pendingPurchase(en) + '>' + (en ? 'Order sent. Waiting for the streamer’s app to confirm…' : 'Pedido enviado. Esperando confirmación de la app del streamer…') + '</p>' :
+      submittingPurchase(en) + (pending ? '<p role="status" data-order-receipt' + pendingPurchase(en) + '>' + (en ? 'Order sent. Waiting for the streamer’s app to confirm…' : 'Pedido enviado. Esperando confirmación de la app del streamer…') + '</p>' :
         order && status[order.result] ? '<p role="status" data-order-receipt>' + status[order.result] + '</p>' : '') +
       '<ul class="held-grid">' + Object.entries(shopItems).filter(([, product]) => !product.dna).map(([id, product]) => {
         const owned = product.held && ownedItems.includes(id)
@@ -630,10 +654,9 @@ export async function portal(request, url, env) {
         const button = '<button data-buy="' + (en ? 'Buy' : 'Comprar') + '" data-owned="' + (en ? 'Owned' : 'Ya lo tienes') + '"' + (!available || pending || owned || pokeDollars < price ? ' disabled' : '') + '>' +
           (owned ? (en ? 'Owned' : 'Ya lo tienes') : (en ? 'Buy' : 'Comprar')) + '</button>'
         const quantityInput = product.ball && online?.supports_quantity
-          ? '<label>' + (en ? 'Quantity' : 'Cantidad') + ' <input type="number" name="quantity" data-shop-quantity="' + price + '" min="1" max="' +
-            Math.max(1, Math.min(maxShopQuantity, Math.floor(pokeDollars / price))) + '" value="1" required></label> <label>Total <output>$' + price + '</output></label>' : ''
+          ? quantityField(en, price, Math.min(maxShopQuantity, Math.floor(pokeDollars / price))) : ''
         return '<li>' + itemIcon(id) + '<strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
-          '<form method="post" data-shop-product="' + id + '" data-shop-price="' + price + '" action="' + escape(action) + '"' +
+          '<form method="post" data-shop-buy data-shop-product="' + id + '" data-shop-price="' + price + '" action="' + escape(action) + '"' +
           (product.ball ? ' data-shop-ball="' + product.ball + '"' : '') + '>' +
           (product.ball ? '<span data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</span> ' : '') + quantityInput + button + '</form>' + (available && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
       }).join('') + '</ul></section><script src="/assets/shop-status.js" defer></script>'

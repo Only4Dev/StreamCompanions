@@ -45,12 +45,14 @@ test('DNA purchases share one cap across an evolution branch and survive reconne
   const catalog = [{ id: 79, name: 'Slowpoke', shiny: true }, { id: 80, name: 'Slowbro', shiny: true }, { id: 199, name: 'Slowking', shiny: true }]
   const game = createGame({ catalog, progress: { viewers: { [id]: {
     collection: { Slowpoke: xpAtLevel(16), 'Slowpoke ✦': 0 },
-    dnaBoosters: { Slowpoke: 4, Slowbro: 5 }, pokeDollars: 30_000
+    dnaBoosters: { Slowpoke: 4, Slowbro: 3 }, pokeDollars: 50_000
   } } } })
-  const buy = (idempotencyKey, speciesKey) => game.fulfillOrder({ id: idempotencyKey, viewerId: id, item: 'dna-booster', speciesKey })
-  assert.equal(buy('shared', 'Slowking'), 'purchased')
+  const buy = (idempotencyKey, speciesKey, quantity) => game.fulfillOrder({ id: idempotencyKey, viewerId: id, item: 'dna-booster', speciesKey, quantity })
+  assert.equal(buy('too-many', 'Slowking', 4), 'maxed')
+  assert.equal(buy('shared', 'Slowking', 3), 'purchased')
   assert.equal(buy('cap', 'Slowpoke'), 'maxed')
   const reopened = createGame({ catalog, progress: game.progress() })
+  assert.equal(reopened.fulfillOrder({ id: 'shared', viewerId: id, item: 'dna-booster', speciesKey: 'Slowking', quantity: 3 }), 'purchased')
   const viewer = reopened.progress().viewers[id]
   for (const key of ['Slowpoke', 'Slowbro', 'Slowking']) assert.equal(reopened.dnaCount(viewer, key), 10)
   assert.equal(reopened.dnaCount(viewer, 'Slowpoke ✦'), 10)

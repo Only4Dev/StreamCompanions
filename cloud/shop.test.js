@@ -64,6 +64,10 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const bulk = crypto.randomUUID()
   assert.match((await order(bulk, 200, 2)).headers.get('Location'), /reason=quantity/)
   await device('GET', null, { 'poke-ball': 100 }, true)
+  const bulkShop = await worker.fetch(new Request(base + '/?community=stream&tab=shop', {
+    headers: { Cookie: 'sc_session=' + session }
+  }), { DB: D1 })
+  assert.match(await bulkShop.text(), /name="quantity" data-shop-quantity="100" min="1" max="5"/)
   assert.equal((await order(bulk, 100, 0)).status, 400)
   assert.match((await order(bulk, 100, 6)).headers.get('Location'), /reason=funds/)
   assert.match((await order(bulk, 100, 3)).headers.get('Location'), new RegExp('purchase=' + bulk))

@@ -281,7 +281,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         const dna = familyDnaCount(viewer.dnaBoosters, keys)
         if (price != null && price !== unitPrice) result = 'repriced'
         else if (product.held && viewer.heldItems?.includes(item)) result = 'owned'
-        else if (product.dna && dna >= maxDnaBoosters) result = 'maxed'
+        else if (product.dna && dna + quantity > maxDnaBoosters) result = 'maxed'
         else if ((viewer.pokeDollars ?? 0) < charge) result = 'funds'
         else {
           viewer.pokeDollars -= charge
@@ -289,7 +289,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
           else if (product.dna) {
             viewer.dnaBoosters ??= {}
             for (const key of keys) delete viewer.dnaBoosters[key]
-            viewer.dnaBoosters[keys[0]] = dna + 1
+            viewer.dnaBoosters[keys[0]] = dna + quantity
           }
           else (viewer.heldItems ??= []).push(item)
           result = 'purchased'
