@@ -15,7 +15,7 @@ import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
 import { heldItems } from '../ui/held-items.js'
 import { maxShopQuantity, shopItems, validShopQuantity } from '../ui/shop.js'
 
-const announcementsScript = `
+const announcementsScript = `(() => {
 const feed = document.querySelector('[data-announcements]');
 const query = new URLSearchParams({community: feed.dataset.announcements});
 const list = feed.querySelector('ol');
@@ -42,7 +42,7 @@ async function refresh() {
   setTimeout(refresh, document.hidden ? 10000 : 2500);
 }
 refresh();
-`
+})();`
 
 function renderAnnouncements(community, language) {
   const en = language === 'en'
@@ -53,7 +53,7 @@ function renderAnnouncements(community, language) {
     '<script src="/assets/announcements.js" defer></script>'
 }
 
-const webGameScript = `
+const webGameScript = `(() => {
 const root = document.querySelector('[data-web-game]');
 const status = root.querySelector('[role=status]');
 const capture = root.querySelector('[data-capture-form]');
@@ -102,7 +102,7 @@ async function refresh() {
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const state = await response.json();
     if (current !== version) return;
-    capture.elements.encounter.value = state.encounter || '';
+    capture.querySelector('input[name="encounter"]').value = state.encounter || '';
     root.querySelector('[data-capture-difficulty]').textContent = state.difficulty || root.dataset.noEncounter;
     for (const input of capture.querySelectorAll('input[name="ball"]')) {
       const amount = state.balls?.[input.value] ?? 0;
@@ -119,12 +119,13 @@ async function refresh() {
     if (state.message) status.textContent = state.message;
     if (!state.pending) endpoint.searchParams.delete('game');
     schedule(state.pending ? 500 : 2500);
-  } catch {
+  } catch (error) {
+    console.warn('Could not refresh live game status', error);
     if (current === version) schedule(2500);
   }
 }
 refresh();
-`
+})();`
 
 function webGameState(runtime, row, language) {
   const en = language === 'en'
