@@ -127,7 +127,8 @@ function platformButton(provider, enabled, t, language) {
 }
 
 function pendingPurchase(en) {
-  return ' data-order-pending data-waiting="' + (en ? 'Still waiting. Check again in a moment.' : 'El pedido sigue pendiente. Vuelve a consultar en un momento.') + '"'
+  return ' data-order-pending aria-live="polite" data-waiting="' +
+    (en ? 'Still waiting for the streamer’s app. Please wait.' : 'Seguimos esperando a la app del streamer. Espera un momento.') + '"'
 }
 
 export async function portal(request, url, env) {
@@ -156,6 +157,7 @@ export async function portal(request, url, env) {
             if (response.status === 401 || response.status === 404) return;
             if (!response.ok) throw new Error('HTTP ' + response.status);
             const state = await response.json();
+            attempts = 0;
             if (wallet && Number.isSafeInteger(state.balance)) {
               if (state.balance !== balance) {
                 delta.textContent = state.balance > balance ? '+$' + (state.balance - balance) : '';
@@ -187,12 +189,12 @@ export async function portal(request, url, env) {
                 if (!wallet) return;
               }
             }
-          } catch {}
-          if (receipt?.hasAttribute('data-order-pending') && ++attempts >= 15 && !wallet) {
-            receipt.textContent = receipt.dataset.waiting;
-            return;
+          } catch {
+            if (receipt?.hasAttribute('data-order-pending') && ++attempts >= 3) {
+              receipt.textContent = receipt.dataset.waiting;
+            }
           }
-          setTimeout(refresh, receipt?.hasAttribute('data-order-pending') ? 2000 : 5000);
+          setTimeout(refresh, receipt?.hasAttribute('data-order-pending') ? 1500 : 5000);
         }
         setTimeout(refresh, 1000);
       }`, { headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=300' } })
@@ -526,7 +528,7 @@ export async function portal(request, url, env) {
       url.searchParams.has('retry') ? (en ? 'Purchase unavailable. Check for a pending order.' : 'Compra no disponible. Revisa si hay un pedido pendiente.') :
       dnaOrder ? (dnaOrder.result === 'purchased' ? (en ? 'Purchase complete.' : 'Compra realizada.') :
         dnaOrder.result === 'funds' ? fundsText : dnaOrder.result === 'repriced' ? (en ? 'The price changed.' : 'El precio cambió.') : dnaOrder.result ? (en ? 'Purchase could not be completed.' : 'No se pudo completar la compra.') :
-          (en ? 'Order sent. Waiting for confirmation…' : 'Pedido enviado. Esperando confirmación…')) : '')
+          (en ? 'Order sent. Waiting for the streamer’s app to confirm…' : 'Pedido enviado. Esperando confirmación de la app del streamer…')) : '')
     const dnaSection = '<div class="held-frame"><strong>DNA Booster ' + (dna >= maxDnaBoosters ? 'MAX' : dna + '/' + maxDnaBoosters) + '</strong>' +
       '<span>' + (en ? 'Shared across this evolution line' : 'Compartido en esta línea evolutiva') + '</span>' +
       helpHint(en ? 'About DNA Booster' : 'Sobre DNA Booster', en ?
@@ -619,7 +621,7 @@ export async function portal(request, url, env) {
     shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong> <span data-shop-delta aria-live="polite"></span></p>' +
       (url.searchParams.has('repriced') ? '<p role="status">' + (en ? 'The price changed. Check it before buying again.' : 'El precio cambió. Revísalo antes de volver a comprar.') + '</p>' : '') +
       (purchaseWarning || !available ? '<p role="status" class="empty">' + escape(purchaseWarning || offlineText) + '</p>' : '') +
-      (pending ? '<p role="status" data-order-receipt' + pendingPurchase(en) + '>' + (en ? 'Order sent. Waiting for confirmation…' : 'Pedido enviado. Esperando confirmación…') + '</p>' :
+      (pending ? '<p role="status" data-order-receipt' + pendingPurchase(en) + '>' + (en ? 'Order sent. Waiting for the streamer’s app to confirm…' : 'Pedido enviado. Esperando confirmación de la app del streamer…') + '</p>' :
         order && status[order.result] ? '<p role="status" data-order-receipt>' + status[order.result] + '</p>' : '') +
       '<ul class="held-grid">' + Object.entries(shopItems).filter(([, product]) => !product.dna).map(([id, product]) => {
         const owned = product.held && ownedItems.includes(id)

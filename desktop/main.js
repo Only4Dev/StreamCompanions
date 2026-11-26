@@ -259,7 +259,7 @@ async function pollShop() {
   } catch (error) {
     if (!kickAbort.signal.aborted) console.warn('Could not sync shop:', error.message)
   } finally {
-    if (!kickAbort.signal.aborted) shopTimer = setTimeout(pollShop, 5_000)
+    if (!kickAbort.signal.aborted) shopTimer = setTimeout(pollShop, 1_500)
   }
 }
 
