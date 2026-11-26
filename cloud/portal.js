@@ -77,7 +77,7 @@ root.addEventListener('submit', async event => {
   status.textContent = root.dataset.waiting;
   for (const button of root.querySelectorAll('button')) button.disabled = true;
   try {
-    const response = await fetch(form.getAttribute('action'), {method: 'POST', body: data, headers: {Accept: 'application/json'}});
+    const response = await fetch(form.getAttribute('action'), {method: 'POST', body: data, headers: {Accept: 'application/json'}, signal: AbortSignal.timeout(8000)});
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const result = await response.json();
     status.textContent = result.message || root.dataset.waiting;
@@ -87,13 +87,13 @@ root.addEventListener('submit', async event => {
     status.textContent = root.dataset.failed;
   } finally {
     submitting = false;
-    schedule(0);
+    void refresh();
   }
 });
 async function refresh() {
   const current = version;
   try {
-    const response = await fetch(endpoint, {cache: 'no-store'});
+    const response = await fetch(endpoint, {cache: 'no-store', signal: AbortSignal.timeout(8000)});
     if (current !== version) return;
     if (response.status === 401 || response.status === 404) {
       status.textContent = root.dataset.failed;
@@ -117,6 +117,8 @@ async function refresh() {
       !capture.querySelector('input[name="ball"]:checked:not(:disabled)');
     for (const button of root.querySelectorAll('form:not([data-capture-form]) button')) button.disabled = submitting || state.pending || !state.online;
     if (state.message) status.textContent = state.message;
+    else if (!state.online) status.textContent = root.dataset.offline;
+    else if (status.textContent === root.dataset.offline) status.textContent = '';
     if (!state.pending) endpoint.searchParams.delete('game');
     schedule(state.pending ? 500 : 2500);
   } catch (error) {
@@ -187,6 +189,7 @@ async function renderLiveGame(request, db, url, language) {
   const noEncounter = en ? 'No Pokémon available to catch.' : 'No hay un Pokémon disponible para capturar.'
   return '<section class="sheet" id="play-web" data-web-game data-waiting="' + (en ? 'Sending action…' : 'Enviando acción…') +
     '" data-failed="' + (en ? 'Could not send the action. Try again.' : 'No se pudo enviar la acción. Intenta de nuevo.') +
+    '" data-offline="' + (en ? 'Waiting for the streamer to start the app…' : 'Esperando a que el streamer inicie la app…') +
     '" data-no-encounter="' + noEncounter + '"><h2>' + (en ? 'Play on the web' : 'Jugar en web') +
     '</h2><p class="live-game-status" role="status">' + escape(state.message) + '</p><div class="live-game-grid">' +
     '<section class="live-game-card"><h3>' + (en ? 'Catch' : 'Captura') + '</h3><p class="meta" data-capture-difficulty>' +
@@ -202,7 +205,7 @@ async function renderLiveGame(request, db, url, language) {
     open('candy', ' class="live-candy"') + '<label>' + (en ? 'Rare Candy quantity' : 'Cantidad de Caramelos Raros') +
     ' <input type="number" name="quantity" min="1" max="50" value="1" required></label><button' +
     disabled + '>' + (en ? 'Use Rare Candy' : 'Usar Caramelo Raro') + '</button></form></section>' +
-    '</div></section><script src="/assets/web-game.js" defer></script>'
+    '</div></section><script src="/assets/web-game.js?v=2" defer></script>'
 
 }
 
@@ -492,14 +495,15 @@ export async function portal(request, url, env) {
     const mainTabs = stream ? '<nav class="tabs live-sections" aria-label="' + (en ? 'Live sections' : 'Secciones del directo') +
       '"><a href="#watch-live">' + (en ? 'Watch stream' : 'Ver directo') + '</a><a href="#play-web">' +
       (en ? 'Play on the web' : 'Jugar en web') + '</a></nav>' : ''
-    return page('<section class="sheet live-watch" id="watch-live"><h1>' + title + '</h1>' + mainTabs + channelTabs +
+    const watch = '<section class="sheet live-watch" id="watch-live"><h1>' + title + '</h1>' + mainTabs + channelTabs +
       (player ? '<div class="live-player"><iframe title="' + escape(stream.login) + '" src="' + escape(player) +
         '" width="960" height="540" allowfullscreen></iframe></div>' :
         '<p class="meta">' + (communities.length
           ? (en ? 'Choose a live channel to watch and play here.' : 'Elige un canal en directo para ver el stream y jugar aquí.')
           : (en ? 'No channels are live right now.' : 'No hay canales en directo en este momento.')) + '</p>') +
-      '<ul class="community-list live-communities">' + cards + '</ul></section>' +
-      (stream ? await renderLiveGame(request, env.DB, url, language) : '') +
+      '<ul class="community-list live-communities">' + cards + '</ul></section>'
+    const game = stream ? await renderLiveGame(request, env.DB, url, language) : ''
+    return page((game ? '<div class="live-layout">' + watch + game + '</div>' : watch) +
       (selectedStream ? renderAnnouncements(selectedStream.community_id, language) : ''))
   }
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'about') {

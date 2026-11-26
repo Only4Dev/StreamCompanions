@@ -135,6 +135,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const submitted = await webAction('100:1', base, true)
   assert.equal(submitted.status, 200)
   assert.equal((await submitted.json()).id, actionId)
+  assert.match(liveHtml, /<div class="live-layout">[\s\S]*<iframe[\s\S]*id="play-web"/)
   assert.match(liveHtml, /Jugar en web/)
   assert.match(liveHtml, /name="ball" value="master"/)
   const [queued] = await pollWeb()
