@@ -10,7 +10,7 @@ import { kanto } from './kanto.js'
 import { equippedMoves, moveCooldown, movePp, moves } from '../dev/battle.js'
 import { familyDnaCount, familyRoot, maxDnaBoosters } from '../ui/evolution.js'
 import { creatureMoves, parseLoadout, speciesName, validMoveset } from './movesets.js'
-import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles, mobileStyles } from './portal-style.js'
+import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles, mobileStyles, liveReactionStyles } from './portal-style.js'
 import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
 import { heldItems } from '../ui/held-items.js'
 import { maxShopQuantity, shopItems, validShopQuantity } from '../ui/shop.js'
@@ -73,6 +73,28 @@ let submitting = false;
 let timer;
 let version = 0;
 let lastLog = '';
+let clearReaction;
+const reaction = document.querySelector('[data-live-reaction]');
+function showFeedback(message, result, captureAction = false) {
+  const kind = result === 'catchSuccess' ? 'catch' : captureAction || result === 'escaped' ? 'miss' :
+    ['summoned', 'removed', 'candyUsed'].includes(result) ? 'success' : 'warning';
+  status.dataset.feedback = kind;
+  status.textContent = message;
+  if (!reaction) return;
+  clearTimeout(clearReaction);
+  const badge = document.createElement('span');
+  badge.className = 'live-reaction-badge';
+  badge.dataset.effect = kind;
+  const icon = document.createElement('span');
+  icon.className = kind === 'catch' || kind === 'miss' ? 'live-reaction-ball' : 'live-reaction-symbol';
+  icon.textContent = kind === 'success' ? '✓' : kind === 'warning' ? '!' : '';
+  const text = document.createElement('span');
+  text.textContent = message;
+  badge.append(icon, text);
+  reaction.replaceChildren(badge);
+  clearReaction = setTimeout(() => reaction.replaceChildren(), 4200);
+}
+let actionType = '';
 function schedule(delay) {
   clearTimeout(timer);
   timer = setTimeout(refresh, delay);
@@ -82,6 +104,8 @@ root.addEventListener('submit', async event => {
   if (submitting || endpoint.searchParams.has('game')) return;
   const form = event.target;
   const data = new URLSearchParams(new FormData(form));
+  actionType = data.get('action');
+  delete status.dataset.feedback;
   submitting = true;
   version++;
   clearTimeout(timer);
@@ -93,9 +117,10 @@ root.addEventListener('submit', async event => {
     const result = await response.json();
     status.textContent = result.message || root.dataset.waiting;
     if (result.id) endpoint.searchParams.set('game', result.id);
+    else if (result.message) showFeedback(result.message, result.result, actionType === 'catch');
     form.elements.namedItem('id').value = crypto.randomUUID();
   } catch {
-    status.textContent = root.dataset.failed;
+    showFeedback(root.dataset.failed, 'network');
   } finally {
     submitting = false;
     void refresh();
@@ -137,7 +162,9 @@ async function refresh() {
         return row;
       }));
     }
-    if (state.message) status.textContent = state.message;
+    if (!state.pending && state.result && endpoint.searchParams.has('game')) {
+      showFeedback(state.message, state.result, actionType === 'catch');
+    } else if (state.message) status.textContent = state.message;
     else if (!state.online) status.textContent = root.dataset.offline;
     else if (status.textContent === root.dataset.offline) status.textContent = '';
     if (!state.pending) endpoint.searchParams.delete('game');
@@ -169,7 +196,7 @@ function webGameState(runtime, row, language) {
   }
   const message = pending ? (en ? 'Waiting for the streamer’s app…' : 'Esperando a la app del streamer…') :
     result ? messages[result] || botCopy[language][result] || (en ? 'The action could not be completed.' : 'No se pudo completar la acción.') : ''
-  return { online, pending, message, encounter: online ? runtime.encounter_id : null,
+  return { online, pending, message, ...(result ? { result } : {}), encounter: online ? runtime.encounter_id : null,
     difficulty: online ? runtime[en ? 'difficulty_en' : 'difficulty_es'] : null }
 }
 
@@ -228,7 +255,7 @@ async function renderLiveGame(request, db, url, language) {
     ' <input type="number" name="quantity" min="1" max="50" value="1" required></label><button' +
     disabled + '>' + (en ? 'Use Rare Candy' : 'Usar Caramelo Raro') + '</button></form></section>' +
     '</div><details class="live-activity" open><summary>' + (en ? 'Your game activity' : 'Tu actividad de juego') +
-    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=3" defer></script>'
+    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=4" defer></script>'
 
 }
 
@@ -323,7 +350,7 @@ function renderPage(body, status, language, theme, url) {
   headers.append('Set-Cookie', cookie('sc_lang', language, 31_536_000))
   headers.append('Set-Cookie', cookie('sc_theme', theme, 31_536_000))
   return new Response('<!doctype html><html lang="' + language + '" data-theme="' + theme + '"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
-    '<title>Stream Companions</title><style>' + portalStyles + dexStyles + providerStyles + languageStyles + helpStyles + darkStyles + mobileStyles + '</style>' +
+    '<title>Stream Companions</title><style>' + portalStyles + dexStyles + providerStyles + languageStyles + helpStyles + darkStyles + mobileStyles + liveReactionStyles + '</style>' +
     '<main><header class="mast"><span class="mark" aria-hidden="true">✦</span>Stream Companions<nav class="web-language" aria-label="' + (language === 'en' ? 'Portal navigation' : 'Navegación del portal') + '"><a href="/">' +
     (language === 'en' ? 'Home' : 'Inicio') + '</a>' + '<a class="help-header" href="?' + escape(new URLSearchParams({
       tab: 'help', ...(url.searchParams.get('community') ? { community: url.searchParams.get('community') } : {})
@@ -530,6 +557,7 @@ export async function portal(request, url, env) {
       (en ? 'Play on the web' : 'Jugar en web') + '</a></nav>' : ''
     const channelUrl = stream && (platform === 'twitch' ? 'https://www.twitch.tv/' : 'https://kick.com/') + encodeURIComponent(stream.login)
     const watch = '<section class="sheet live-watch" id="watch-live"><h1>' + title + '</h1>' + mainTabs + channelTabs +
+      (stream ? '<div class="live-reaction" data-live-reaction aria-hidden="true"></div>' : '') +
       (player ? '<div class="live-player"><iframe title="' + escape(stream.login) + '" src="' + escape(player) +
         '" width="960" height="540" allowfullscreen></iframe></div>' +
         '<a class="live-mobile-channel" href="' + escape(channelUrl) + '">' +
@@ -609,7 +637,7 @@ export async function portal(request, url, env) {
       if (request.headers.get('Accept') === 'application/json') {
         const id = /^[a-f0-9-]{36}$/.test(result) ? result : null
         const state = webGameState(null, id ? { created_at: Date.now() } : { result }, language)
-        return Response.json({ id, message: state.message }, { headers: { 'Cache-Control': 'private, no-store' } })
+        return Response.json({ id, message: state.message, ...(state.result ? { result: state.result } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
       }
       return redirect('/?' + new URLSearchParams({ tab: 'live', community, platform, game: result }) + '#play-web', [])
     }

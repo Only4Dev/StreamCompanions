@@ -169,7 +169,10 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.equal(kickStatus.status, 200)
   assert.equal((await kickStatus.json()).balls.normal, 8)
   const complete = await worker.fetch(new Request(actionStatus, { headers: { Cookie: 'sc_session=' + session } }), { DB: D1 })
-  assert.match((await complete.json()).message, /Capturaste/)
+  const captureFeedback = await complete.json()
+  assert.equal(captureFeedback.result, 'catchSuccess')
+  assert.match(captureFeedback.message, /Capturaste/)
+  assert.match(liveHtml, /data-live-reaction/)
   const syncCapture = capture => worker.fetch(new Request(base + '/api/sync', {
     method: 'POST', headers: { Authorization: 'Bearer ' + token },
     body: JSON.stringify({ viewers: [{ id: 'twitch:1', revision: 3, displayName: 'viewer',
