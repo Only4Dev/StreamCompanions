@@ -3,7 +3,7 @@ import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, maxDnaB
 import { defaultSummonXpPerSecond, level, maxLevel, maxXp, xpAtLevel } from '../ui/levels.js'
 import { captureRates } from '../ui/capture-rates.js'
 import { heldItems } from '../ui/held-items.js'
-import { normalizeShopPrices, shopItems, validShopPrice } from '../ui/shop.js'
+import { normalizeShopPrices, shopItems, validShopPrice, validShopQuantity } from '../ui/shop.js'
 
 export const creatures = ['Brasa', 'Musgo', 'Gota']
 
@@ -269,21 +269,23 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       if (!prices) throw new Error('Invalid shop prices')
       config.shopPrices = prices
     },
-    fulfillOrder({ id, viewerId, item, price, speciesKey }) {
+    fulfillOrder({ id, viewerId, item, price, speciesKey, quantity = 1 }) {
       if (shopReceipts.has(id)) return shopReceipts.get(id)
       const product = Object.hasOwn(shopItems, item) ? shopItems[item] : null
       const viewer = viewers.get(viewerId)
       let result = 'unavailable'
-      const charge = price ?? product?.price
-      if (viewer && product && validShopPrice(charge) && (!product.dna || Object.hasOwn(viewer.collection, speciesKey ?? ''))) {
+      const unitPrice = config.shopPrices?.[item] ?? product?.price
+      const charge = unitPrice * quantity
+      if (viewer && product && validShopPrice(unitPrice) && (price == null || validShopPrice(price)) && validShopQuantity(product, quantity) && (!product.dna || Object.hasOwn(viewer.collection, speciesKey ?? ''))) {
         const keys = product.dna ? dnaKeys(viewer, speciesKey) : []
         const dna = familyDnaCount(viewer.dnaBoosters, keys)
-        if (product.held && viewer.heldItems?.includes(item)) result = 'owned'
+        if (price != null && price !== unitPrice) result = 'repriced'
+        else if (product.held && viewer.heldItems?.includes(item)) result = 'owned'
         else if (product.dna && dna >= maxDnaBoosters) result = 'maxed'
         else if ((viewer.pokeDollars ?? 0) < charge) result = 'funds'
         else {
           viewer.pokeDollars -= charge
-          if (product.ball) viewer.balls[product.ball] = (viewer.balls[product.ball] ?? 0) + 1
+          if (product.ball) viewer.balls[product.ball] = (viewer.balls[product.ball] ?? 0) + quantity
           else if (product.dna) {
             viewer.dnaBoosters ??= {}
             for (const key of keys) delete viewer.dnaBoosters[key]

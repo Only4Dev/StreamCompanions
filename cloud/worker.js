@@ -183,22 +183,23 @@ async function deviceShop(request, db) {
     }
     const packed = prices ? JSON.stringify(prices) : null
     const familyDna = request.headers.get('X-Shop-Family-Dna')
+    const supportsQuantity = Number(request.headers.get('X-Shop-Quantity') === '1')
     const dnaLevel = dna ? (familyDna === '2' ? 3 : familyDna === '1' ? 2 : 1) : 0
     const [, pending] = await db.batch([
-      db.prepare('INSERT INTO shop_online (community_id, seen_at, prices, supports_dna) VALUES (?, ?, ?, ?) ' +
-        'ON CONFLICT (community_id) DO UPDATE SET seen_at = excluded.seen_at, prices = excluded.prices, supports_dna = excluded.supports_dna ' +
-        'WHERE excluded.prices IS NOT NULL OR shop_online.prices IS NULL').bind(community, Date.now(), packed, dnaLevel),
-      db.prepare('SELECT id, viewer_id AS viewerId, item, price, species_key AS speciesKey FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
-        'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) ORDER BY created_at LIMIT 10').bind(community, packed, dnaLevel)
+      db.prepare('INSERT INTO shop_online (community_id, seen_at, prices, supports_dna, supports_quantity) VALUES (?, ?, ?, ?, ?) ' +
+        'ON CONFLICT (community_id) DO UPDATE SET seen_at = excluded.seen_at, prices = excluded.prices, supports_dna = excluded.supports_dna, supports_quantity = excluded.supports_quantity ' +
+        'WHERE excluded.prices IS NOT NULL OR shop_online.prices IS NULL').bind(community, Date.now(), packed, dnaLevel, supportsQuantity),
+      db.prepare('SELECT id, viewer_id AS viewerId, item, price, species_key AS speciesKey, quantity FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
+        'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) AND (? = 1 OR quantity = 1) ORDER BY created_at, id LIMIT 10').bind(community, packed, dnaLevel, supportsQuantity)
     ])
-    return json({ orders: pending.results.map(({ price, speciesKey, ...order }) => ({ ...order,
-      ...(price === null ? {} : { price }), ...(speciesKey === null ? {} : { speciesKey }) })) })
+    return json({ orders: pending.results.map(({ price, speciesKey, quantity, ...order }) => ({ ...order,
+      ...(quantity === 1 ? {} : { quantity }), ...(price === null ? {} : { price }), ...(speciesKey === null ? {} : { speciesKey }) })) })
   }
   if (request.method !== 'POST') return json({ error: 'invalid method' }, 405)
   let receipts
   try { receipts = (await readBatch(request)) } catch { return json({ error: 'invalid receipts' }, 400) }
   if (!Array.isArray(receipts) || receipts.length < 1 || receipts.length > 10 || receipts.some(row =>
-    !/^[a-f0-9-]{36}$/.test(row?.id ?? '') || !['unavailable', 'owned', 'funds', 'purchased', 'maxed'].includes(row?.result))) {
+    !/^[a-f0-9-]{36}$/.test(row?.id ?? '') || !['unavailable', 'owned', 'funds', 'purchased', 'maxed', 'repriced'].includes(row?.result))) {
     return json({ error: 'invalid receipts' }, 400)
   }
   await db.batch(receipts.map(({ id, result }) => db.prepare('UPDATE shop_orders SET result = ? WHERE community_id = ? AND id = ? AND result IS NULL')

@@ -10,7 +10,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
   for (const migration of ['0001_sync', '0002_portal', '0003_viewer_login', '0004_accounts', '0005_movesets', '0006_kick',
-    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status']) {
+    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity']) {
     db.exec(await readFile(new URL('./migrations/' + migration + '.sql', import.meta.url), 'utf8'))
   }
   const D1 = {
@@ -31,11 +31,12 @@ test('a signed-in viewer can submit one shop order while their device is online'
   db.prepare('INSERT INTO devices (key_hash, community_id) VALUES (?, ?)').run(hash, 'stream')
   db.prepare('INSERT INTO viewer_progress VALUES (?, ?, ?, ?, ?)').run('stream', 'twitch:1', 1, JSON.stringify({ collection: {}, balls: { normal: 5, great: 0, ultra: 0, master: 0 }, pokeDollars: 500 }), 0)
   const base = 'https://example.test'
-  const device = (method, body, prices) => worker.fetch(new Request(base + '/api/shop', {
-    method, headers: { Authorization: 'Bearer ' + token, ...(prices && { 'X-Shop-Prices': JSON.stringify(prices) }) }, body: body && JSON.stringify(body)
+  const device = (method, body, prices, bulk = false) => worker.fetch(new Request(base + '/api/shop', {
+    method, headers: { Authorization: 'Bearer ' + token, ...(prices && { 'X-Shop-Prices': JSON.stringify(prices) }), ...(bulk && { 'X-Shop-Quantity': '1' }) }, body: body && JSON.stringify(body)
   }), { DB: D1 })
-  const order = (id, price) => worker.fetch(new Request(base + '/shop/buy?community=stream&item=poke-ball&order=' + id + (price ? '&price=' + price : ''), {
-    method: 'POST', headers: { Origin: base, Cookie: 'sc_session=' + session }
+  const order = (id, price, quantity) => worker.fetch(new Request(base + '/shop/buy?community=stream&item=poke-ball&order=' + id + (price ? '&price=' + price : ''), {
+    method: 'POST', headers: { Origin: base, Cookie: 'sc_session=' + session },
+    body: quantity === undefined ? null : new URLSearchParams({ quantity })
   }), { DB: D1 })
   const first = crypto.randomUUID()
   const second = crypto.randomUUID()
@@ -58,6 +59,18 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.deepEqual(await (await device('GET')).json(), { orders: [] })
   assert.deepEqual(await (await device('GET', null, { 'poke-ball': 200 })).json(), {
     orders: [{ id: priced, viewerId: 'twitch:1', item: 'poke-ball', price: 150 }]
+  })
+  await device('POST', { viewers: [{ id: priced, result: 'repriced' }] })
+  const bulk = crypto.randomUUID()
+  assert.match((await order(bulk, 200, 2)).headers.get('Location'), /reason=quantity/)
+  await device('GET', null, { 'poke-ball': 100 }, true)
+  assert.equal((await order(bulk, 100, 0)).status, 400)
+  assert.match((await order(bulk, 100, 6)).headers.get('Location'), /reason=funds/)
+  assert.match((await order(bulk, 100, 3)).headers.get('Location'), new RegExp('purchase=' + bulk))
+  assert.match((await order(bulk, 100, 3)).headers.get('Location'), new RegExp('purchase=' + bulk))
+  assert.deepEqual(await (await device('GET', null, { 'poke-ball': 100 })).json(), { orders: [] })
+  assert.deepEqual(await (await device('GET', null, { 'poke-ball': 100 }, true)).json(), {
+    orders: [{ id: bulk, viewerId: 'twitch:1', item: 'poke-ball', price: 100, quantity: 3 }]
   })
   const syncCapture = capture => worker.fetch(new Request(base + '/api/sync', {
     method: 'POST', headers: { Authorization: 'Bearer ' + token },

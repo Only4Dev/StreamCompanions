@@ -11,7 +11,7 @@ import { creatureMoves, parseLoadout, speciesName, validMoveset } from './movese
 import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles } from './portal-style.js'
 import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
 import { heldItems } from '../ui/held-items.js'
-import { shopItems } from '../ui/shop.js'
+import { maxShopQuantity, shopItems, validShopQuantity } from '../ui/shop.js'
 
 const families = new Map()
 for (const entry of nationalDex) {
@@ -132,7 +132,13 @@ function pendingPurchase(en) {
 
 export async function portal(request, url, env) {
   if (request.method === 'GET' && url.pathname === '/assets/shop-status.js') {
-    return new Response(`const receipt = document.querySelector('[data-order-pending]');
+    return new Response(`for (const input of document.querySelectorAll('[data-shop-quantity]')) {
+        const total = input.form.querySelector('output');
+        input.addEventListener('input', () => {
+          total.value = input.validity.valid ? '$' + (input.valueAsNumber * Number(input.dataset.shopQuantity)) : '—';
+        });
+      }
+      const receipt = document.querySelector('[data-order-pending]');
       if (receipt) {
         const refresh = async () => {
           for (let attempt = 0; attempt < 15; attempt++) {
@@ -356,7 +362,7 @@ export async function portal(request, url, env) {
   }
   const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, pokeDollars = 0, dnaBoosters = {}, log = [] } = JSON.parse(selected.payload)
   const online = buying || url.searchParams.get('tab') === 'shop' || !editing && url.searchParams.has('pokemon')
-    ? await env.DB.prepare('SELECT seen_at, prices, supports_dna FROM shop_online WHERE community_id = ?').bind(selected.community_id).first() : null
+    ? await env.DB.prepare('SELECT seen_at, prices, supports_dna, supports_quantity FROM shop_online WHERE community_id = ?').bind(selected.community_id).first() : null
   const published = online?.prices ? JSON.parse(online.prices) : null
   const shopOpen = Boolean(online && online.seen_at > Date.now() - 70_000)
   const walletText = (en ? 'Current balance: ' : 'Saldo actual: ') + '$' + pokeDollars
@@ -365,7 +371,8 @@ export async function portal(request, url, env) {
   const fundsText = (en ? 'Not enough Pokédollars. ' : 'No tienes suficientes Pokédólares. ') + walletText
   const upgradeText = en ? 'The streamer’s app does not support DNA Booster purchases yet.' :
     'La app del streamer aún no admite compras de DNA Booster.'
-  const reasons = { offline: offlineText, funds: fundsText, upgrade: upgradeText }
+  const reasons = { offline: offlineText, funds: fundsText, upgrade: upgradeText,
+    quantity: en ? 'The streamer’s app does not support buying multiple items yet.' : 'La app del streamer aún no permite comprar varias unidades.' }
   const reason = url.searchParams.get('reason')
   const purchaseWarning = Object.hasOwn(reasons, reason ?? '') ? reasons[reason] : ''
   if (buying) {
@@ -373,6 +380,9 @@ export async function portal(request, url, env) {
     const orderId = url.searchParams.get('order')
     if (!Object.hasOwn(shopItems, item ?? '') || !/^[a-f0-9-]{36}$/.test(orderId ?? '')) return new Response(null, { status: 400 })
     const product = shopItems[item]
+    const form = request.headers.get('Content-Type')?.startsWith('application/x-www-form-urlencoded') ? await request.formData() : null
+    const quantity = Number(form?.get('quantity') ?? 1)
+    if (!validShopQuantity(product, quantity)) return new Response(null, { status: 400 })
     const target = product.dna ? url.searchParams.get('pokemon') : null
     if (product.dna && (!Object.hasOwn(collection, target ?? '') || sharedDna(dnaBoosters, target) >= maxDnaBoosters)) {
       return new Response(null, { status: 409 })
@@ -380,20 +390,22 @@ export async function portal(request, url, env) {
     const destination = target ? { pokemon: target } : { tab: 'shop' }
     const blocked = !shopOpen ? 'offline' : product.dna && !(online?.supports_dna >= 3) ? 'upgrade' : null
     const returnBlocked = reason => redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, reason }), [])
-    if (blocked) return returnBlocked(blocked)
+    if (blocked || (quantity > 1 && !online.supports_quantity)) return returnBlocked(blocked ?? 'quantity')
     const price = published?.[item] ?? product.price
     const quote = url.searchParams.get('price')
     if ((!published && quote === null) || quote === String(price)) {
-      if (pokeDollars < price) return returnBlocked('funds')
+      if (pokeDollars < price * quantity) return returnBlocked('funds')
       if (product.held && ownedItems.includes(item)) return new Response(null, { status: 409 })
     } else return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, repriced: '1' }), [])
+    const findExistingOrder = () => env.DB.prepare('SELECT id FROM shop_orders WHERE id = ? AND community_id = ? AND viewer_id = ?')
+      .bind(orderId, selected.community_id, selected.viewer_id).first()
     const now = Date.now()
-    const queued = await env.DB.prepare('INSERT OR IGNORE INTO shop_orders (id, community_id, viewer_id, item, created_at, price, species_key) ' +
-      'SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM shop_online WHERE community_id = ? AND seen_at > ? AND prices IS ? AND (? IS NULL OR supports_dna >= 3)) ' +
+    const queued = await env.DB.prepare('INSERT OR IGNORE INTO shop_orders (id, community_id, viewer_id, item, created_at, price, species_key, quantity) ' +
+      'SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM shop_online WHERE community_id = ? AND seen_at > ? AND prices IS ? AND (? IS NULL OR supports_dna >= 3) AND (? = 1 OR supports_quantity = 1)) ' +
       'AND EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ? AND account_id = ?) AND EXISTS (SELECT 1 FROM web_sessions WHERE id IN (?, ?) AND expires_at > ?)')
-      .bind(orderId, selected.community_id, selected.viewer_id, item, now, published ? price : null, target,
-        selected.community_id, now - 70_000, online?.prices ?? null, target, selected.viewer_id, identity.account_id, session, key, Date.now()).run()
-    return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, ...(queued.meta.changes ? { purchase: orderId } : { retry: '1' }) }), [])
+      .bind(orderId, selected.community_id, selected.viewer_id, item, now, published ? price : null, target, quantity,
+        selected.community_id, now - 70_000, online?.prices ?? null, target, quantity, selected.viewer_id, identity.account_id, session, key, Date.now()).run()
+    return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, ...(queued.meta.changes || await findExistingOrder() ? { purchase: orderId } : { retry: '1' }) }), [])
   }
   const availableItems = [...new Set(ownedItems)].filter(item => Object.hasOwn(heldItems, item))
   const itemName = item => escape(heldItems[item][Number(language === 'en')])
@@ -445,7 +457,7 @@ export async function portal(request, url, env) {
     const dnaMessage = purchaseWarning || (url.searchParams.has('repriced') ? (en ? 'The price changed.' : 'El precio cambió.') :
       url.searchParams.has('retry') ? (en ? 'Purchase unavailable. Check for a pending order.' : 'Compra no disponible. Revisa si hay un pedido pendiente.') :
       dnaOrder ? (dnaOrder.result === 'purchased' ? (en ? 'Purchase complete.' : 'Compra realizada.') :
-        dnaOrder.result === 'funds' ? fundsText : dnaOrder.result ? (en ? 'Purchase could not be completed.' : 'No se pudo completar la compra.') :
+        dnaOrder.result === 'funds' ? fundsText : dnaOrder.result === 'repriced' ? (en ? 'The price changed.' : 'El precio cambió.') : dnaOrder.result ? (en ? 'Purchase could not be completed.' : 'No se pudo completar la compra.') :
           (en ? 'Order sent. Waiting for confirmation…' : 'Pedido enviado. Esperando confirmación…')) : '')
     const dnaSection = '<div class="held-frame"><strong>DNA Booster ' + (dna >= maxDnaBoosters ? 'MAX' : dna + '/' + maxDnaBoosters) + '</strong>' +
       '<span>' + (en ? 'Shared across this evolution line' : 'Compartido en esta línea evolutiva') + '</span>' +
@@ -533,13 +545,13 @@ export async function portal(request, url, env) {
     const order = purchase && await env.DB.prepare('SELECT item, result FROM shop_orders WHERE community_id = ? AND viewer_id = ? AND id = ?')
       .bind(selected.community_id, selected.viewer_id, purchase).first()
     const status = { purchased: en ? 'Purchase complete' : 'Compra realizada', owned: en ? 'Already owned' : 'Ya tienes ese objeto',
-      funds: fundsText, unavailable: en ? 'Purchase could not be completed' : 'No se pudo completar la compra',
+      funds: fundsText, repriced: en ? 'The price changed.' : 'El precio cambió.', unavailable: en ? 'Purchase could not be completed' : 'No se pudo completar la compra',
       maxed: en ? 'That Pokémon is at the DNA limit' : 'Ese Pokémon ya alcanzó el máximo de DNA' }
     const pending = order && !order.result
     shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong>$' + escape(pokeDollars) + '</strong></p>' +
       (url.searchParams.has('repriced') ? '<p role="status">' + (en ? 'The price changed. Check it before buying again.' : 'El precio cambió. Revísalo antes de volver a comprar.') + '</p>' : '') +
       (purchaseWarning || !available ? '<p role="status" class="empty">' + escape(purchaseWarning || offlineText) + '</p>' : '') +
-      (pending ? '<p role="status" data-order-receipt' + pendingPurchase(en) + '>' + (en ? 'Order sent. Waiting for confirmation…' : 'Pedido enviado. Esperando confirmación…') + '</p><script src="/assets/shop-status.js" defer></script>' :
+      (pending ? '<p role="status" data-order-receipt' + pendingPurchase(en) + '>' + (en ? 'Order sent. Waiting for confirmation…' : 'Pedido enviado. Esperando confirmación…') + '</p>' :
         order && status[order.result] ? '<p role="status" data-order-receipt>' + status[order.result] + '</p>' : '') +
       '<ul class="held-grid">' + Object.entries(shopItems).filter(([, product]) => !product.dna).map(([id, product]) => {
         const owned = product.held && ownedItems.includes(id)
@@ -547,9 +559,12 @@ export async function portal(request, url, env) {
         const action = '/shop/buy?' + new URLSearchParams({ community: selected.community_id, item: id, order: crypto.randomUUID(), price })
         const button = '<button' + (!available || pending || owned || pokeDollars < price ? ' disabled' : '') + '>' +
           (owned ? (en ? 'Owned' : 'Ya lo tienes') : (en ? 'Buy' : 'Comprar')) + '</button>'
+        const quantityInput = product.ball && online?.supports_quantity && available && !pending && pokeDollars >= price
+          ? '<label>' + (en ? 'Quantity' : 'Cantidad') + ' <input type="number" name="quantity" data-shop-quantity="' + price + '" min="1" max="' +
+            Math.min(maxShopQuantity, Math.floor(pokeDollars / price)) + '" value="1" required></label> <label>Total <output>$' + price + '</output></label>' : ''
         return '<li>' + itemIcon(id) + '<strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
-          '<form method="post" action="' + escape(action) + '">' + button + '</form>' + (available && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
-      }).join('') + '</ul></section>'
+          '<form method="post" action="' + escape(action) + '">' + quantityInput + button + '</form>' + (available && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
+      }).join('') + '</ul></section><script src="/assets/shop-status.js" defer></script>'
   }
   const logDescription = entry => {
     const outcome = Object.hasOwn(outcomes, entry.result) ? outcomes[entry.result] : ''

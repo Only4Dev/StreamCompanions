@@ -91,6 +91,19 @@ test('the desktop shop denies insufficient funds and preserves inventory', () =>
   assert.equal(game.progress().viewers[viewerId].balls.normal, 5)
 })
 
+test('bulk purchases use the current unit price and deliver the entire order once', () => {
+  const viewerId = 'twitch:1'
+  const game = createGame({ progress: { viewers: { [viewerId]: { collection: {}, balls: { normal: 5 }, pokeDollars: 500 } } } })
+  const order = { id: 'bulk', viewerId, item: 'poke-ball', price: 100, quantity: 3 }
+  assert.equal(game.fulfillOrder({ ...order, id: 'stale', price: 90 }), 'repriced')
+  assert.equal(game.fulfillOrder({ ...order, id: 'too-many', quantity: 6 }), 'funds')
+  assert.equal(game.fulfillOrder({ ...order, id: 'unique', item: 'sitrus-berry' }), 'unavailable')
+  assert.equal(game.fulfillOrder(order), 'purchased')
+  assert.equal(createGame({ progress: game.progress() }).fulfillOrder(order), 'purchased')
+  assert.equal(game.progress().viewers[viewerId].pokeDollars, 200)
+  assert.equal(game.progress().viewers[viewerId].balls.normal, 8)
+})
+
 test('capture rates vary by species and ball, with guaranteed Master Ball', () => {
   assert.ok(catchChance('normal', 19) > catchChance('normal', 1))
   assert.ok(catchChance('ultra', 1) > catchChance('great', 1))
