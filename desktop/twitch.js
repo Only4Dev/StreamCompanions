@@ -25,11 +25,11 @@ export function twitchChatHandler({ owner, follows, command, reply, webUrl, getB
     if (allowOwner && !isRunning()) return
     const bot = getBot()
     const send = message => reply(botSignature(bot, message).slice(0, 500))
-    if (text.toLowerCase() === '!web') {
+    if (['!web', '!poke web'].includes(text.trim().toLowerCase().replace(/\s+/g, ' '))) {
       if (webUrl && time - lastLink >= 60_000) {
         lastLink = time
         const message = botResponse(bot, 'web')
-        if (message) await send(message.replaceAll('{url}', () => webUrl))
+        if (message) await send(message.replaceAll('{url}', () => typeof webUrl === 'function' ? webUrl() : webUrl))
       }
       return
     }

@@ -71,7 +71,7 @@ test('a visible companion announces a level increase without announcing its init
   const original = globalThis.requestAnimationFrame
   globalThis.requestAnimationFrame = callback => { frame = callback }
   const labels = []
-  const context = { clearRect() {}, save() {}, restore() {}, strokeText() {},
+  const context = { clearRect() {}, fillRect() {}, save() {}, restore() {}, strokeText() {},
     fillText(text) { labels.push([text, this.font]) } }
   const companion = { active: { key: 'Brasa', expires: Infinity, layer: 1 }, collection: { Brasa: 0 } }
   const canvas = { clientWidth: 600, clientHeight: 338, getContext: () => context }

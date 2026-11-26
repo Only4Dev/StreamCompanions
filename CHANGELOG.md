@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0
+
+- Add bulk Poké Ball and DNA Booster purchases with live order, wallet, and inventory updates.
+- Add Twitch and Kick players to the Live portal, with signed-in controls for catching, summoning, withdrawing, and using Rare Candy.
+- Support `!poke web` and apply counted Rare Candy purchases to the active companion with `!candy` and `!caramelo`.
+- Pause game actions and passive summon rewards during battles. Show XP progress outside battle and announce new evolutions.
+- Balance catch rates by species difficulty and add a caught-only Pokédex filter.
+
 ## 1.1.2
 
 - Command cooldowns are independent in Twitch and Kick. Encounter and battle announcements are sent to both live chats without waiting for either platform.

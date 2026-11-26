@@ -10,12 +10,12 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
   for (const migration of ['0001_sync', '0002_portal', '0003_viewer_login', '0004_accounts', '0005_movesets', '0006_kick',
-    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity']) {
+    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity', '0019_web_game']) {
     db.exec(await readFile(new URL('./migrations/' + migration + '.sql', import.meta.url), 'utf8'))
   }
   const D1 = {
     prepare(sql) {
-      return { bind(...args) { return {
+      return { all: () => ({ results: db.prepare(sql).all() }), bind(...args) { return {
         all: () => ({ results: db.prepare(sql).all(...args) }),
         first: () => db.prepare(sql).get(...args),
         run: () => ({ meta: db.prepare(sql).run(...args) }), sql
@@ -94,6 +94,40 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.deepEqual(await readStatus(), {
     balance: 200, balls: updatedViewer.balls, heldItems: [], pending: false, online: true, message: 'Compra realizada.'
   })
+  const runtimeHeaders = { Authorization: 'Bearer ' + token, 'X-Web-Game': JSON.stringify({ id: '100:1', en: 'Easy', es: 'Fácil' }) }
+  db.prepare('INSERT INTO community_stream_status VALUES (?, ?, ?)').run('stream', Date.now(), JSON.stringify([
+    { provider: 'twitch', login: 'streamer', live: true }
+  ]))
+  const pollWeb = async () => (await (await worker.fetch(new Request(base + '/api/shop', { headers: runtimeHeaders }), { DB: D1 })).json()).webActions
+  assert.deepEqual(await pollWeb(), [])
+  const liveUrl = base + '/?tab=live&community=stream&platform=twitch'
+  const livePage = await worker.fetch(new Request(liveUrl, { headers: { Cookie: 'sc_session=' + session } }), { DB: D1 })
+  assert.match(livePage.headers.get('Content-Security-Policy'), /connect-src 'self'/)
+  const liveHtml = await livePage.text()
+  assert.match(liveHtml, /player\.twitch\.tv\/\?channel=streamer&amp;parent=example\.test/)
+  assert.match(liveHtml, /data-capture-form/)
+  const actionId = crypto.randomUUID()
+  const webAction = (encounter, origin = base) => worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
+    method: 'POST', headers: { Origin: origin, Cookie: 'sc_session=' + session },
+    body: new URLSearchParams({ id: actionId, action: 'catch', encounter, ball: 'normal' })
+  }), { DB: D1 })
+  assert.equal((await webAction('100:1', 'https://other.test')).status, 403)
+  assert.match((await webAction('100:0')).headers.get('Location'), /game=expired/)
+  assert.match((await webAction('100:1')).headers.get('Location'), new RegExp('game=' + actionId))
+  assert.match((await webAction('100:1')).headers.get('Location'), new RegExp('game=' + actionId))
+  const [queued] = await pollWeb()
+  assert.equal(queued.command, '!catch normal')
+  assert.equal(queued.encounterId, '100:1')
+  const actionStatus = new URL(base + '/live/status?community=stream&platform=twitch&game=' + actionId)
+  assert.equal((await worker.fetch(new Request(actionStatus), { DB: D1 })).status, 401)
+  const finish = await worker.fetch(new Request(base + '/api/web-game', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ viewers: [{ id: actionId, result: 'catchSuccess' }] })
+  }), { DB: D1 })
+  assert.deepEqual(await finish.json(), { received: [actionId] })
+  assert.deepEqual(await pollWeb(), [])
+  const complete = await worker.fetch(new Request(actionStatus, { headers: { Cookie: 'sc_session=' + session } }), { DB: D1 })
+  assert.match((await complete.json()).message, /Capturaste/)
   const syncCapture = capture => worker.fetch(new Request(base + '/api/sync', {
     method: 'POST', headers: { Authorization: 'Bearer ' + token },
     body: JSON.stringify({ viewers: [{ id: 'twitch:1', revision: 3, displayName: 'viewer',

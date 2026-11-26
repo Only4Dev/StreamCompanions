@@ -1,5 +1,5 @@
 // PokéAPI pokemon_species.csv, ordered by National Dex ID.
-export const captureRates = [
+const captureRates = [
   45, 45, 45, 45, 45, 45, 45, 45, 45, 255, 120, 45, 255, 120, 45, 255, 120, 45, 255, 127, 255, 90, 255, 90, 190, 75, 255, 90, 235, 120, 45, 235,
   120, 45, 150, 25, 190, 75, 170, 50, 255, 90, 255, 120, 45, 190, 75, 190, 75, 255, 50, 255, 90, 190, 75, 190, 75, 190, 75, 255, 120, 45, 200, 100,
   50, 180, 90, 45, 255, 120, 45, 190, 60, 255, 120, 45, 190, 60, 190, 75, 190, 60, 45, 190, 45, 190, 75, 190, 75, 190, 60, 190, 90, 45, 45, 190,
@@ -34,3 +34,24 @@ export const captureRates = [
   30, 30, 30, 45, 25, 10, 45, 45, 6, 6, 6, 6, 10, 10, 3, 3, 5, 5, 45, 120, 60, 3, 3, 3, 5, 10, 10, 10, 10, 10, 10, 255,
   3,
 ]
+
+const bands = [
+  { minimum: 200, names: ['Muy fácil', 'Super easy'], chances: [.38, .56, .75] },
+  { minimum: 120, names: ['Fácil', 'Easy'], chances: [.26, .43, .63] },
+  { minimum: 70, names: ['Normal', 'Normal'], chances: [.17, .31, .50] },
+  { minimum: 30, names: ['Difícil', 'Hard'], chances: [.09, .19, .36] },
+  { minimum: 0, names: ['Muy difícil', 'Ultra hard'], chances: [.04, .09, .21] }
+]
+const legendaryBand = { names: ['Legendario', 'Legendary'], chances: [.01, .025, .05] }
+const mythicalSpecies = new Set([151, 251, 385, 386, 489, 490, 491, 492, 493, 494, 647, 648, 649, 719, 720, 721, 801, 802, 807, 808, 809, 893, 1025])
+const bandFor = (id, legendary) => legendary || mythicalSpecies.has(id)
+  ? legendaryBand : bands.find(band => (captureRates[id - 1] ?? 255) >= band.minimum)
+
+export function catchChance(ball, id, legendary = false) {
+  if (ball === 'master') return 1
+  return bandFor(id, legendary).chances[['normal', 'great', 'ultra'].indexOf(ball)]
+}
+
+export function catchDifficulty(id, legendary = false, language = 'es') {
+  return bandFor(id, legendary).names[Number(language === 'en')]
+}

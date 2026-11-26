@@ -1,4 +1,4 @@
-import { level } from './levels.js'
+import { level, maxLevel, xpAtLevel } from './levels.js'
 import { drawArea, drawClash, drawDigMound, drawField, drawHyper, drawOngoing, drawPoisonHazard, drawProjectile, drawStatus, drawTarget, drawUltimate } from '../dev/battle-vfx.js'
 
 const images = new Map()
@@ -125,8 +125,8 @@ function encounterCard(ctx, wild, entry, captures, width, height, fade, time, fo
   }
   if (wild.shiny) sparkles(ctx, 0, 68, time, 0, 2)
   label(ctx, wild.name + (wild.shiny ? ' ✦' : '') + ' · Lv. ' + (wild.level ?? 1), 0, 140, wild.name.length > 13 ? 13 : 15)
-  box(-51, 146, 102, 19, 4, '#101e23')
-  label(ctx, formatTime(wild.endsAt), 0, 161, 15)
+  box(-69, 146, 138, 19, 4, '#101e23')
+  label(ctx, [wild.difficulty, formatTime(wild.endsAt)].filter(Boolean).join(' · '), 0, 161, 13)
   for (const [index, caught] of captures.entries()) {
     const age = Date.now() - caught.at
     ctx.globalAlpha = fade * Math.min(1, age / 180, (4600 - age) / 500)
@@ -344,6 +344,12 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         direction: Math.random() < .5 ? -1 : 1, until: time + 640, since: time, arrived: time,
         behavior: 'Idle', turnAt: null, speed: 0 })
       const actor = actors.get(layer)
+      if (data.active.evolvedAt && actor.evolvedAt !== data.active.evolvedAt) {
+        actor.evolvedAt = data.active.evolvedAt
+        actor.arrived = time
+        actor.since = time
+        actor.behavior = 'Idle'
+      }
       const rank = level(data.collection[key])
       if (actor.rank !== undefined && rank > actor.rank) actor.levelUpAt = time
       actor.rank = rank
@@ -396,6 +402,12 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         label(context, display + ' | ' + key, actor.x, labelY - 22, 23)
         const bounce = levelUpAge < 650 ? Math.sin(Math.PI * levelUpAge / 650) * 9 : 0
         label(context, 'Lv. ' + rank, actor.x, labelY + bounce * .3, 19 + bounce, bounce ? '#a2fce1' : '#fff')
+        const start = xpAtLevel(rank)
+        const fraction = rank >= maxLevel ? 1 : (data.collection[key] - start) / (xpAtLevel(rank + 1) - start)
+        context.fillStyle = '#332b24'
+        context.fillRect(actor.x - 27, labelY + 14, 54, 5)
+        context.fillStyle = '#ffd84c'
+        context.fillRect(actor.x - 27, labelY + 14, 54 * Math.max(0, Math.min(1, fraction)), 5)
       }
       if (levelUpAge < 1650) {
         const rise = levelUpAge / 1650

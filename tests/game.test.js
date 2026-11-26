@@ -109,7 +109,7 @@ test('bulk purchases use the current unit price and deliver the entire order onc
 test('capture rates vary by species and ball, with guaranteed Master Ball', () => {
   assert.ok(catchChance('normal', 19) > catchChance('normal', 1))
   assert.ok(catchChance('ultra', 1) > catchChance('great', 1))
-  assert.equal(catchChance('normal', 150, true), .03)
+  assert.equal(catchChance('normal', 150, true), .01)
   assert.equal(catchChance('master', 150, true), 1)
 })
 
@@ -130,9 +130,32 @@ test('a scheduled legendary survives restart and appears at level 1 for five min
 
 test('Rare Candy levels the owned variant and preserves candy at the cap', () => {
   const game = createGame({ progress: { viewers: { a: { collection: { Brasa: xpAtLevel(49) }, rareCandies: 2 } } } })
-  assert.equal(game.chat('a', '!caramelo brasa'), 'candyUsed')
-  assert.equal(game.chat('a', '!candy brasa'), 'candyMaxLevel')
+  assert.equal(game.chat('a', '!candy'), 'candyNoSummon')
+  assert.equal(game.chat('a', '!summon brasa'), 'summoned')
+  assert.equal(game.chat('a', '!candy 0'), 'candyQuantity')
+  assert.equal(game.chat('a', '!candy 2'), 'candyMaxLevel')
+  assert.equal(game.chat('a', '!caramelo 1'), 'candyUsed')
+  assert.equal(game.chat('a', '!candy'), 'candyMaxLevel')
   assert.equal(game.progress().viewers.a.rareCandies, 1)
+})
+
+test('a real battle blocks game commands and never catches up paused summon rewards', () => {
+  let time = 0
+  const game = createGame({ now: () => time, random: () => 0, progress: { viewers: {
+    viewer: { collection: { Brasa: 0 }, rareCandies: 2 }
+  } } })
+  assert.equal(game.chat('viewer', '!summon brasa', 'Viewer', 'twitch'), 'summoned')
+  game.setBattleActive(true)
+  time = 120_000
+  assert.equal(game.chat('viewer', '!candy 2', 'Viewer', 'twitch'), 'battleLocked')
+  assert.equal(game.chat('viewer', '!summon out', 'Viewer', 'twitch'), 'battleLocked')
+  assert.equal(game.snapshot().viewers.viewer.metrics.summonSeconds, 0)
+  assert.equal(game.snapshot().viewers.viewer.rareCandies, 2)
+  game.setBattleActive(false)
+  time += 1000
+  assert.equal(game.snapshot().viewers.viewer.metrics.summonSeconds, 1)
+  assert.equal(game.chat('viewer', '!candy 2', 'Viewer', 'twitch'), 'candyUsed')
+  assert.equal(game.snapshot().viewers.viewer.rareCandies, 0)
 })
 
 test('roaming rewards roll once per completed active minute and survive restart', () => {
@@ -184,7 +207,7 @@ test('stopping hides the encounter and summons, preserves XP and persists across
   assert.equal(restarted.chat('viewer', '!summon brasa'), 'summoned')
 })
 
-test('evolution forms unlock at 16 and 31 and keep shared XP without replacing active summon', () => {
+test('evolution forms unlock at 16 and 31 and keep shared XP and evolve the active summon', () => {
   let now = 0
   const catalog = [{ id: 885, name: 'Dreepy' }, { id: 886, name: 'Drakloak' }, { id: 887, name: 'Dragapult' }]
   const saved = { config: { summonXpPerSecond: 1, summonXpTuned: true }, viewers: { owner: { collection: { Dreepy: xpAtLevel(16) - 1 } } } }
@@ -192,7 +215,7 @@ test('evolution forms unlock at 16 and 31 and keep shared XP without replacing a
   assert.equal(game.chat('owner', '!summon drakloak'), 'missingCreature')
   assert.equal(game.chat('owner', '!summon dreepy'), 'summoned')
   now = 1000
-  assert.equal(game.snapshot().viewers.owner.active.key, 'Dreepy')
+  assert.equal(game.snapshot().viewers.owner.active.key, 'Drakloak')
   assert.equal(game.snapshot().viewers.owner.collection.Drakloak, xpAtLevel(16))
   assert.equal(game.chat('owner', '!summon drakloak'), 'summoned')
   now += 3000

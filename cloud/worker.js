@@ -1,4 +1,5 @@
 import { completeProjectBot, projectBotAuthorization, twitchProjectReply } from './project-bots.js'
+import { deviceWebGame, finishWebGame } from './web-game.js'
 import { portal } from './portal.js'
 import { readMovesets } from './movesets.js'
 import { completeKickLink, kickDevice, kickWebhook, seal, startKickLink } from './kick.js'
@@ -199,14 +200,16 @@ async function deviceShop(request, db) {
       db.prepare('SELECT id, viewer_id AS viewerId, item, price, species_key AS speciesKey, quantity FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
         'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) AND (? = 1 OR quantity = 1) ORDER BY created_at, id LIMIT 10').bind(community, packed, dnaLevel, supportsQuantity)
     ])
-    return json({ orders: pending.results.map(({ price, speciesKey, quantity, ...order }) => ({ ...order,
+    const state = request.headers.get('X-Web-Game')
+    const webActions = state === null ? undefined : await deviceWebGame(db, device, state)
+    return json({ webActions, orders: pending.results.map(({ price, speciesKey, quantity, ...order }) => ({ ...order,
       ...(quantity === 1 ? {} : { quantity }), ...(price === null ? {} : { price }), ...(speciesKey === null ? {} : { speciesKey }) })) })
   }
   if (request.method !== 'POST') return json({ error: 'invalid method' }, 405)
   let receipts
   try { receipts = (await readBatch(request)) } catch { return json({ error: 'invalid receipts' }, 400) }
   if (!Array.isArray(receipts) || receipts.length < 1 || receipts.length > 10 || receipts.some(row =>
-    !/^[a-f0-9-]{36}$/.test(row?.id ?? '') || !['unavailable', 'owned', 'funds', 'purchased', 'maxed', 'repriced'].includes(row?.result))) {
+    !/^[a-f0-9-]{36}$/.test(row?.id ?? '') || !['unavailable', 'owned', 'funds', 'purchased', 'maxed', 'repriced', 'battleLocked'].includes(row?.result))) {
     return json({ error: 'invalid receipts' }, 400)
   }
   const viewers = []
@@ -258,7 +261,7 @@ export default {
       const statements = [
         db.prepare('INSERT INTO devices (key_hash, community_id) SELECT ?, ? WHERE ' + active)
           .bind(replacement, device.community_id, device.key_hash),
-        ...['viewer_progress', 'viewer_movesets', 'viewer_held_items', 'shop_orders', 'kick_messages', 'shop_online', 'community_stream_status']
+        ...['viewer_progress', 'viewer_movesets', 'viewer_held_items', 'shop_orders', 'kick_messages', 'shop_online', 'community_stream_status', 'web_game_runtime', 'web_game_actions']
           .map(table => db.prepare('DELETE FROM ' + table + ' WHERE community_id = ? AND ' + active).bind(device.community_id, device.key_hash)),
         db.prepare('UPDATE community_owners SET key_hash = ? WHERE key_hash = ? AND ' + active).bind(replacement, device.key_hash, device.key_hash),
         db.prepare('UPDATE devices SET revoked_at = ? WHERE key_hash = ? AND revoked_at IS NULL').bind(Date.now(), device.key_hash)
@@ -287,6 +290,14 @@ export default {
         'seen_at = excluded.seen_at, platforms = excluded.platforms')
         .bind(device.community_id, Date.now(), JSON.stringify(platforms)).run()
       return new Response(null, { status: 204 })
+    }
+    if (path === '/api/web-game') {
+      const device = await authorizedDevice(request, env.DB)
+      if (!device) return json({ error: 'unauthorized' }, 401)
+      let receipts
+      try { receipts = await readBatch(request) } catch { return json({ error: 'invalid receipts' }, 400) }
+      const received = await finishWebGame(request, env.DB, device, receipts)
+      return received ? json({ received }) : json({ error: 'invalid receipts' }, 400)
     }
     if (request.method === 'POST' && path === '/api/sync') return synchronize(request, env.DB)
     if (request.method === 'POST' && path === '/api/devices/register') return registerDevice(request, env.DB)

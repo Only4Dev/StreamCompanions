@@ -1,3 +1,5 @@
+import { enqueueWebGame, webGameStatus, webGameViewer } from './web-game.js'
+import { botCopy } from '../ui/bot-copy.js'
 import { helpPage } from './help.js'
 import { aboutCopy, projectLinks } from '../ui/about.js'
 import appPackage from '../package.json' with { type: 'json' }
@@ -12,6 +14,104 @@ import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, da
 import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
 import { heldItems } from '../ui/held-items.js'
 import { maxShopQuantity, shopItems, validShopQuantity } from '../ui/shop.js'
+
+const webGameScript = `
+const root = document.querySelector('[data-web-game]');
+const status = root.querySelector('[role=status]');
+const capture = root.querySelector('[data-capture-form]');
+const endpoint = new URL('/live/status', location.origin);
+endpoint.search = location.search;
+let busy = false;
+root.addEventListener('submit', event => {
+  if (busy) { event.preventDefault(); return; }
+  busy = true;
+  status.textContent = root.dataset.waiting;
+  for (const button of root.querySelectorAll('button')) button.disabled = true;
+});
+async function refresh() {
+  try {
+    const response = await fetch(endpoint, {cache: 'no-store'});
+    if (response.status === 401 || response.status === 404) return;
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const state = await response.json();
+    capture.elements.encounter.value = state.encounter || '';
+    root.querySelector('[data-capture-difficulty]').textContent = state.difficulty || '';
+    capture.querySelector('button').disabled = busy || state.pending || !state.encounter;
+    for (const button of root.querySelectorAll('form:not([data-capture-form]) button')) button.disabled = busy || state.pending || !state.online;
+    if (state.message) status.textContent = state.message;
+    if (!state.pending) endpoint.searchParams.delete('game');
+    setTimeout(refresh, state.pending ? 500 : 2500);
+  } catch {
+    setTimeout(refresh, 2500);
+  }
+}
+refresh();
+`
+
+function webGameState(runtime, row, language) {
+  const en = language === 'en'
+  const online = Boolean(runtime?.seen_at > Date.now() - 20000)
+  const pending = Boolean(row && !row.result && row.created_at > Date.now() - 15000)
+  const result = row?.result || (row && !pending ? 'expired' : '')
+  const messages = {
+    catchSuccess: en ? 'You caught the Pokémon!' : '¡Capturaste al Pokémon!',
+    summoned: en ? 'Companion summoned.' : 'Compañero invocado.',
+    removed: en ? 'Companion withdrawn.' : 'Compañero retirado.',
+    expired: en ? 'The encounter or request expired.' : 'El encuentro o la solicitud caducó.',
+    pending: en ? 'An action is already pending.' : 'Ya hay una acción pendiente.',
+    offline: en ? 'The streamer’s app is offline.' : 'La app del streamer está desconectada.',
+    cooldown: en ? 'Wait five seconds between commands in this channel.' : 'Espera cinco segundos entre comandos en este canal.',
+    noBalls: en ? 'You have none of the selected Poké Ball.' : 'No te quedan Poké Balls del tipo elegido.',
+    escaped: en ? 'The Pokémon escaped.' : 'El Pokémon escapó.'
+  }
+  const message = pending ? (en ? 'Waiting for the streamer’s app…' : 'Esperando a la app del streamer…') :
+    result ? messages[result] || botCopy[language][result] || (en ? 'The action could not be completed.' : 'No se pudo completar la acción.') : ''
+  return { online, pending, message, encounter: online ? runtime.encounter_id : null,
+    difficulty: online ? runtime[en ? 'difficulty_en' : 'difficulty_es'] : null }
+}
+
+async function viewerSession(request, db) {
+  const session = getCookie(request, 'sc_session')
+  const key = /^[a-f0-9]{64}$/.test(session ?? '') ? await sessionKey(session) : null
+  const identity = key ? await db.prepare(
+    'SELECT s.viewer_id, s.login, ident.account_id FROM web_sessions s ' +
+    'JOIN account_identities ident ON ident.viewer_id = s.viewer_id WHERE s.id IN (?, ?) AND s.expires_at > ? AND ident.detached_at IS NULL'
+  ).bind(session, key, Date.now()).first() : null
+  return { session, key, identity }
+}
+
+async function renderLiveGame(request, db, url, language) {
+  const en = language === 'en'
+  const community = url.searchParams.get('community')
+  const platform = url.searchParams.get('platform')
+  const { identity } = await viewerSession(request, db)
+  const viewer = identity && await webGameViewer(db, identity.account_id, community, platform)
+  if (!viewer) return '<p>' + (en ? 'Sign in and link your channel account to play.' : 'Inicia sesión y vincula tu cuenta del canal para jugar.') + ' <a href="/">' +
+    (en ? 'Viewer portal' : 'Portal de viewers') + '</a></p>'
+  const { collection, balls } = JSON.parse(viewer.payload)
+  const runtime = await db.prepare('SELECT * FROM web_game_runtime WHERE community_id = ?').bind(community).first()
+  const id = url.searchParams.get('game')
+  const row = ['offline', 'expired', 'pending'].includes(id) ? { result: id } : await webGameStatus(db, identity.account_id, community, id)
+  const state = webGameState(runtime, row, language)
+  const destination = escape('/live/action?' + new URLSearchParams({ community, platform }))
+  const open = (action, extra = '') => '<form method="post" action="' + destination + '"' + extra + '>' +
+    '<input type="hidden" name="id" value="' + crypto.randomUUID() + '"><input type="hidden" name="action" value="' + action + '">'
+  const disabled = !state.online || state.pending ? ' disabled' : ''
+  const names = [['normal', 'Poké Ball'], ['great', 'Super Ball'], ['ultra', 'Ultra Ball'], ['master', 'Master Ball']]
+  const ballOptions = names.map(([type, name]) => '<option value="' + type + '">' + name + ' ×' + escape(balls[type] ?? 0) + '</option>').join('')
+  const creatures = Object.keys(collection).sort().map(name => '<option>' + escape(name) + '</option>').join('')
+  return '<section class="sheet" data-web-game data-waiting="' + (en ? 'Sending action…' : 'Enviando acción…') + '"><h2>' +
+    (en ? 'Play live' : 'Jugar en directo') + '</h2><p role="status">' + escape(state.message) + '</p>' +
+    '<p data-capture-difficulty>' + escape(state.difficulty ?? '') + '</p>' +
+    open('catch', ' data-capture-form') + '<input type="hidden" name="encounter" value="' + escape(state.encounter ?? '') + '">' +
+    '<label>Poké Ball <select name="ball">' + ballOptions + '</select></label><button' + (state.encounter ? disabled : ' disabled') + '>' +
+    (en ? 'Catch' : 'Capturar') + '</button></form>' +
+    (creatures ? open('summon') + '<label>Pokémon <select name="pokemon">' + creatures + '</select></label><button' +
+      disabled + '>' + (en ? 'Summon' : 'Invocar') + '</button></form>' : '') +
+    open('withdraw') + '<button' + disabled + '>' + (en ? 'Withdraw' : 'Retirar') + '</button></form>' +
+    open('candy') + '<label>' + (en ? 'Quantity' : 'Cantidad') + ' <input type="number" name="quantity" min="1" max="50" value="1" required></label><button' +
+    disabled + '>' + (en ? 'Use Rare Candy' : 'Usar Caramelo Raro') + '</button></form></section><script src="/assets/web-game.js" defer></script>'
+}
 
 const families = new Map()
 for (const entry of nationalDex) {
@@ -100,7 +200,7 @@ function renderPage(body, status, language, theme, url) {
   const themeLabel = theme === 'dark' ? (language === 'en' ? 'Light mode' : 'Modo claro') : (language === 'en' ? 'Dark mode' : 'Modo oscuro')
   const themeLink = '<a href="/?' + escape(themeQuery) + '">' + themeLabel + '</a>'
   const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'same-origin',
-    'Content-Security-Policy': "default-src 'none'; script-src 'self'; img-src https://raw.githubusercontent.com https://static-cdn.jtvnw.net https://*.kick.com; style-src 'unsafe-inline'; form-action 'self' https://id.kick.com https://id.twitch.tv; frame-ancestors 'none'" })
+    'Content-Security-Policy': "default-src 'none'; script-src 'self'; connect-src 'self'; frame-src https://player.twitch.tv https://player.kick.com; img-src https://raw.githubusercontent.com https://static-cdn.jtvnw.net https://*.kick.com; style-src 'unsafe-inline'; form-action 'self' https://id.kick.com https://id.twitch.tv; frame-ancestors 'none'" })
   headers.append('Set-Cookie', cookie('sc_lang', language, 31_536_000))
   headers.append('Set-Cookie', cookie('sc_theme', theme, 31_536_000))
   return new Response('<!doctype html><html lang="' + language + '" data-theme="' + theme + '"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
@@ -235,6 +335,9 @@ export async function portal(request, url, env) {
       form.addEventListener('change', update);
       update();`, { headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=300' } })
   }
+  if (request.method === 'GET' && url.pathname === '/assets/web-game.js') return new Response(webGameScript, {
+    headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff' }
+  })
   const requested = url.searchParams.get('lang') ?? getCookie(request, 'sc_lang')
   const language = requested === 'en' ? 'en' : 'es'
   const t = text => language === 'en' ? webEnglish[text] ?? text : text
@@ -243,6 +346,13 @@ export async function portal(request, url, env) {
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'live') {
     const { results } = await env.DB.prepare('SELECT community_id, seen_at, platforms FROM community_stream_status ORDER BY seen_at DESC LIMIT 100').all()
     const title = language === 'en' ? 'Streaming communities' : 'Comunidades de streaming'
+    const selectedStream = results.find(row => row.community_id === url.searchParams.get('community'))
+    const platform = url.searchParams.get('platform')
+    const stream = selectedStream?.seen_at > Date.now() - 90_000 && JSON.parse(selectedStream.platforms).find(channel =>
+      channel.provider === platform && ['twitch', 'kick'].includes(platform) && channel.live && /^[a-z0-9_-]{1,30}$/i.test(channel.login))
+    const player = stream && (platform === 'twitch'
+      ? 'https://player.twitch.tv/?' + new URLSearchParams({ channel: stream.login, parent: url.hostname, autoplay: 'false' })
+      : 'https://player.kick.com/' + encodeURIComponent(stream.login) + '?autoplay=false')
     const cards = results.map(({ community_id, seen_at, platforms }) => {
       const channels = JSON.parse(platforms)
       const live = seen_at > Date.now() - 90_000
@@ -257,11 +367,16 @@ export async function portal(request, url, env) {
             thumbnail = '<img width="160" height="90" loading="lazy" alt="" src="' + escape(url.href) + '">'
           }
         } catch { /* platform did not supply a usable thumbnail */ }
-        return '<a href="' + escape(href) + '">' + thumbnail + escape(name + ' · ' + (live && channel.live ? (language === 'en' ? 'Live' : 'En directo') : 'Offline')) + '</a>'
+        const play = live && channel.live && url.protocol === 'https:'
+          ? '/?' + new URLSearchParams({ tab: 'live', community: community_id, platform: channel.provider }) : href
+        return '<a href="' + escape(play) + '">' + thumbnail + escape(name + ' · ' + (live && channel.live ? (language === 'en' ? 'Live' : 'En directo') : 'Offline')) + '</a>'
       }).join(' ')
       return '<li><strong>' + escape(channels[0]?.login ?? community_id) + '</strong><div>' + links + '</div></li>'
     }).join('')
-    return page('<section class="sheet"><h1>' + title + '</h1><ul class="community-list">' + cards + '</ul></section>')
+    return page('<section class="sheet"><h1>' + title + '</h1>' + (player ? '<div style="overflow:auto"><iframe title="' + escape(stream.login) +
+      '" src="' + escape(player) + '" width="800" height="450" style="width:100%;min-width:400px;min-height:300px;border:0" allowfullscreen></iframe></div>' : '') +
+      '<ul class="community-list">' + cards + '</ul></section>' +
+      (stream ? await renderLiveGame(request, env.DB, url, language) : ''))
   }
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'about') {
     const about = aboutCopy[language]
@@ -281,12 +396,7 @@ export async function portal(request, url, env) {
     return page(helpPage(language, nav))
   }
   const route = url.pathname.match(/^\/auth\/(twitch|kick)(?:\/(callback|link))?$/)
-  const session = getCookie(request, 'sc_session')
-  const key = /^[a-f0-9]{64}$/.test(session ?? '') ? await sessionKey(session) : null
-  const identity = key ? await env.DB.prepare(
-    'SELECT s.viewer_id, s.login, ident.account_id FROM web_sessions s ' +
-    'JOIN account_identities ident ON ident.viewer_id = s.viewer_id WHERE s.id IN (?, ?) AND s.expires_at > ? AND ident.detached_at IS NULL'
-  ).bind(session, key, Date.now()).first() : null
+  const { session, key, identity } = await viewerSession(request, env.DB)
 
   if (request.method === 'GET' && url.pathname === '/shop/status') {
     const json = (body, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } })
@@ -307,6 +417,7 @@ export async function portal(request, url, env) {
       owned: language === 'en' ? 'Already owned.' : 'Ya tienes ese objeto.',
       funds: language === 'en' ? 'Not enough Pokédollars.' : 'No tienes suficientes Pokédólares.',
       repriced: language === 'en' ? 'The price changed.' : 'El precio cambió.',
+      battleLocked: botCopy[language].battleLocked,
       maxed: language === 'en' ? 'That Pokémon is at the DNA limit.' : 'Ese Pokémon ya alcanzó el máximo de DNA.',
       unavailable: language === 'en' ? 'Purchase could not be completed.' : 'No se pudo completar la compra.'
     }
@@ -314,6 +425,30 @@ export async function portal(request, url, env) {
       ? (language === 'en' ? 'Streamer app disconnected. Order still pending.' : 'App del streamer desconectada. El pedido sigue pendiente.')
       : (viewer.result && messages[viewer.result]) || ''
     return json({ balance, balls, heldItems, pending, online, message })
+  }
+
+  if (url.pathname === '/live/action' || url.pathname === '/live/status') {
+    if (!identity) return new Response(null, { status: 401 })
+    const community = url.searchParams.get('community')
+    const platform = url.searchParams.get('platform')
+    if (request.method === 'POST' && url.pathname === '/live/action') {
+      if (request.headers.get('Origin') !== url.origin) return new Response(null, { status: 403 })
+      let form
+      try {
+        const body = await request.text()
+        if (body.length > 2048) return new Response(null, { status: 400 })
+        form = new URLSearchParams(body)
+      } catch { return new Response(null, { status: 400 }) }
+      const result = await enqueueWebGame(env.DB, identity.account_id, community, platform, form)
+      if (!result) return new Response(null, { status: 400 })
+      return redirect('/?' + new URLSearchParams({ tab: 'live', community, platform, game: result }), [])
+    }
+    if (request.method !== 'GET' || url.pathname !== '/live/status') return new Response(null, { status: 405 })
+    const viewer = await webGameViewer(env.DB, identity.account_id, community, platform)
+    if (!viewer) return new Response(null, { status: 404 })
+    const runtime = await env.DB.prepare('SELECT * FROM web_game_runtime WHERE community_id = ?').bind(community).first()
+    const row = await webGameStatus(env.DB, identity.account_id, community, url.searchParams.get('game'))
+    return Response.json(webGameState(runtime, row, language), { headers: { 'Cache-Control': 'private, no-store' } })
   }
 
   if (route) {
@@ -546,7 +681,7 @@ export async function portal(request, url, env) {
     const dnaBlocked = !shopOpen ? offlineText : !(online?.supports_dna >= 3) ? upgradeText : pokeDollars < dnaPrice ? fundsText : ''
     const dnaMessage = purchaseWarning || (url.searchParams.has('repriced') ? (en ? 'The price changed.' : 'El precio cambió.') :
       url.searchParams.has('retry') ? (en ? 'Purchase unavailable. Check for a pending order.' : 'Compra no disponible. Revisa si hay un pedido pendiente.') :
-      dnaOrder ? (dnaOrder.result === 'purchased' ? (en ? 'Purchase complete.' : 'Compra realizada.') :
+      dnaOrder ? (dnaOrder.result === 'battleLocked' ? botCopy[language].battleLocked : dnaOrder.result === 'purchased' ? (en ? 'Purchase complete.' : 'Compra realizada.') :
         dnaOrder.result === 'funds' ? fundsText : dnaOrder.result === 'repriced' ? (en ? 'The price changed.' : 'El precio cambió.') : dnaOrder.result ? (en ? 'Purchase could not be completed.' : 'No se pudo completar la compra.') :
           (en ? 'Order sent. Waiting for the streamer’s app to confirm…' : 'Pedido enviado. Esperando confirmación de la app del streamer…')) : '')
     const dnaQuantity = online?.supports_quantity
@@ -638,6 +773,7 @@ export async function portal(request, url, env) {
       .bind(selected.community_id, selected.viewer_id, purchase).first()
     const status = { purchased: en ? 'Purchase complete' : 'Compra realizada', owned: en ? 'Already owned' : 'Ya tienes ese objeto',
       funds: fundsText, repriced: en ? 'The price changed.' : 'El precio cambió.', unavailable: en ? 'Purchase could not be completed' : 'No se pudo completar la compra',
+      battleLocked: botCopy[language].battleLocked,
       maxed: en ? 'That Pokémon is at the DNA limit' : 'Ese Pokémon ya alcanzó el máximo de DNA' }
     const pending = order && !order.result
     shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong> <span data-shop-delta aria-live="polite"></span></p>' +
@@ -688,8 +824,9 @@ export async function portal(request, url, env) {
     ['hisui', 'Hisui', 899, 905], ['paldea', 'Paldea', 906, 1025]
   ]
   const region = regions.find(([id]) => id === url.searchParams.get('region')) ?? regions[0]
-  const href = (name, regionId = region[0]) => '?' + new URLSearchParams({
-    tab: name, community: selected.community_id, region: regionId
+  const caughtOnly = url.searchParams.get('caught') === '1'
+  const href = (name, regionId = region[0], only = caughtOnly) => '?' + new URLSearchParams({
+    tab: name, community: selected.community_id, region: regionId, ...(name === 'dex' && only ? { caught: '1' } : {})
   })
   const spriteBase = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/'
   const inventory = [
@@ -718,6 +855,7 @@ export async function portal(request, url, env) {
     const normal = collection[key]
     const shiny = collection[key + ' ✦']
     const owned = normal !== undefined || shiny !== undefined
+    if (caughtOnly && !owned) return ''
     const sprite = spriteBase + 'pokemon/' +
       (normal === undefined && shiny !== undefined ? 'shiny/' : '') + dex + '.png'
     const summaryLink = (species, label, className = '') =>
@@ -747,7 +885,8 @@ export async function portal(request, url, env) {
       (tab === name ? ' aria-current="page"' : '') + '>' + label + '</a>').join('')
   return page('<div class="toolbar"><div><p class="meta">Viewer · ' + escape(displayName) + '</p><h1>' + t("Tu álbum") + '</h1></div>' +
     actions + '</div><p class="meta community-label">' + t('Comunidad · ') + escape(selected.community_name ?? selected.community_id) + '</p><nav class="tabs" aria-label="Álbum">' + nav + '</nav>' +
-    (tab === 'dex' ? borders + '<section class="sheet"><h2>Pokédex</h2><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><ol class="dex-grid">' + slots + '</ol></section>'
+    (tab === 'dex' ? borders + '<section class="sheet"><h2>Pokédex</h2><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><a class="button" aria-pressed="' + caughtOnly + '" href="' + escape(href('dex', region[0], !caughtOnly)) + '">' +
+      (caughtOnly ? (en ? 'Show all' : 'Mostrar todos') : (en ? 'Caught only' : 'Solo atrapados')) + '</a><ol class="dex-grid">' + slots + '</ol></section>'
       : tab === 'overview' ? overview : tab === 'shop' ? shopPage : tab === 'log' ?
         '<section class="sheet"><h2>' + (en ? 'Activity log' : 'Registro de actividad') + '</h2><ul>' +
         [...log].reverse().map(entry => '<li><time>' + escape(new Date(entry.at).toLocaleString(language, { timeZone: 'America/Lima' })) +

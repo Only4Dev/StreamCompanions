@@ -1,20 +1,15 @@
 import { normalizeCommand } from './commands.js'
 import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, maxDnaBoosters, nextEvolutionLevel } from '../ui/evolution.js'
 import { defaultSummonXpPerSecond, level, maxLevel, maxXp, xpAtLevel } from '../ui/levels.js'
-import { captureRates } from '../ui/capture-rates.js'
+import { catchChance, catchDifficulty } from '../ui/capture-rates.js'
 import { heldItems } from '../ui/held-items.js'
 import { normalizeShopPrices, shopItems, validShopPrice, validShopQuantity } from '../ui/shop.js'
 
 export const creatures = ['Brasa', 'Musgo', 'Gota']
 
-export function catchChance(ball, id, legendary = false) {
-  if (ball === 'master') return 1
-  if (legendary) return { normal: .03, great: .06, ultra: .12 }[ball]
-  const base = .30 + .25 * ((captureRates[id - 1] ?? 255) / 255)
-  return base + { normal: 0, great: .15, ultra: .30 }[ball]
-}
+export { catchChance }
 
-export function createGame({ now = Date.now, random = Math.random, streamStarters = false, progress, catalog = creatures.map(name => ({ name, shiny: true })) } = {}) {
+export function createGame({ now = Date.now, random = Math.random, streamStarters = false, progress, onEvolution = () => {}, catalog = creatures.map(name => ({ name, shiny: true })) } = {}) {
   const species = catalog.map(item => item.name)
   const starterSpecies = catalog.filter(item => item.id && !item.legendary && !evolutionParent(item.id) && [1,4,7,152,155,158,252,255,258,387,390,393,495,498,501,650,653,656,722,725,728,810,813,816,906,909,912].includes(item.id))
   const shinySpecies = new Set(catalog.filter(item => item.shiny).map(item => item.name))
@@ -45,6 +40,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   config.shopPrices = normalizeShopPrices(config.shopPrices ?? {}) ?? normalizeShopPrices({})
   let encounter = null
   let wildPaused = false
+  let battleActive = false
   let encounterCount = 0
   let savedEncounters = progress?.statistics?.encounters ?? 0
   let savedCaptures = progress?.statistics?.captures ?? 0
@@ -63,7 +59,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     families.get(root).push(item)
   }
 
-  function shareFamily(viewer, key, xp) {
+  function shareFamily(viewer, key, xp, announce = true) {
     const shiny = key.endsWith(' ✦')
     const suffix = shiny ? ' ✦' : ''
     const entry = byName.get(key.replace(/ ✦$/, ''))
@@ -95,7 +91,22 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         if (item && (!shiny || item.shiny)) unlocked.add(target)
       }
     }
-    for (const member of members) if (unlocked.has(member.id)) viewer.collection[member.name + suffix] = xp
+    const newForms = []
+    for (const member of members) {
+      if (!unlocked.has(member.id)) continue
+      const form = member.name + suffix
+      if (!Object.hasOwn(viewer.collection, form)) newForms.push(form)
+      viewer.collection[form] = xp
+    }
+    if (!announce || !newForms.length) return
+    if (newForms.length === 1 && viewer.active?.key === key) {
+      const target = newForms[0]
+      if (evolutionChildren(byName.get(key.replace(/ ✦$/, ''))?.id).includes(byName.get(target.replace(/ ✦$/, ''))?.id)) {
+        viewer.active.key = target
+        viewer.active.evolvedAt = now()
+      }
+    }
+    onEvolution(viewer.displayName, newForms)
   }
 
   function familyXp(viewer, key) {
@@ -114,7 +125,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   }
 
   for (const viewer of viewers.values()) {
-    for (const key of Object.keys(viewer.collection)) shareFamily(viewer, key, familyXp(viewer, key))
+    for (const key of Object.keys(viewer.collection)) shareFamily(viewer, key, familyXp(viewer, key), false)
   }
 
   function spawn(name) {
@@ -144,6 +155,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         if (pool.length) spawn(pool[Math.floor(random() * pool.length)])
       }
     }
+    if (battleActive) return
     for (const viewer of viewers.values()) {
       const active = viewer.active
       if (!active) continue
@@ -173,6 +185,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     tick()
     const message = normalizeCommand(raw).toLowerCase()
     const viewer = viewers.get(id)
+    if (battleActive && /^(?:!poke join|!catch|!summon|!summonshiny|!evolve|!candy)(?: |$)/.test(message)) return 'battleLocked'
     if (message === '!poke join') {
       if (viewer && (!streamStarters || Object.keys(viewer.collection).length)) return 'alreadyJoined'
       const collection = viewer?.collection ?? {}
@@ -193,13 +206,15 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     const [command, ...parts] = message.split(/\s+/)
     const argument = parts.join(' ')
     if (command === '!candy') {
-      const key = Object.keys(viewer.collection).find(name => name.toLowerCase() === argument)
-      if (!key) return 'missingCreature'
+      const key = viewer.active?.key
+      if (!key || viewer.active.channel !== channel) return 'candyNoSummon'
+      const quantity = argument ? Number(argument) : 1
+      if (argument && (!/^\d+$/.test(argument) || !Number.isSafeInteger(quantity) || quantity < 1)) return 'candyQuantity'
       const rank = level(viewer.collection[key])
-      if (rank >= maxLevel) return 'candyMaxLevel'
-      if (!viewer.rareCandies) return 'noCandy'
-      viewer.rareCandies--
-      shareFamily(viewer, key, xpAtLevel(rank + 1))
+      if (rank + quantity > maxLevel) return 'candyMaxLevel'
+      if ((viewer.rareCandies ?? 0) < quantity) return 'noCandy'
+      viewer.rareCandies -= quantity
+      shareFamily(viewer, key, xpAtLevel(rank + quantity))
       return 'candyUsed'
     }
     if (command === '!evolve') return 'automaticEvolution'
@@ -271,6 +286,10 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     },
     fulfillOrder({ id, viewerId, item, price, speciesKey, quantity = 1 }) {
       if (shopReceipts.has(id)) return shopReceipts.get(id)
+      if (battleActive) {
+        shopReceipts.set(id, 'battleLocked')
+        return 'battleLocked'
+      }
       const product = Object.hasOwn(shopItems, item) ? shopItems[item] : null
       const viewer = viewers.get(viewerId)
       let result = 'unavailable'
@@ -319,8 +338,20 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       viewer.balls.master++
       return true
     },
+    webReceipt: id => shopReceipts.get('web:' + id),
+    rememberWebReceipt: (id, result) => shopReceipts.set('web:' + id, result),
+    currentEncounter() {
+      tick()
+      return encounter
+    },
     hasEncounter: () => Boolean(encounter && encounter.catchUntil > now()),
     ballInventory: id => viewers.get(id)?.balls,
+    setBattleActive(active) {
+      if (battleActive === active) return
+      if (active) tick()
+      else for (const viewer of viewers.values()) if (viewer.active) viewer.active.last = now()
+      battleActive = active
+    },
     setWildPaused(paused) {
       if (wildPaused && !paused) nextAt = now() + config.interval * 60_000
       wildPaused = paused
@@ -361,7 +392,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       if (viewer) viewer.log = [...(viewer.log ?? []).slice(-29), { ...action, at: now() }]
     },
     starterName: id => Object.keys(viewers.get(id)?.collection ?? {})[0],
-    encounterChance: name => catchChance('normal', byName.get(name)?.id, byName.get(name)?.legendary),
+    encounterDifficulty: (name, language) => catchDifficulty(byName.get(name)?.id, byName.get(name)?.legendary, language),
     linkKickViewer(kickId, twitchId) {
       if (erasedViewers.has(kickId) || erasedViewers.has(twitchId)) return
       const source = viewers.get(kickId)
@@ -373,7 +404,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         for (const [name, xp] of Object.entries(source.collection)) {
           target.collection[name] = Math.max(target.collection[name] ?? 0, xp)
         }
-        for (const name of Object.keys(target.collection)) shareFamily(target, name, familyXp(target, name))
+        for (const name of Object.keys(target.collection)) shareFamily(target, name, familyXp(target, name), false)
         for (const key of Object.keys(target.balls)) target.balls[key] = Math.max(target.balls[key], source.balls[key] ?? 0)
         for (const key of Object.keys(target.metrics)) target.metrics[key] = Math.max(target.metrics[key], source.metrics[key] ?? 0)
         target.heldItems = [...new Set([...(target.heldItems ?? []), ...(source.heldItems ?? [])])]

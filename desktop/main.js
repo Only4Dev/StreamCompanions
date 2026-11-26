@@ -56,7 +56,17 @@ let lastWild = null
 const remember = (list, entry) => { list.push({ ...entry, at: Date.now() }); if (list.length > 100) list.shift() }
 const rememberChat = (platform, name, message) => remember(localChat, { platform, name, message: message.slice(0, 500) })
 const isLive = provider => liveChannels.get(provider)?.live === true
-function chatAction(viewer, displayName, text, platform) {
+function publicCommunityLink() {
+  const portal = new URL(setup.webUrl || syncDevice?.url || publicPortal)
+  portal.username = ''
+  portal.password = ''
+  portal.search = ''
+  portal.hash = ''
+  if (syncDevice?.community) portal.searchParams.set('community', syncDevice.community)
+  return portal.href
+}
+
+function chatAction(viewer, displayName, text, platform, save = true) {
   if (pendingReset || !isLive(platform)) return ''
   const [action, ball = 'normal'] = normalizeCommand(text).split(' ')
   if (action.startsWith('!')) {
@@ -84,7 +94,7 @@ function chatAction(viewer, displayName, text, platform) {
       ball, remaining: balance.remaining, ...(result !== 'escaped' ? { pokemon: game.latestCapture()?.pokemon } : {})
     } : undefined
     game.recordAction(viewer, { platform, action: normalizeCommand(text).slice(0, 120), result, ...(capture ? { capture } : {}) })
-    persistGame()
+    if (save) persistGame()
   }
   if (result === 'caught' || result === 'duplicateReward') return { code: 'catchSuccess', ...game.latestCapture(), ...balance }
   if (result === 'escaped' || result === 'noBalls') return { code: result, viewer: displayName, ...balance }
@@ -189,6 +199,7 @@ function applyPrivacy(erasures) {
   if (!changed.length) return
   if (communityBattle?.battle.actors.some(actor => changed.includes(actor.viewerId))) {
     clearInterval(battleTimer)
+    game.setBattleActive(false)
     communityBattle = undefined
   }
   persistGame()
@@ -232,18 +243,21 @@ async function pollShop() {
     }
     if (!stopSync) return
     if (kickAbort.signal.aborted || game.config.running === false) return
+    const encounter = game.currentEncounter()
+    const webGame = encounter ? { id: encounter.id, en: game.encounterDifficulty(encounter.name, 'en'), es: game.encounterDifficulty(encounter.name, 'es') } : {}
     const endpoint = new URL('/api/shop', syncDevice.url)
     const request = body => fetch(endpoint, {
       method: body ? 'POST' : 'GET', redirect: 'error',
       headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json',
-        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '2', 'X-Shop-Quantity': '1' } : {}) },
+        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '2', 'X-Shop-Quantity': '1', 'X-Web-Game': JSON.stringify(webGame) } : {}) },
       body: body && JSON.stringify({ viewers: body }),
       signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(8000)])
     })
     const response = await request()
     if (!response.ok || pendingReset || kickAbort.signal.aborted || game.config.running === false) return
-    const { orders } = await response.json()
+    const { orders, webActions } = await response.json()
     if (pendingReset || kickAbort.signal.aborted || game.config.running === false) return
+    if (Array.isArray(webActions) && webActions.length) await processWebGame(webActions)
     if (!Array.isArray(orders) || !orders.length || orders.length > 10 || orders.some(order =>
       !/^[a-f0-9-]{36}$/.test(order?.id ?? '') || !/^(twitch|kick):\d{1,24}$/.test(order?.viewerId ?? ''))) return
     const receipts = orders.map(order => ({ id: order.id, result: game.fulfillOrder(order) }))
@@ -262,6 +276,46 @@ async function pollShop() {
     if (!kickAbort.signal.aborted) console.warn('Could not sync shop:', error.message)
   } finally {
     if (!kickAbort.signal.aborted) shopTimer = setTimeout(pollShop, 1_000)
+  }
+}
+
+async function processWebGame(actions) {
+  const receipts = []
+  const announcements = []
+  for (const action of actions.slice(0, 10)) {
+    const { id, viewerId, platform, command, encounterId, createdAt } = action
+    if (!/^[a-f0-9-]{36}$/.test(id) || !/^(twitch|kick):\d{1,24}$/.test(viewerId) ||
+        !['twitch', 'kick'].includes(platform) || typeof command !== 'string' || command.length > 90 ||
+        !/^!(?:catch (?:normal|great|ultra|master)|summon .+|summonshiny .+|candy \d{1,2})$/.test(command)) continue
+    let result = game.webReceipt(id)
+    if (!result) {
+      if (!isLive(platform)) result = 'offline'
+      else if (Date.now() - createdAt >= 15000 || (encounterId && game.currentEncounter()?.id !== encounterId)) result = 'expired'
+      else {
+        const response = chatAction(viewerId, undefined, command, platform, false)
+        result = response?.code || 'cooldown'
+        if (result === 'catchSuccess') announcements.push([platform, botSignature(bot, formatBotReply(bot, result, response))])
+      }
+      game.rememberWebReceipt(id, result)
+    }
+    receipts.push({ id, result })
+  }
+  if (!receipts.length) return
+  persistGame()
+  for (const [platform, message] of announcements) {
+    if (!message) continue
+    if (platform === 'kick') sendKickMessage(message).catch(() => {})
+    else disconnectTwitch?.announce(message)
+  }
+  const response = await fetch(new URL('/api/web-game', syncDevice.url), {
+    method: 'POST', redirect: 'error', headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ viewers: receipts }), signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(8000)])
+  })
+  if (!response.ok) return
+  const { received } = await response.json()
+  if (Array.isArray(received)) {
+    game.acknowledgeOrders(receipts.filter(receipt => received.includes(receipt.id)).map(receipt => 'web:' + receipt.id))
+    persistGame()
   }
 }
 
@@ -328,6 +382,7 @@ function finishCommunityReset() {
       if (kickAbort.signal.aborted) return false
       const profile = app.getPath('userData')
       clearInterval(battleTimer)
+      game.setBattleActive(false)
       communityBattle = undefined
       battleDueAt = battleBannerUntil = 0
       game.resetCommunity()
@@ -459,9 +514,9 @@ async function pollKick() {
       const text = event.content
       rememberChat('kick', event.display_name, event.display_text ?? text)
       if (!isLive('kick') || game.config.running === false) continue
-      if (text.trim().toLowerCase() === '!web') {
+      if (['!web', '!poke web'].includes(text.trim().toLowerCase().replace(/\s+/g, ' '))) {
         if (Date.now() - lastKickLink >= 60_000) {
-          replies.push(formatBotReply(bot, 'web', { url: setup.webUrl || syncDevice.url }))
+          replies.push(formatBotReply(bot, 'web', { url: publicCommunityLink() }))
           lastKickLink = Date.now()
         }
       } else {
@@ -558,10 +613,12 @@ async function runCommunityBattle(waitForBanner) {
   entries = entries.filter(entry => active[entry.viewerId]?.active.key === entry.speciesKey)
   if (entries.length < 2) return 422
   const battle = battleRules.createBattle(entries, { hpMultiplier: game.config.battleHpMultiplier })
+  game.setBattleActive(true)
   communityBattle = { battle, finishedAt: 0 }
   battleTimer = setInterval(() => {
     battle.step(1 / 30)
     if (!battle.over) return
+    game.setBattleActive(false)
     communityBattle.finishedAt = Date.now()
     clearInterval(battleTimer)
     game.recordBattle(entries.map(entry => entry.viewerId), battle.winner?.viewerId, battle.winner?.speciesKey)
@@ -634,6 +691,8 @@ const server = createServer(async (req, res) => {
         ? { ...game.overlay(overlay), bot: { language: bot.language } }
         : { ...game.snapshot(), twitchStatus, kickStatus, syncStatus, setup, bot, setupComplete, version: app.getVersion(), updateStatus,
           twitchConnected: twitchAllowed() && Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, canInstallUpdate: app.isPackaged && process.platform === 'win32', activityLog, localChat, botTestStatus, canReset: syncDevice?.url === publicPortal, resettingCommunity: Boolean(pendingReset), live: setup.platform !== 'demo' }
+      if (overlay === 'encounter' && state.encounter) state.encounter = { ...state.encounter,
+        difficulty: game.encounterDifficulty(state.encounter.name, bot.language) }
       if (overlay === 'companions' && ['summon', 'battle'].includes(searchParams.get('preview'))) {
         const samples = manifest.species.filter(entry => entry.normal && !evolutionParent(Number(entry.id))).slice(0, 3)
         const demo = searchParams.get('preview')
@@ -722,7 +781,7 @@ const server = createServer(async (req, res) => {
       if (action.startCommunityBattle === true) {
         if (!game.config.battleEnabled || game.config.running === false || battleDueAt || battleStarting ||
             (communityBattle && !communityBattle.battle.over)) return res.writeHead(409).end()
-        const active = Object.keys(game.overlay('companions').viewers).filter(id => /^(twitch|kick):d+$/.test(id))
+        const active = Object.keys(game.overlay('companions').viewers).filter(id => /^(twitch|kick):\d+$/.test(id))
         if (active.length < 2) return res.writeHead(422).end()
         battleDueAt = Date.now() + 60_000
         game.setWildPaused(true)
@@ -826,6 +885,7 @@ const server = createServer(async (req, res) => {
         game.setRunning(action.running)
         if (!action.running) {
           clearInterval(battleTimer)
+          game.setBattleActive(false)
           communityBattle = undefined
           battleDueAt = 0
           battleBannerUntil = 0
@@ -924,7 +984,15 @@ app.whenReady().then(() => {
   const savedProgress = progress.load()
   activityLog.push(...(savedProgress?.activityLog ?? []).slice(-100))
   kickCursor = savedProgress?.kickCursor ?? 0
-  game = createGame({ catalog, progress: savedProgress, streamStarters: setup.platform !== 'demo' })
+  game = createGame({ catalog, progress: savedProgress, streamStarters: setup.platform !== 'demo',
+    onEvolution(viewer, forms) {
+      for (const pokemon of forms) {
+        const command = pokemon.endsWith(' ✦') ? '!summonshiny ' + pokemon.slice(0, -2) : '!summon ' + pokemon
+        const message = bot.language === 'en' ? 'You unlocked ' + pokemon + '. Summon it with ' + command :
+          'Desbloqueaste a ' + pokemon + '. Invócalo con ' + command
+        announceInLiveChats(botSignature(bot, (viewer ? '@' + viewer + ' · ' : '') + message))
+      }
+    } })
   if (!savedProgress) game.setRunning(false)
   if (setup.platform !== 'demo' && safeStorage.isEncryptionAvailable()) {
     const file = join(profile, 'cloud-device.enc')
@@ -986,7 +1054,7 @@ app.whenReady().then(() => {
         renameSync(sessionFile + '.tmp', sessionFile)
       },
       clientId: twitchClientId,
-      webUrl: setup.webUrl || syncDevice?.url || publicPortal,
+      webUrl: publicCommunityLink,
       onAuthorized(identity, token) {
         pairNewCommunity(profile, identity, token).catch(() => {
           if (!kickAbort.signal.aborted) syncStatus = 'No se pudo vincular la comunidad'
@@ -1027,9 +1095,9 @@ app.whenReady().then(() => {
       if (wild && wild.id !== lastWild) {
         lastWild = wild.id
         const pokemon = wild.name + (wild.shiny ? ' ✦' : '')
-        const chance = Math.round(game.encounterChance(wild.name) * 100)
-        remember(activityLog, { name: pokemon, message: 'Wild encounter', result: chance + '%' })
-        const message = botSignature(bot, formatBotReply(bot, 'wildAppeared', { pokemon, chance }))
+        const difficulty = game.encounterDifficulty(wild.name, bot.language)
+        remember(activityLog, { name: pokemon, message: 'Wild encounter', result: difficulty })
+        const message = botSignature(bot, formatBotReply(bot, 'wildAppeared', { pokemon, difficulty, chance: difficulty }))
         if (message) announceInLiveChats(message)
       }
       notices(game.schedule(), botResponse(bot, 'notice'), bot.language).catch(error => {
