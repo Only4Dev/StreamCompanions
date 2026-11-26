@@ -310,7 +310,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       let result = 'unavailable'
       const unitPrice = config.shopPrices?.[item] ?? product?.price
       const charge = unitPrice * quantity
-      if (viewer && product && validShopPrice(unitPrice) && (price == null || validShopPrice(price)) && validShopQuantity(product, quantity) && (!product.dna || Object.hasOwn(viewer.collection, speciesKey ?? ''))) {
+      if (viewer && product && validShopPrice(unitPrice, product) && (price == null || validShopPrice(price, product)) && validShopQuantity(product, quantity) && (!product.dna || Object.hasOwn(viewer.collection, speciesKey ?? ''))) {
         const keys = product.dna ? dnaKeys(viewer, speciesKey) : []
         const dna = familyDnaCount(viewer.dnaBoosters, keys)
         if (price != null && price !== unitPrice) result = 'repriced'

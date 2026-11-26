@@ -1,7 +1,7 @@
 import { botCopy } from './bot-copy.js'
 import { level, showScene } from './sprites.js'
 import { captureCategories } from '/ui/capture-rates.js'
-import { shopItems } from '/ui/shop.js'
+import { maxShopPrice, shopItems } from '/ui/shop.js'
 import { aboutCopy } from '/ui/about.js'
 
 const $ = id => document.getElementById(id)
@@ -222,7 +222,7 @@ if (panel) {
     icon.loading = 'lazy'
     icon.alt = ''
     const input = document.createElement('input')
-    Object.assign(input, { name: id, type: 'number', min: '1', max: '100000', required: true, value: product.price })
+    Object.assign(input, { name: id, type: 'number', min: '1', max: maxShopPrice(product), required: true, value: product.price })
     const heading = document.createElement('span')
     heading.className = 'shop-item-name'
     heading.append(icon, name)

@@ -107,6 +107,21 @@ test('bulk purchases use the current unit price and deliver the entire order onc
   assert.equal(game.progress().viewers[viewerId].balls.normal, 8)
 })
 
+test('Master Balls cost 500,000 by default and use the configured purchase price', () => {
+  const viewerId = 'twitch:1'
+  const game = createGame({ progress: { viewers: { [viewerId]: {
+    collection: {}, balls: { normal: 5, great: 0, ultra: 0, master: 0 }, pokeDollars: 1_000_000
+  } } } })
+  const order = { viewerId, item: 'master-ball', price: 500_000 }
+  assert.equal(game.config.shopPrices['master-ball'], 500_000)
+  assert.equal(game.fulfillOrder({ ...order, id: 'first' }), 'purchased')
+  game.setShopPrices({ ...game.config.shopPrices, 'master-ball': 450_000 })
+  assert.equal(game.fulfillOrder({ ...order, id: 'stale' }), 'repriced')
+  assert.equal(game.fulfillOrder({ ...order, id: 'second', price: 450_000 }), 'purchased')
+  assert.equal(game.ballInventory(viewerId).master, 2)
+  assert.equal(game.progress().viewers[viewerId].pokeDollars, 50_000)
+})
+
 test('capture rates vary by species and ball, with guaranteed Master Ball', () => {
   assert.ok(catchChance('normal', 19) > catchChance('normal', 1))
   assert.ok(catchChance('ultra', 1) > catchChance('great', 1))

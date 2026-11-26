@@ -184,6 +184,7 @@ async function deviceShop(request, db) {
         const raw = header.length <= 2048 ? JSON.parse(header) : null
         prices = normalizeShopPrices(raw)
         dna = Boolean(prices && Object.hasOwn(raw, 'dna-booster'))
+        if (prices && !Object.hasOwn(raw, 'master-ball')) delete prices['master-ball']
       } catch { /* invalid header */ }
       if (!prices) return json({ error: 'invalid prices' }, 400)
     }
@@ -198,7 +199,8 @@ async function deviceShop(request, db) {
         '(shop_online.seen_at <= excluded.seen_at - 15000 OR shop_online.prices IS NOT excluded.prices OR ' +
         'shop_online.supports_dna != excluded.supports_dna OR shop_online.supports_quantity != excluded.supports_quantity)').bind(community, Date.now(), packed, dnaLevel, supportsQuantity),
       db.prepare('SELECT id, viewer_id AS viewerId, item, price, species_key AS speciesKey, quantity FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
-        'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) AND (? = 1 OR quantity = 1) ORDER BY created_at, id LIMIT 10').bind(community, packed, dnaLevel, supportsQuantity)
+        'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) AND (? = 1 OR quantity = 1) ' +
+        "AND (item != 'master-ball' OR ? = 1) ORDER BY created_at, id LIMIT 10").bind(community, packed, dnaLevel, supportsQuantity, Number(Boolean(prices?.['master-ball'])))
     ])
     const state = request.headers.get('X-Web-Game')
     const webActions = state === null ? undefined : await deviceWebGame(db, device, state)

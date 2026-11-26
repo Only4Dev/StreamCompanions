@@ -2,6 +2,8 @@
 
 ## 1.2.0
 
+- Sell Master Balls for 500,000 Pokédollars by default, with a configurable shop price.
+
 - Keep community navigation available in Help and Live, add an All regions Pokédex filter, and organize the shop by item type.
 - Let viewers replace their active companion from either platform, add inventory command aliases, and provide separate chat controls for bot messages.
 

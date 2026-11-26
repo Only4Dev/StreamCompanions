@@ -396,8 +396,11 @@ export async function portal(request, url, env) {
         if (input) input.max = Math.max(1, limit);
         const button = form.querySelector('button');
         button.disabled = submitted || !state.online || state.pending || owned || limit < 1 ||
+          (shopProduct === 'master-ball' && !state.master) ||
           Boolean(input && (!input.validity.valid || (!state.bulk && input.valueAsNumber > 1)));
         button.textContent = owned ? button.dataset.owned : button.dataset.buy;
+        const upgrade = form.parentElement.querySelector('[data-shop-master-upgrade]');
+        if (upgrade) upgrade.hidden = !state.online || Boolean(state.master);
         const count = form.querySelector('[data-shop-count]');
         if (count) count.textContent = '×' + (state.balls[shopBall] ?? 0);
       }
@@ -562,7 +565,7 @@ export async function portal(request, url, env) {
     if (!identity) return json({ error: 'authentication required' }, 401)
     const community = url.searchParams.get('community')
     const viewer = await env.DB.prepare(
-      'SELECT p.payload, s.seen_at, s.supports_quantity, s.supports_dna, o.id AS order_id, o.result FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
+      'SELECT p.payload, s.seen_at, s.supports_quantity, s.supports_dna, s.prices, o.id AS order_id, o.result FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
       'LEFT JOIN shop_online s ON s.community_id = p.community_id ' +
       'LEFT JOIN shop_orders o ON o.community_id = p.community_id AND o.viewer_id = p.viewer_id AND o.id = ? ' +
       'WHERE i.account_id = ? AND p.community_id = ? ORDER BY o.id IS NOT NULL DESC, p.updated_at DESC, p.viewer_id LIMIT 1'
@@ -585,7 +588,8 @@ export async function portal(request, url, env) {
     const message = pending && !online
       ? (language === 'en' ? 'Streamer app disconnected. Order still pending.' : 'App del streamer desconectada. El pedido sigue pendiente.')
       : (viewer.result && messages[viewer.result]) || ''
-    return json({ balance, balls, heldItems, pending, online, bulk: Boolean(viewer.supports_quantity), dnaCount, ...(dnaCount !== undefined ? { dna: viewer.supports_dna >= 3 } : {}), message })
+    const master = viewer.prices && Object.hasOwn(JSON.parse(viewer.prices), 'master-ball')
+    return json({ balance, balls, heldItems, pending, online, ...(master ? { master: true } : {}), bulk: Boolean(viewer.supports_quantity), dnaCount, ...(dnaCount !== undefined ? { dna: viewer.supports_dna >= 3 } : {}), message })
   }
 
   if (url.pathname === '/live/action' || url.pathname === '/live/status') {
@@ -766,6 +770,7 @@ export async function portal(request, url, env) {
   const upgradeText = en ? 'The streamer’s app does not support DNA Booster purchases yet.' :
     'La app del streamer aún no admite compras de DNA Booster.'
   const reasons = { offline: offlineText, funds: fundsText, upgrade: upgradeText,
+    master: en ? 'The streamer’s app must be updated to sell Master Balls.' : 'La app del streamer debe actualizarse para vender Master Balls.',
     quantity: en ? 'The streamer’s app does not support buying multiple items yet.' : 'La app del streamer aún no permite comprar varias unidades.' }
   const reason = url.searchParams.get('reason')
   const purchaseWarning = Object.hasOwn(reasons, reason ?? '') ? reasons[reason] : ''
@@ -785,6 +790,7 @@ export async function portal(request, url, env) {
     const blocked = !shopOpen ? 'offline' : product.dna && !(online?.supports_dna >= 3) ? 'upgrade' : null
     const returnBlocked = reason => redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, reason }), [])
     if (blocked || (quantity > 1 && !online.supports_quantity)) return returnBlocked(blocked ?? 'quantity')
+    if (item === 'master-ball' && !Object.hasOwn(published ?? {}, item)) return returnBlocked('master')
     const price = published?.[item] ?? product.price
     const quote = url.searchParams.get('price')
     if ((!published && quote === null) || quote === String(price)) {
@@ -961,15 +967,17 @@ export async function portal(request, url, env) {
       '<ul class="held-grid shop-grid">' + Object.entries(shopItems).filter(([, product]) => section === 'held' ? product.held : product.ball).map(([id, product]) => {
         const owned = product.held && ownedItems.includes(id)
         const price = published?.[id] ?? product.price
+        const needsUpdate = id === 'master-ball' && !Object.hasOwn(published ?? {}, id)
         const action = '/shop/buy?' + new URLSearchParams({ community: selected.community_id, item: id, order: crypto.randomUUID(), price })
-        const button = '<button data-buy="' + (en ? 'Buy' : 'Comprar') + '" data-owned="' + (en ? 'Owned' : 'Ya lo tienes') + '"' + (!available || pending || owned || pokeDollars < price ? ' disabled' : '') + '>' +
+        const button = '<button data-buy="' + (en ? 'Buy' : 'Comprar') + '" data-owned="' + (en ? 'Owned' : 'Ya lo tienes') + '"' + (!available || pending || owned || needsUpdate || pokeDollars < price ? ' disabled' : '') + '>' +
           (owned ? (en ? 'Owned' : 'Ya lo tienes') : (en ? 'Buy' : 'Comprar')) + '</button>'
         const quantityInput = product.ball
           ? quantityField(en, price, Math.min(maxShopQuantity, Math.floor(pokeDollars / price))) : ''
         return '<li>' + itemIcon(id) + '<strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
           '<form method="post" data-shop-buy data-shop-product="' + id + '" data-shop-price="' + price + '" action="' + escape(action) + '"' +
           (product.ball ? ' data-shop-ball="' + product.ball + '"' : '') + '>' +
-          (product.ball ? '<span class="shop-count">' + (en ? 'In bag' : 'En la bolsa') + ' <strong data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</strong></span>' : '') + quantityInput + button + '</form>' + (available && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
+          (product.ball ? '<span class="shop-count">' + (en ? 'In bag' : 'En la bolsa') + ' <strong data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</strong></span>' : '') + quantityInput + button + '</form>' + (id === 'master-ball' ? '<small data-shop-master-upgrade' + (available && needsUpdate ? '' : ' hidden') + '>' + escape(reasons.master) + '</small>' : '') +
+          (available && !needsUpdate && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
       }).join('') + '</ul></section><script src="/assets/shop-status.js" defer></script>'
   }
   const logDescription = entry => {

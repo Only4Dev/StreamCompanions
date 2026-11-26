@@ -34,7 +34,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const device = (method, body, prices, bulk = false) => worker.fetch(new Request(base + '/api/shop', {
     method, headers: { Authorization: 'Bearer ' + token, ...(prices && { 'X-Shop-Prices': JSON.stringify(prices) }), ...(bulk && { 'X-Shop-Quantity': '1' }) }, body: body && JSON.stringify(body)
   }), { DB: D1 })
-  const order = (id, price, quantity) => worker.fetch(new Request(base + '/shop/buy?community=stream&item=poke-ball&order=' + id + (price ? '&price=' + price : ''), {
+  const order = (id, price, quantity, item = 'poke-ball') => worker.fetch(new Request(base + '/shop/buy?community=stream&item=' + item + '&order=' + id + (price ? '&price=' + price : ''), {
     method: 'POST', headers: { Origin: base, Cookie: 'sc_session=' + session },
     body: quantity === undefined ? null : new URLSearchParams({ quantity })
   }), { DB: D1 })
@@ -59,6 +59,17 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.match(insufficient.headers.get('Location'), /reason=funds/)
   const shop = await worker.fetch(new Request(base + insufficient.headers.get('Location'), { headers: { Cookie: 'sc_session=' + session } }), { DB: D1 })
   assert.match(await shop.text(), /No tienes suficientes Pokédólares.*Saldo actual: \$500/)
+  const master = crypto.randomUUID()
+  assert.match((await order(master, 500_000, 1, 'master-ball')).headers.get('Location'), /reason=master/)
+  db.prepare("UPDATE viewer_progress SET payload = json_set(payload, '$.pokeDollars', 500000)").run()
+  await device('GET', null, { 'master-ball': 500_000 }, true)
+  assert.match((await order(master, 500_000, 1, 'master-ball')).headers.get('Location'), new RegExp('purchase=' + master))
+  assert.deepEqual(await (await device('GET', null, { 'poke-ball': 100 }, true)).json(), { orders: [] })
+  assert.deepEqual(await (await device('GET', null, { 'master-ball': 500_000 }, true)).json(), {
+    orders: [{ id: master, viewerId: 'twitch:1', item: 'master-ball', price: 500_000 }]
+  })
+  await device('POST', { viewers: [{ id: master, result: 'purchased' }] })
+  db.prepare("UPDATE viewer_progress SET payload = json_set(payload, '$.pokeDollars', 500)").run()
   const priced = crypto.randomUUID()
   await device('GET', null, { 'poke-ball': 150 })
   assert.match((await order(priced, 100)).headers.get('Location'), /repriced=1/)
