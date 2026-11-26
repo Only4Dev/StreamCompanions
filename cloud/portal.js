@@ -13,7 +13,7 @@ import { creatureMoves, parseLoadout, speciesName, validMoveset } from './movese
 import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles, mobileStyles, liveReactionStyles } from './portal-style.js'
 import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
 import { arenaShopItems, heldItems } from '../ui/held-items.js'
-import { featuredShopItems, maxShopQuantity, shopItems, validShopQuantity } from '../ui/shop.js'
+import { featuredShopItems, maxShopQuantity, shopIconUrl, shopItems, validShopQuantity } from '../ui/shop.js'
 
 function communityTabs(community, language, current, region = 'kanto') {
   const en = language === 'en'
@@ -1106,7 +1106,7 @@ export async function portal(request, url, env) {
           (owned ? (en ? 'Owned' : 'Ya lo tienes') : (en ? 'Buy' : 'Comprar')) + '</button>'
         const quantityInput = product.ball
           ? quantityField(en, price, Math.min(maxShopQuantity, Math.floor(pokeDollars / price))) : ''
-        return '<li>' + itemIcon(product.icon ?? id) + '<strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
+        return '<li><img class="bag-icon" src="' + shopIconUrl(id) + '" alt="" width="30" height="30"><strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
           '<form method="post" data-shop-buy data-shop-product="' + id + '" data-shop-price="' + price + '" action="' + escape(action) + '"' +
           (product.ball ? ' data-shop-ball="' + product.ball + '"' : '') + (featured ? ' data-shop-feature' : '') + '>' +
           (product.ball ? '<span class="shop-count">' + (en ? 'In bag' : 'En la bolsa') + ' <strong data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</strong></span>' : '') + quantityInput + button + '</form>' + (featured ? '<small data-feature-upgrade' + (needsUpdate ? '' : ' hidden') + '>' + reasons.feature + '</small>' : '') + (id === 'master-ball' ? '<small data-shop-master-upgrade' + (available && needsUpdate ? '' : ' hidden') + '>' + escape(reasons.master) + '</small>' : '') +

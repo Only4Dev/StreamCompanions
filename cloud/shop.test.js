@@ -212,6 +212,11 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.match(await logPage.text(), /viewer lanzó una Super Ball · Se escapó · Restantes \(Super Ball\): 0/)
   db.prepare("UPDATE viewer_progress SET payload = json_set(payload, '$.pokeDollars', 120000, '$.rareCandies', 3) WHERE viewer_id = ?").run('twitch:1')
   await device('GET', undefined, { 'poke-egg': 5000, 'legendary-tracker': 100000 })
+  const channels = db.prepare('SELECT platforms FROM community_stream_status WHERE community_id = ?').get('stream').platforms
+  db.prepare('UPDATE community_stream_status SET platforms = ? WHERE community_id = ?').run(JSON.stringify([{ provider: 'twitch', login: 'streamer', live: false }]), 'stream')
+  const eggPage = await worker.fetch(new Request(base + '/?community=stream&tab=shop&section=eggs', { headers: cookie }), { DB: D1 })
+  assert.match(await eggPage.text(), /sprites\/pokemon\/egg\.png[^]*data-shop-product="poke-egg"/)
+  assert.equal((await readStatus()).online, true)
   const egg = crypto.randomUUID()
   const ticket = crypto.randomUUID()
   assert.match((await order(egg, 5000, 1, 'poke-egg')).headers.get('Location'), new RegExp('section=eggs&purchase=' + egg))
@@ -231,6 +236,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const bag = await consumables.text()
   assert.match(bag, /rare-candy\.png[^]*Caramelo Raro[^]*×3/)
   assert.match(bag, /dowsing-machine\.png[^]*Legendary Tracker[^]*×1/)
+  db.prepare('UPDATE community_stream_status SET platforms = ? WHERE community_id = ?').run(channels, 'stream')
   const trackerAction = await worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
     method: 'POST', headers: { ...cookie, Origin: base },
     body: new URLSearchParams({ id: crypto.randomUUID(), action: 'tracker' })

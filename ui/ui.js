@@ -1,7 +1,7 @@
 import { botCopy } from './bot-copy.js'
 import { level, showScene } from './sprites.js?v=blue-xp'
 import { captureCategories } from '/ui/capture-rates.js'
-import { maxShopPrice, shopItems } from '/ui/shop.js'
+import { maxShopPrice, shopIconUrl, shopItems } from '/ui/shop.js'
 import { aboutCopy } from '/ui/about.js'
 
 const $ = id => document.getElementById(id)
@@ -236,7 +236,7 @@ if (panel) {
     const name = document.createElement('span')
     name.dataset.shopItem = id
     const icon = document.createElement('img')
-    icon.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/' + (product.icon ?? id) + '.png'
+    icon.src = shopIconUrl(id)
     icon.width = 30
     icon.height = 30
     icon.loading = 'lazy'
