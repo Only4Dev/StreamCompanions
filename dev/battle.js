@@ -2,6 +2,7 @@ import { nationalLearnsets, nationalStats, typeChart } from './national-stats.js
 import { ultimateLevel } from '../ui/levels.js'
 import { nextEvolutionLevel } from '../ui/evolution.js'
 
+import { abilitiesFor, battleFormAssets, hasPoisonHeal } from '../ui/abilities.js'
 import { heldItems } from '../ui/held-items.js'
 
 export const arena = { width: 1920, height: 550, floor: 380 }
@@ -30,6 +31,10 @@ const ultimates = Object.fromEntries(Object.entries(ultimateSpecs).map(([type, [
 const moves = {
   ...ultimates,
   struggle: { name: 'Forcejeo', type: 'normal', kind: 'rush', power: 1, reach: 160, cooldown: 1.15, struggle: true },
+  relicsong: { name: 'Canto Arcaico', type: 'normal', kind: 'area', power: 36, reach: 350 },
+  payday: { name: 'Día de Pago', type: 'normal', kind: 'projectile', power: 32, reach: 480, reward: 50 },
+  makeitrain: { name: 'Fiebre Dorada', type: 'steel', kind: 'area', power: 45, reach: 375, reward: 100 },
+  dragondarts: { name: 'Dracoflechas', type: 'dragon', kind: 'projectile', damageClass: 'physical', power: 26, reach: 510, count: 2, visual: 'dreepy' },
   tackle: { name: 'Placaje', type: 'normal', kind: 'rush', power: 34, reach: 110 },
   ember: { name: 'Ascuas', type: 'fire', kind: 'projectile', power: 28, reach: 510, effect: 'burn', chance: .1 },
   water: { name: 'Pistola Agua', type: 'water', kind: 'projectile', power: 28, reach: 510 },
@@ -298,10 +303,14 @@ function authoredProgression(id, types, family) {
   return progression
 }
 
+const signatureMoves = { 52: [1, 'payday'], 53: [1, 'payday'], 648: [20, 'relicsong'], 887: [20, 'dragondarts'], 1000: [20, 'makeitrain'] }
+
 export function movesFor(id, types, final, level = 100) {
   const [signature] = ultimateOptions(types, level)
   const root = lineage(id)[0]
-  const progression = authoredProgression(id, types, legacyFamily.get(root))
+  const progression = [...authoredProgression(id, types, legacyFamily.get(root))]
+  const personal = signatureMoves[id]
+  if (personal && level >= personal[0]) progression[personal[0] === 1 ? 0 : 3] = personal[1]
   return [...progression.slice(0, level >= 20 ? 4 : level >= 10 ? 3 : level >= 5 ? 2 : 1),
     ...(signature ? [signature] : [])]
 }
@@ -389,7 +398,7 @@ export function battleManeuver(actor, time) {
   return { kind: cast.move.visual, phase: clamp((time - cast.start) / (cast.resolve - cast.start), 0, 1) }
 }
 
-export function createBattle(entries, { auto = true, random = Math.random, hpMultiplier = 1 } = {}) {
+export function createBattle(entries, { auto = true, random = Math.random, hpMultiplier = 1, onMoveReward = () => {} } = {}) {
   let time = 0
   let winner = null
   let over = false
@@ -410,15 +419,47 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const kit = [...chosen, ...(equippedUltimate ? [equippedUltimate] : [])]
     const margin = clamp(entry.margin ?? 75, 75, arena.width / 2)
     return {
-      ...entry, ...stats, index, hp: stats.maxHp,
+      ...entry, ...stats, index, hp: stats.maxHp, abilities: new Set(abilitiesFor(entry.id)),
       margin, x: clamp(150 + index * (arena.width - 300) / Math.max(1, entries.length - 1), margin, arena.width - margin),
       direction: index < entries.length / 2 ? 1 : -1, next: 0.5 + index * 0.12,
       shield: 0, boosts: {}, status: null, knockback: 0, hurtUntil: 0, motion: 'Idle', motionSince: 0,
       cast: null, dashUntil: 0, dashReady: 0, cooldowns: {}, ultimatePp: movePp({ ultimate: true }), ultimateCharge: 0,
       hasUltimate: Boolean(equippedUltimate), equippedUltimate,
-      kit, pp: Object.fromEntries(kit.filter(key => !moves[key].ultimate).map(key => [key, movePp(moves[key])]))
+      kit, pp: Object.fromEntries(kit.filter(key => !moves[key].ultimate).map(key => [key, movePp(moves[key]) + (entry.heldItem === 'leppa-berry' ? 2 : 0)]))
     }
   })
+
+  function updateForm(actor) {
+    if (!battleFormAssets[actor.id]) return
+    const half = actor.hp <= actor.maxHp / 2
+    const prior = actor.form
+    const forms = {
+      351: ['sun', 'rain', 'hail'].includes(field?.kind) ? field.kind : null,
+      421: field?.kind === 'sun' ? 'sunshine' : null,
+      555: half ? 'zen' : null,
+      648: actor.signatureChanged ? 'pirouette' : null,
+      658: actor.ashForm ? 'ash' : null,
+      681: actor.stanceBlade ? 'blade' : null,
+      718: half || prior === 'complete' ? 'complete' : null,
+      746: actor.level >= 20 && actor.hp > actor.maxHp / 4 ? 'school' : null,
+      774: half ? 'core' : null,
+      778: actor.disguiseUsed ? 'busted' : null,
+      845: actor.gulped ? (half ? 'gorging' : 'gulping') : null,
+      875: actor.iceFaceUsed ? 'noice' : null,
+      877: Math.floor(time / 8) % 2 ? 'hangry' : null,
+      964: half || prior === 'hero' ? 'hero' : null,
+      1024: actor.usedStellar ? 'stellar' : actor.tookDamage ? 'terastal' : null
+    }
+    actor.form = forms[actor.id] ?? null
+    if (actor.id === 351) actor.types = { sun: ['fire'], rain: ['water'], hail: ['ice'] }[actor.form] ?? ['normal']
+    if (actor.id === 648) actor.types = ['normal', actor.form ? 'fighting' : 'psychic']
+    if (actor.id === 555) actor.types = actor.form ? ['fire', 'psychic'] : ['fire']
+    if (prior !== actor.form && (prior || actor.form)) {
+      effects.push({ kind: 'clash', x: actor.x, at: time, expires: time + .55 })
+    }
+  }
+
+  for (const actor of actors) updateForm(actor)
 
   function useBerry(actor) {
     if (actor.heldItem !== 'sitrus-berry' || actor.berryUsed || actor.hp <= 0 || actor.hp > actor.maxHp * .2) return
@@ -467,6 +508,26 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
 
   const sleepBlocked = () => field?.kind === 'electric'
 
+  const fieldSpeedAbility = { sun: 'chlorophyll', rain: 'swift-swim', sandstorm: 'sand-rush', hail: 'slush-rush', electric: 'surge-surfer' }
+  const weatherSpeed = actor => actor.abilities.has(fieldSpeedAbility[field?.kind]) ? 1.3 : 1
+
+  function abilityDamage(actor, defender, move, type, physical, matchup) {
+    const has = key => actor.abilities.has(key)
+    const def = key => defender.abilities.has(key)
+    let amount = 1
+    if (actor.hp <= actor.maxHp / 3 && has({ fire: 'blaze', water: 'torrent', grass: 'overgrow', bug: 'swarm' }[type])) amount *= 1.3
+    if (has('strong-jaw') && /mord|colmillo|tritur/i.test(move.name)) amount *= 1.25
+    if (has('technician') && move.power <= 32) amount *= 1.2
+    if (physical && (has('guts') && actor.status || has('huge-power'))) amount *= 1.2
+    if (has('solar-power') && !physical && field?.kind === 'sun' || actor.flashFire && type === 'fire') amount *= 1.2
+    if (def('thick-fat') && (type === 'fire' || type === 'ice') || def('filter') && matchup > 1) amount *= .8
+    if (physical && (def('grass-pelt') && field?.kind === 'grass' || def('marvel-scale') && defender.status)) amount *= .8
+    if (['blade', 'hero', 'complete', 'school', 'sunshine', 'core', 'terastal', 'pirouette', 'ash', 'stellar'].includes(actor.form)) amount *= 1.15
+    if (actor.form === 'zen' && !physical || actor.form === 'hangry' && type === 'dark') amount *= 1.2
+    if (['school', 'complete', 'sunshine', 'terastal'].includes(defender.form) || defender.id === 681 && !defender.form) amount *= .88
+    return amount
+  }
+
   function hit(actor, defender, move, direction) {
     if (battleManeuver(defender, time)) return
     if (!move.ultimate && !move.struggle && defender.shield > time) return
@@ -474,8 +535,18 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const type = move.type ?? actor.types[0]
     const multiplier = effectiveness(actor, defender, move)
     const matchup = multiplier
+    if (!move.struggle && (move.power || move.effect)) {
+      const absorbs = { fire: 'flash-fire', water: 'water-absorb', electric: 'volt-absorb' }[type]
+      if (defender.abilities.has(absorbs)) {
+        if (absorbs === 'flash-fire') defender.flashFire = true
+        else defender.hp = Math.min(defender.maxHp, defender.hp + Math.round(defender.maxHp * .12))
+        return
+      }
+    }
+    const fieldEvasion = field?.kind === 'sandstorm' && defender.abilities.has('sand-veil') ||
+      field?.kind === 'hail' && defender.abilities.has('snow-cloak')
     const accurate = field?.kind === 'rain' && move === moves.lightning || field?.kind === 'hail' && move === moves.blizzard
-    if (!accurate && !move.ultimate && !move.struggle && matchup && random() < (defender.boosts.evasion > time ? .25 : .05)) {
+    if (!accurate && !move.ultimate && !move.struggle && matchup && random() < (defender.boosts.evasion > time ? .25 : fieldEvasion ? .15 : .05)) {
       effects.push({ kind: 'hit', type, x: defender.x, dodged: true, at: time, expires: time + .58 })
       return
     }
@@ -487,7 +558,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       !usesPhysical && field?.kind === 'hail' && defender.types.includes('ice')
     const defense = (usesPhysical ? defender.defense : defender.specialDefense * (defender.boosts.mind > time ? 1.65 : 1)) * (weatherDefense ? 1.5 : 1)
     const statRatio = clamp(attack / Math.max(1, defense), 0.55, 1.8) *
-      (usesPhysical && actor.status?.kind === 'burn' ? .5 : 1)
+      (usesPhysical && actor.status?.kind === 'burn' && !actor.abilities.has('guts') ? .5 : 1)
     let sleepMultiplier = 1
     if (matchup && move.power && defender.status?.kind === 'sleep' && !move.needsSleep) {
       if (random() < .3) defender.status = null
@@ -495,46 +566,69 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
     const statusLands = matchup && move.effect && !defender.status && !(move.effect === 'sleep' && sleepBlocked()) &&
       !defender.types.some(type => immune[move.effect].includes(type)) && random() < move.chance
-    const critical = !!(!move.ultimate && !move.struggle && matchup && move.power && random() < .07)
+    const critical = !!(!move.ultimate && !move.struggle && matchup && move.power && random() < (actor.abilities.has('super-luck') ? .14 : .07))
     const fieldMultiplier = fieldDamage[field?.kind]?.[type] ?? 1
     const solarCharge = ultimate?.actor === defender && ultimate.move.type === 'grass' && ultimate.pulse === 0
     const stab = actor.types.includes(type) ? 1.25 : 1
-    const itemMultiplier = type && heldItems[actor.heldItem]?.[2] === type ? 1.1 : 1
+    const itemMultiplier = type && heldItems[actor.heldItem]?.[2] === type || actor.heldItem === 'wise-glasses' && !usesPhysical ? 1.1 : 1
+    const abilityMultiplier = abilityDamage(actor, defender, move, type, usesPhysical, matchup)
     const variance = move.power && matchup ? .9 + random() * .2 : 1
     const ultimateDamage = Math.min(move.power, 78) * (.65 + actor.level / 100) * statRatio *
-      Math.min(matchup, 2) * stab * fieldMultiplier * itemMultiplier * variance
+      Math.min(matchup, 2) * stab * fieldMultiplier * itemMultiplier * abilityMultiplier * variance
     const damage = move.ultimate ? Math.min(Math.round(ultimateDamage), Math.floor(defender.maxHp * .6)) : move.struggle ? Math.ceil(defender.maxHp * .2) :
       Math.round(move.power * (0.5 + actor.level / 100) * statRatio * reduced * stab *
-        (solarCharge ? .7 : 1) * sleepMultiplier * fieldMultiplier * (critical ? 1.45 : 1) * itemMultiplier * variance)
+        (solarCharge ? .7 : 1) * sleepMultiplier * fieldMultiplier * (critical ? 1.45 : 1) * itemMultiplier * abilityMultiplier * variance)
     if (move.struggle) {
       actor.hp = Math.max(0, actor.hp - Math.ceil(actor.maxHp * .1))
       if (!actor.hp) actor.faintedAt = time
     }
+    if (damage && !move.struggle && ((defender.id === 778 && !defender.disguiseUsed) ||
+        (defender.id === 875 && usesPhysical && !defender.iceFaceUsed))) {
+      defender.disguiseUsed = defender.id === 778
+      defender.iceFaceUsed = defender.id === 875
+      updateForm(defender)
+      return
+    }
     if (damage) {
+      defender.tookDamage = true
       const inflicted = Math.min(defender.hp, damage)
       defender.hp = Math.max(0, defender.hp - damage)
       const fraction = inflicted / defender.maxHp
       const hitBonus = move.count ? .5 : 1
       if (!move.ultimate) charge(actor, 5 * hitBonus + fraction * 36)
       charge(defender, move.ultimate ? fraction * 14 : 4 * hitBonus + fraction * 26)
-      if (move.drain && actor.hp > 0) actor.hp = Math.min(actor.maxHp, actor.hp + Math.round(inflicted * move.drain))
+      if (actor.hp > 0 && (move.drain || actor.heldItem === 'shell-bell')) {
+        actor.hp = Math.min(actor.maxHp, actor.hp + Math.round(inflicted * ((move.drain ?? 0) + (actor.heldItem === 'shell-bell' ? .12 : 0))))
+      }
       const channeling = defender.cast?.move.channel && defender.cast.start + defender.cast.move.channel > time
       if (!immobilized(defender) && !channeling && !solarCharge) {
         const push = move.push ?? (move.count ? 95 : move.kind === 'rush' ? 430 : 270)
         defender.knockback = direction * push * (critical ? 1.25 : 1)
       }
       defender.hurtUntil = time + (move.count ? .12 : .35)
-      if (!defender.hp) defender.faintedAt = time
+      if (!defender.hp) {
+        defender.faintedAt = time
+        if (actor.id === 658) {
+          actor.ashForm = true
+          updateForm(actor)
+        }
+      }
+      if (defender.gulped && actor.hp) {
+        defender.gulped = false
+        updateForm(defender)
+        dealChip(actor, .08, 'flying', 'dreepy')
+      }
       if (!channeling || !defender.hp) defender.cast = null
       defender.next = Math.max(defender.next, time + .42)
+      if (defender.hp) updateForm(defender)
       if (move.flinch && !channeling && random() < move.flinch) defender.flinchUntil = time + 1.5
     }
     if (move.leech && matchup && defender.hp && !defender.types.includes('grass')) {
       defender.leech = { source: actor.index, next: time + 1, ends: time + 7 }
     }
     if (move.ongoing && matchup && defender.hp) {
-      defender.ongoing = { kind: move.ongoing, next: time + 1, ends: time + 4.1 }
-      if (move.ongoing === 'wrap') defender.slowUntil = time + 4
+      defender.ongoing = { kind: move.ongoing, next: time + 1, ends: time + (actor.heldItem === 'grip-claw' ? 6.1 : 4.1) }
+      if (move.ongoing === 'wrap') defender.slowUntil = defender.ongoing.ends
     }
     if (move.slow && matchup && defender.hp) defender.slowUntil = time + 4
     if (defender.hp && statusLands) {
@@ -559,6 +653,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     if (!target && move.kind !== 'guard') return false
     if (target) actor.direction = Math.sign(target.x - actor.x) || actor.direction
     if (move.ultimate) {
+      if (actor.id === 1024) { actor.usedStellar = true; updateForm(actor) }
       actor.ultimatePp--
       actor.ultimateCharge = 0
       actor.motion = 'Special0'
@@ -584,13 +679,18 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
     const duration = moveId === 'solar' && field?.kind === 'sun' ? 0 : (move.channel ?? 0) + (move.kind === 'pierce' ? .85 : move.kind === 'area' ? .75 :
       move.kind === 'maneuver' ? 1.6 : move.kind === 'rush' ? .36 : move.kind === 'target' ? .6 : .42)
+    if (actor.id === 681) {
+      actor.stanceBlade = move.kind !== 'guard'
+      updateForm(actor)
+    }
     actor.cast = { move, target, start: time, resolve: time + duration, origin: actor.x }
     actor.repeat = moveId === actor.lastMove ? actor.repeat + 1 : 1
     actor.lastMove = moveId
     actor.motionSince = time
     actor.motion = move.animation ?? (isRanged(move) ? 'Shoot' : move.kind === 'guard' ? 'Idle' :
       move.kind === 'area' ? 'Special0' : 'Attack')
-    actor.next = time + duration + clamp(1.4 - actor.speed / 140, .45, 1.2)
+    const quickClaw = actor.heldItem === 'quick-claw' && random() < .18
+    actor.next = time + duration + clamp(1.4 - actor.speed / 140, .45, 1.2) * (quickClaw ? .5 : 1) / weatherSpeed(actor)
     actor.cooldowns[moveId] = time + duration + moveCooldown(move)
     if (move.kind === 'area') {
       effects.push({ kind: 'warning', type: move.type, visual: move.visual, x: actor.x, reach: move.reach, at: time, expires: time + duration })
@@ -640,30 +740,46 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
           return
         }
         hit(actor, contact, move, actor.direction)
+        if (contact.hp && actor.abilities.has('parental-bond') && !move.struggle) {
+          hit(actor, contact, { ...move, power: Math.round(move.power * .3), effect: undefined }, actor.direction)
+        }
         actor.cast = null
         return
       }
     }
     if (time < cast.resolve) return
     actor.cast = null
+    if (move.reward) onMoveReward(actor, move.reward)
+    if (actor.id === 845 && move.type === 'water' && move.power) {
+      actor.gulped = true
+      updateForm(actor)
+    }
+    if (move === moves.relicsong && actor.id === 648) {
+      actor.signatureChanged = !actor.signatureChanged
+      updateForm(actor)
+    }
     if (move.kind === 'guard') {
       if (move.blink && cast.target) {
         const away = -Math.sign(cast.target.x - actor.x) || -actor.direction
         actor.x = bound(actor.x + (Math.abs(bound(actor.x + away * 250, actor) - actor.x) >= 100 ? away : -away) * 250, actor)
         for (const x of [origin, actor.x]) effects.push({ kind: 'target', visual: 'psychic', x, at: time, expires: time + .45 })
       } else if (move.field) field = { kind: move.field, owner: actor.index, start: time,
-        ends: time + (['grass', 'electric'].includes(move.field) ? 10 : 9),
+        ends: time + (['grass', 'electric'].includes(move.field) ? 10 : 9) +
+          (actor.heldItem === { rain: 'damp-rock', sun: 'heat-rock' }[move.field] && actor.heldItem ? 5 : 0),
         next: time + (['hail', 'sandstorm'].includes(move.field) ? 3 : 1) }
       else if (move.boost) actor.boosts[move.boost] = time + 7
       else if (move.heal) {
-        actor.hp = Math.min(actor.maxHp, actor.hp + Math.round(actor.maxHp * move.heal))
+        actor.hp = Math.min(actor.maxHp, actor.hp + Math.round(actor.maxHp * move.heal * (actor.heldItem === 'leftovers' ? 1.25 : 1)))
         actor.recovered = true
       }
       else if (move.protect) actor.shield = time + .85
     } else if (move.kind === 'projectile') {
       if (move.recoil) actor.knockback = -actor.direction * move.recoil
       launch(actor, move, actor.direction)
-      for (let i = 1; i < (move.count ?? 1); i++) queuedShots.push({ actor, move, direction: actor.direction, at: time + i * .16 })
+      const bonusHit = !move.count && move.power && actor.abilities.has('parental-bond')
+      const count = move.count ? move.count + Number(actor.abilities.has('skill-link') && move !== moves.dragondarts) : bonusHit ? 2 : 1
+      const followUp = bonusHit ? { ...move, power: Math.round(move.power * .3) } : move
+      for (let i = 1; i < count; i++) queuedShots.push({ actor, move: followUp, direction: actor.direction, at: time + i * .16 })
     } else if (move.kind === 'pierce') {
       const direction = actor.direction
       actor.knockback = -direction * move.recoil
@@ -899,6 +1015,15 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   }
 
   function tickStatus(actor) {
+    if (actor.heldItem === 'leftovers' && time >= (actor.nextLeftovers ?? 5)) {
+      actor.nextLeftovers = time + 5
+      actor.hp = Math.min(actor.maxHp, actor.hp + Math.max(1, Math.round(actor.maxHp * .02)))
+    }
+    if (actor.heldItem === 'toxic-orb' && !actor.orbActivated && !actor.status && time >= 2 &&
+        !immune.poison.some(type => actor.types.includes(type))) {
+      actor.orbActivated = true
+      actor.status = { kind: 'poison', severe: true, ends: Infinity, tick: time + 1, severity: 0 }
+    }
     const ongoing = actor.ongoing
     if (ongoing?.ends <= time) actor.ongoing = null
     else if (ongoing?.next <= time) {
@@ -924,6 +1049,10 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     if (status.ends <= time) actor.status = null
     else if ((status.kind === 'burn' || status.kind === 'poison') && status.tick <= time) {
       status.tick += 1
+      if (status.kind === 'poison' && hasPoisonHeal(actor.id)) {
+        actor.hp = Math.min(actor.maxHp, actor.hp + Math.max(1, Math.round(actor.maxHp * .04)))
+        return
+      }
       status.severity++
       const fraction = status.kind === 'burn' ? .025 : Math.min(.065, .01 + .005 * status.severity)
       actor.hp = Math.max(0, actor.hp - Math.max(1, Math.round(actor.maxHp * fraction)))
@@ -932,7 +1061,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   }
 
   function walk(actor, direction, dt) {
-    const speed = (120 + actor.speed * .65) * (actor.boosts.speed > time ? 1.5 : 1) *
+    const speed = (120 + actor.speed * .65) * weatherSpeed(actor) * (actor.boosts.speed > time ? 1.5 : 1) *
       (actor.status?.kind === 'paralysis' ? .55 : 1) * (actor.slowUntil > time ? .65 : 1)
     let next = bound(actor.x + direction * speed * dt, actor)
     for (const other of actors) {
@@ -1083,6 +1212,11 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         tickStatus(actor)
         useBerry(actor)
         if (!actor.hp) continue
+        if (actor.id === 875 && field?.kind === 'hail' && actor.lastIceField !== field) {
+          actor.lastIceField = field
+          actor.iceFaceUsed = false
+        }
+        updateForm(actor)
         const locked = immobilized(actor)
         advanceKnockback(actor, dt)
         if (actor.cast) {
@@ -1154,7 +1288,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         field = null
         finalists.forEach((actor, index) => {
           Object.assign(actor, { hp: Math.ceil(actor.maxHp * .25), x: bound(arena.width / 2 + (index - (finalists.length - 1) / 2) * 130, actor),
-            status: null, leech: null, ongoing: null, boosts: {}, cast: null, shield: 0, knockback: 0, hurtUntil: 0, faintedAt: undefined,
+            status: null, leech: null, ongoing: null, orbActivated: false, boosts: {}, cast: null, shield: 0, knockback: 0, hurtUntil: 0, faintedAt: undefined,
             cooldowns: {}, confusion: null, flinchUntil: 0, slowUntil: 0, dashUntil: 0, dodgeUntil: 0, exhaustedUntil: 0, dashReady: time, next: time + .6 })
         })
       } else if (alive.length <= 1 || timedOut) {

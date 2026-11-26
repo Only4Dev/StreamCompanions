@@ -42,7 +42,8 @@ def main():
         raise RuntimeError('Pillow was built without WebP support')
     manifest = json.loads((SOURCE / 'manifest.json').read_text(encoding='utf-8'))
     references = []
-    for species in manifest['species']:
+    entries = (entry for base in manifest['species'] for entry in (base, *base.get('battleForms', {}).values()))
+    for species in entries:
         references.extend((species, key) for key in ('portrait', 'shinyPortrait') if species.get(key))
         for variant in ('normal', 'shiny'):
             animations = (species.get(variant) or {}).get('animations', {})

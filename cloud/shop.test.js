@@ -10,12 +10,14 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
   for (const migration of ['0001_sync', '0002_portal', '0003_viewer_login', '0004_accounts', '0005_movesets', '0006_kick',
-    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity', '0019_web_game', '0020_portal_announcements']) {
+    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity', '0019_web_game', '0020_portal_announcements', '0021_shiny_cue']) {
     db.exec(await readFile(new URL('./migrations/' + migration + '.sql', import.meta.url), 'utf8'))
   }
   const D1 = {
     prepare(sql) {
-      return { all: () => ({ results: db.prepare(sql).all() }), bind(...args) { return {
+      return { all: () => ({ results: db.prepare(sql).all() }), bind(...values) {
+        const args = values.map(value => value instanceof ArrayBuffer ? new Uint8Array(value) : value)
+        return {
         all: () => ({ results: db.prepare(sql).all(...args) }),
         first: () => db.prepare(sql).get(...args),
         run: () => ({ meta: db.prepare(sql).run(...args) }), sql
@@ -112,7 +114,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.deepEqual(await readStatus(), {
     balance: 200, balls: updatedViewer.balls, heldItems: [], pending: false, online: true, bulk: true, message: 'Compra realizada.'
   })
-  const runtimeHeaders = { Authorization: 'Bearer ' + token, 'X-Web-Game': JSON.stringify({ id: '100:1', en: 'Easy', es: 'Fácil' }) }
+  const runtimeHeaders = { Authorization: 'Bearer ' + token, 'X-Web-Game': JSON.stringify({ id: '100:1', shiny: true, en: 'Easy', es: 'Fácil' }) }
   db.prepare('INSERT INTO community_stream_status VALUES (?, ?, ?)').run('stream', Date.now(), JSON.stringify([
     { provider: 'twitch', login: 'streamer', live: true },
     { provider: 'kick', login: 'streamer', live: true }
@@ -126,6 +128,25 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.match(liveHtml, /player\.twitch\.tv\/\?channel=streamer&amp;parent=example\.test/)
   assert.match(liveHtml, /data-capture-form/)
   assert.match(liveHtml, /<a href="\/">Inicio<\/a>/)
+  const cueUrl = base + '/live/shiny-cue?community=stream&platform=twitch'
+  const cookie = { Cookie: 'sc_session=' + session }
+  const cueRequest = () => worker.fetch(new Request(cueUrl, { headers: cookie }), { DB: D1 })
+  assert.equal((await worker.fetch(new Request(cueUrl), { DB: D1 })).status, 401)
+  const defaultCue = await cueRequest()
+  assert.equal(defaultCue.headers.get('Content-Type'), 'audio/wav')
+  assert.equal(Buffer.from(await defaultCue.arrayBuffer()).subarray(0, 4).toString(), 'RIFF')
+  const customCue = Buffer.from('ID3fixture-audio')
+  const uploadCue = (method, body) => worker.fetch(new Request(base + '/api/shiny-cue', {
+    method, body, headers: { Authorization: 'Bearer ' + token }
+  }), { DB: D1 })
+  assert.equal((await uploadCue('PUT', new Uint8Array(512 * 1024 + 1))).status, 413)
+  assert.equal((await uploadCue('PUT', Buffer.from('invalid'))).status, 415)
+  assert.equal((await uploadCue('PUT', customCue)).status, 204)
+  assert.equal(Buffer.from(await (await cueRequest()).arrayBuffer()).toString(), customCue.toString())
+  const shinyStatus = await worker.fetch(new Request(base + '/live/status?community=stream&platform=twitch', { headers: cookie }), { DB: D1 })
+  assert.equal((await shinyStatus.json()).shiny, true)
+  assert.equal((await uploadCue('DELETE')).status, 204)
+  assert.equal((await cueRequest()).headers.get('Content-Type'), 'audio/wav')
   const feed = base + '/live/announcements?community=stream'
   const event = { id: 'c'.repeat(32), message: '¡Aparecerá un Pokémon en 2 minutos!' }
   const announce = (headers = {}) => worker.fetch(new Request(base + '/api/announcements', {

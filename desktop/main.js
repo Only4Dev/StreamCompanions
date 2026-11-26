@@ -1,7 +1,8 @@
-import { app, BrowserWindow, safeStorage, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, safeStorage, session, shell } from 'electron'
 import { createHash, randomBytes } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { cueType, maxCueBytes } from '../ui/shiny-cue.js'
 import { normalizeCommand } from './commands.js'
 import { connectTwitch } from './twitch.js'
 import { startCloudSync } from './cloud-sync.js'
@@ -124,6 +125,38 @@ let twitchPaired = false
 const twitchAllowed = () => !syncDevice?.community.startsWith('kick-') || twitchPaired
 let lastKickLink = 0
 const kickAbort = new AbortController()
+
+let shinyCue
+let syncedShinyCue
+let syncingShinyCue = false
+const shinyCueFile = () => join(app.getPath('userData'), 'shiny-cue')
+
+async function syncShinyCue() {
+  if (!syncDevice || syncingShinyCue) return
+  const device = syncDevice
+  const cue = shinyCue
+  const key = cue?.key ?? 'default'
+  if (syncedShinyCue?.device === device && syncedShinyCue.key === key) return
+  syncingShinyCue = true
+  try {
+    const response = await fetch(new URL('/api/shiny-cue', device.url), {
+      method: cue ? 'PUT' : 'DELETE',
+      headers: { Authorization: 'Bearer ' + device.token, ...(cue ? { 'Content-Type': cue.type } : {}) },
+      body: cue?.bytes, signal: AbortSignal.timeout(5000), redirect: 'error'
+    })
+    if (response.ok) syncedShinyCue = { device, key }
+  } finally {
+    syncingShinyCue = false
+    if (device !== syncDevice || cue !== shinyCue) void syncShinyCue().catch(() => {})
+  }
+}
+
+function setShinyCue(bytes) {
+  const type = cueType(bytes)
+  if (!type || bytes.length > maxCueBytes) return false
+  shinyCue = { bytes, type, key: createHash('sha256').update(bytes).digest('hex') }
+  return true
+}
 
 let spriteFolder = join(app.getAppPath(), 'pmd')
 async function readSpriteManifest(folder) {
@@ -249,6 +282,7 @@ async function pollShop() {
     if (Date.now() >= nextShopMaintenance) {
       nextShopMaintenance = Date.now() + 30_000
       await refreshLiveChannels()
+      void syncShinyCue().catch(() => {})
       if (!stopSync) return
       const privacy = await fetch(new URL('/api/privacy', syncDevice.url), {
         headers: { Authorization: 'Bearer ' + syncDevice.token }, redirect: 'error',
@@ -263,7 +297,7 @@ async function pollShop() {
     void flushPortalAnnouncements()
     if (kickAbort.signal.aborted || game.config.running === false) return
     const encounter = game.currentEncounter()
-    const webGame = encounter ? { id: encounter.id, en: game.encounterDifficulty(encounter.name, 'en'), es: game.encounterDifficulty(encounter.name, 'es') } : {}
+    const webGame = encounter ? { id: encounter.id, shiny: Boolean(encounter.shiny), en: game.encounterDifficulty(encounter.name, 'en'), es: game.encounterDifficulty(encounter.name, 'es') } : {}
     const endpoint = new URL('/api/shop', syncDevice.url)
     const request = body => fetch(endpoint, {
       method: body ? 'POST' : 'GET', redirect: 'error',
@@ -619,13 +653,13 @@ function publicBattle(battle) {
     projectiles: battle.projectiles.map(({ x, move, direction, actor }) => ({ x, move, direction, actor: { types: actor.types } })),
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
-      return { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
+      return { name, ownerName, shiny, form: actor.form, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
         evasion: boosts.evasion > battle.time, flinched: flinchUntil > battle.time }
     }) }
 }
 
-const sheets = new Set(manifest.species.flatMap(item => [
+const sheets = new Set(manifest.species.flatMap(item => [item, ...Object.values(item.battleForms ?? {})]).flatMap(item => [
   item.portrait, item.shinyPortrait,
   ...[item.normal, item.shiny].filter(Boolean).flatMap(variant => Object.values(variant.animations).map(animation => animation.url))
 ].filter(path => /^\/pmd\/[a-z0-9-]+\/[a-z0-9_-]+\.(?:png|webp)$/i.test(path))))
@@ -691,7 +725,15 @@ async function runCommunityBattle(waitForBanner) {
   const active = game.overlay('companions').viewers
   entries = entries.filter(entry => active[entry.viewerId]?.active.key === entry.speciesKey)
   if (entries.length < 2) return 422
-  const battle = battleRules.createBattle(entries, { hpMultiplier: game.config.battleHpMultiplier })
+  const battle = battleRules.createBattle(entries, {
+    hpMultiplier: game.config.battleHpMultiplier,
+    onMoveReward(actor, amount) {
+      if (game.creditBattleMove(actor.viewerId, amount)) {
+        logDiagnostic('battle_move_reward', { species: actor.id, amount })
+        persistGame()
+      }
+    }
+  })
   game.setBattleActive(true)
   logDiagnostic('battle_started', { participants: entries.length })
   communityBattle = { battle, finishedAt: 0 }
@@ -739,6 +781,7 @@ const routes = new Map([
   ['/ui/held-items.js', ['held-items.js', 'text/javascript']],
   ['/ui/shop.js', ['shop.js', 'text/javascript']],
   ['/ui/capture-rates.js', ['capture-rates.js', 'text/javascript']],
+  ['/ui/abilities.js', ['abilities.js', 'text/javascript']],
   ['/ui/about.js', ['about.js', 'text/javascript']],
   ['/ui/evolution.js', ['evolution.js', 'text/javascript']],
   ['/ui/evolution-data.js', ['evolution-data.js', 'text/javascript']],
@@ -816,6 +859,11 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify(state))
       return
     }
+    if (req.method === 'GET' && pathname === '/sfx/shiny.wav' && shinyCue) {
+      res.writeHead(200, { 'Content-Type': shinyCue.type, 'Cache-Control': 'no-store' })
+      res.end(shinyCue.bytes)
+      return
+    }
     if (req.method === 'POST' && pathname === '/demo') {
       if (!hasLocalControl(req) || req.headers.origin !== localOrigin || req.headers['content-type'] !== 'application/json') {
         res.writeHead(403).end()
@@ -827,6 +875,26 @@ const server = createServer(async (req, res) => {
         if (body.length > 16384) throw new Error('Request too large')
       }
       const action = JSON.parse(body)
+      if (action.shinyCue === 'choose' || action.shinyCue === 'reset') {
+        if (action.shinyCue === 'reset') {
+          rmSync(shinyCueFile(), { force: true })
+          shinyCue = undefined
+        } else {
+          const selection = await dialog.showOpenDialog(mainWindow, {
+            properties: ['openFile'], filters: [{ name: 'MP3 / WAV', extensions: ['mp3', 'wav'] }]
+          })
+          if (selection.canceled) { res.writeHead(204).end(); return }
+          const file = selection.filePaths[0]
+          if (statSync(file).size > maxCueBytes || !setShinyCue(await readFile(file))) {
+            res.writeHead(422).end()
+            return
+          }
+          writeFileSync(shinyCueFile(), shinyCue.bytes)
+        }
+        void syncShinyCue().catch(() => {})
+        res.writeHead(204).end()
+        return
+      }
       if (action.checkUpdates === true) {
         await refreshUpdateStatus()
         res.writeHead(204).end()
@@ -1045,6 +1113,7 @@ const server = createServer(async (req, res) => {
 app.whenReady().then(() => {
   const profile = app.getPath('userData')
   mkdirSync(profile, { recursive: true })
+  try { setShinyCue(readFileSync(shinyCueFile())) } catch { /* use the built-in cue */ }
   if (useInstalledUpdate(profile)) return
   setupFile = join(profile, 'startup.json')
   setup = {

@@ -2,6 +2,13 @@
 
 ## 1.2.0
 
+- Add 15 battle-form species with normal and shiny sprite support, more than 20 passive abilities, and six additional held items.
+- Add Pay Day and Make It Rain rewards on completed moves and two sequential Dreepy shots for Dragon Darts.
+- Let streamers choose, preview, and reset a shiny encounter sound. Add optional shiny audio to Play on web.
+
+- Add Pickup for selected route Pokémon, Poison Heal, Toxic Orb, Quick Claw, and Damp Rock.
+- Award battle XP as a configurable percentage of the winner’s level span, once per victory.
+
 - Use a light blue summon XP bar, center action feedback on phones, and let streamers set Pokédollars awarded per battle win.
 
 - Sell Master Balls for 500,000 Pokédollars by default, with a configurable shop price.

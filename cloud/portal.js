@@ -12,7 +12,7 @@ import { familyDnaCount, familyRoot, maxDnaBoosters } from '../ui/evolution.js'
 import { creatureMoves, parseLoadout, speciesName, validMoveset } from './movesets.js'
 import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles, mobileStyles, liveReactionStyles } from './portal-style.js'
 import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
-import { heldItems } from '../ui/held-items.js'
+import { arenaShopItems, heldItems } from '../ui/held-items.js'
 import { maxShopQuantity, shopItems, validShopQuantity } from '../ui/shop.js'
 
 function communityTabs(community, language, current, region = 'kanto') {
@@ -75,6 +75,25 @@ let version = 0;
 let lastLog = '';
 let clearReaction;
 const reaction = document.querySelector('[data-live-reaction]');
+const shinyOptIn = root.querySelector('[data-shiny-audio]');
+const shinyUrl = new URL('/live/shiny-cue', endpoint);
+shinyUrl.searchParams.set('community', endpoint.searchParams.get('community'));
+shinyUrl.searchParams.set('platform', endpoint.searchParams.get('platform'));
+const shinyAudio = new Audio();
+let lastEncounter;
+const shinyPreference = 'sc-web-shiny-audio';
+try { shinyOptIn.checked = localStorage.getItem(shinyPreference) === '1'; } catch {}
+function playShiny() {
+  shinyUrl.searchParams.set('play', Date.now());
+  shinyAudio.src = shinyUrl;
+  shinyAudio.volume = .55;
+  return shinyAudio.play();
+}
+shinyOptIn.addEventListener('change', () => {
+  try { localStorage.setItem(shinyPreference, shinyOptIn.checked ? '1' : '0'); } catch {}
+  if (shinyOptIn.checked) playShiny().catch(() => {});
+  else shinyAudio.pause();
+});
 function showFeedback(message, result, captureAction = false) {
   const kind = result === 'catchSuccess' ? 'catch' : captureAction || result === 'escaped' ? 'miss' :
     ['summoned', 'removed', 'candyUsed'].includes(result) ? 'success' : 'warning';
@@ -138,6 +157,10 @@ async function refresh() {
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const state = await response.json();
     if (current !== version) return;
+    if (lastEncounter !== undefined && state.encounter && state.encounter !== lastEncounter && state.shiny && shinyOptIn.checked) {
+      playShiny().catch(() => {});
+    }
+    lastEncounter = state.encounter;
     capture.querySelector('input[name="encounter"]').value = state.encounter || '';
     root.querySelector('[data-capture-difficulty]').textContent = state.difficulty || root.dataset.noEncounter;
     for (const input of capture.querySelectorAll('input[name="ball"]')) {
@@ -177,6 +200,27 @@ async function refresh() {
 refresh();
 })();`
 
+function defaultShinyCue() {
+  const rate = 16000
+  const samples = 10080
+  const bytes = new ArrayBuffer(44 + samples * 2)
+  const header = new DataView(bytes)
+  for (const [offset, tag] of [[0, 'RIFF'], [8, 'WAVE'], [12, 'fmt '], [36, 'data']]) {
+    for (let index = 0; index < tag.length; index++) header.setUint8(offset + index, tag.charCodeAt(index))
+  }
+  for (const [offset, value] of [[4, bytes.byteLength - 8], [16, 16], [24, rate], [28, rate * 2], [40, samples * 2]]) header.setUint32(offset, value, true)
+  for (const [offset, value] of [[20, 1], [22, 1], [32, 2], [34, 16]]) header.setUint16(offset, value, true)
+  for (let index = 0; index < samples; index++) {
+    const time = index / rate
+    const note = Math.floor(time / .21)
+    const phase = time - note * .21
+    const frequency = [659.25, 880, 1318.51][note]
+    header.setInt16(44 + index * 2, Math.round(Math.sin(2 * Math.PI * frequency * phase) *
+      Math.min(1, phase * 80) * Math.max(0, 1 - phase / .21) * 13000), true)
+  }
+  return bytes
+}
+
 function webGameState(runtime, row, language) {
   const en = language === 'en'
   const online = Boolean(runtime?.seen_at > Date.now() - 20000)
@@ -197,7 +241,7 @@ function webGameState(runtime, row, language) {
   const message = pending ? (en ? 'Waiting for the streamer’s app…' : 'Esperando a la app del streamer…') :
     result ? messages[result] || botCopy[language][result] || (en ? 'The action could not be completed.' : 'No se pudo completar la acción.') : ''
   return { online, pending, message, ...(result ? { result } : {}), encounter: online ? runtime.encounter_id : null,
-    difficulty: online ? runtime[en ? 'difficulty_en' : 'difficulty_es'] : null }
+    difficulty: online ? runtime[en ? 'difficulty_en' : 'difficulty_es'] : null, ...(online && runtime.shiny ? { shiny: true } : {}) }
 }
 
 async function viewerSession(request, db) {
@@ -254,8 +298,8 @@ async function renderLiveGame(request, db, url, language) {
     open('candy', ' class="live-candy"') + '<label>' + (en ? 'Rare Candy quantity' : 'Cantidad de Caramelos Raros') +
     ' <input type="number" name="quantity" min="1" max="50" value="1" required></label><button' +
     disabled + '>' + (en ? 'Use Rare Candy' : 'Usar Caramelo Raro') + '</button></form></section>' +
-    '</div><details class="live-activity" open><summary>' + (en ? 'Your game activity' : 'Tu actividad de juego') +
-    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=4" defer></script>'
+    '</div><label><input type="checkbox" data-shiny-audio> ' + (en ? 'Play shiny sounds' : 'Reproducir sonidos shiny') + '</label><details class="live-activity" open><summary>' + (en ? 'Your game activity' : 'Tu actividad de juego') +
+    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=5" defer></script>'
 
 }
 
@@ -346,7 +390,7 @@ function renderPage(body, status, language, theme, url) {
   const themeLabel = theme === 'dark' ? (language === 'en' ? 'Light mode' : 'Modo claro') : (language === 'en' ? 'Dark mode' : 'Modo oscuro')
   const themeLink = '<a href="/?' + escape(themeQuery) + '">' + themeLabel + '</a>'
   const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'same-origin',
-    'Content-Security-Policy': "default-src 'none'; script-src 'self'; connect-src 'self'; frame-src https://player.twitch.tv https://player.kick.com; img-src https://raw.githubusercontent.com https://static-cdn.jtvnw.net https://*.kick.com; style-src 'unsafe-inline'; form-action 'self' https://id.kick.com https://id.twitch.tv; frame-ancestors 'none'" })
+    'Content-Security-Policy': "default-src 'none'; script-src 'self'; connect-src 'self'; media-src 'self'; frame-src https://player.twitch.tv https://player.kick.com; img-src https://raw.githubusercontent.com https://static-cdn.jtvnw.net https://*.kick.com; style-src 'unsafe-inline'; form-action 'self' https://id.kick.com https://id.twitch.tv; frame-ancestors 'none'" })
   headers.append('Set-Cookie', cookie('sc_lang', language, 31_536_000))
   headers.append('Set-Cookie', cookie('sc_theme', theme, 31_536_000))
   return new Response('<!doctype html><html lang="' + language + '" data-theme="' + theme + '"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
@@ -620,6 +664,17 @@ export async function portal(request, url, env) {
     return json({ balance, balls, heldItems, pending, online, ...(master ? { master: true } : {}), bulk: Boolean(viewer.supports_quantity), dnaCount, ...(dnaCount !== undefined ? { dna: viewer.supports_dna >= 3 } : {}), message })
   }
 
+  if (url.pathname === '/live/shiny-cue' && request.method === 'GET') {
+    if (!identity) return new Response(null, { status: 401 })
+    const community = url.searchParams.get('community')
+    const platform = url.searchParams.get('platform')
+    if (!await webGameViewer(env.DB, identity.account_id, community, platform)) return new Response(null, { status: 404 })
+    const cue = await env.DB.prepare('SELECT type, audio FROM shiny_cues WHERE community_id = ?').bind(community).first()
+    return new Response(cue ? new Uint8Array(cue.audio) : defaultShinyCue(), { headers: {
+      'Content-Type': cue?.type ?? 'audio/wav', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'
+    } })
+  }
+
   if (url.pathname === '/live/action' || url.pathname === '/live/status') {
     if (!identity) return new Response(null, { status: 401 })
     const community = url.searchParams.get('community')
@@ -819,6 +874,7 @@ export async function portal(request, url, env) {
     const returnBlocked = reason => redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, reason }), [])
     if (blocked || (quantity > 1 && !online.supports_quantity)) return returnBlocked(blocked ?? 'quantity')
     if (item === 'master-ball' && !Object.hasOwn(published ?? {}, item)) return returnBlocked('master')
+    if (arenaShopItems.includes(item) && !Object.hasOwn(published ?? {}, item)) return returnBlocked('upgrade')
     const price = published?.[item] ?? product.price
     const quote = url.searchParams.get('price')
     if ((!published && quote === null) || quote === String(price)) {
@@ -992,7 +1048,9 @@ export async function portal(request, url, env) {
       escape(available ? reasons.quantity : offlineText) + '</p>' +
       submittingPurchase(en) + (pending ? '<p role="status" data-order-receipt' + pendingPurchase(en) + '>' + (en ? 'Order sent. Waiting for the streamer’s app to confirm…' : 'Pedido enviado. Esperando confirmación de la app del streamer…') + '</p>' :
         order && status[order.result] ? '<p role="status" data-order-receipt>' + status[order.result] + '</p>' : '') +
-      '<ul class="held-grid shop-grid">' + Object.entries(shopItems).filter(([, product]) => section === 'held' ? product.held : product.ball).map(([id, product]) => {
+      '<ul class="held-grid shop-grid">' + Object.entries(shopItems).filter(([id, product]) =>
+        (!arenaShopItems.includes(id) || Object.hasOwn(published ?? {}, id)) && (section === 'held' ? product.held : product.ball)
+      ).map(([id, product]) => {
         const owned = product.held && ownedItems.includes(id)
         const price = published?.[id] ?? product.price
         const needsUpdate = id === 'master-ball' && !Object.hasOwn(published ?? {}, id)

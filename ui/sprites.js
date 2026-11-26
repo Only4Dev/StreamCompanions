@@ -352,7 +352,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       for (const [index, fighter] of state.battle.actors.entries()) {
         if (!fighter.hp) continue
         const entry = species.get(fighter.name)
-        const variant = fighter.shiny ? entry?.shiny : entry?.normal
+        const form = entry?.battleForms?.[fighter.form]
+        const variant = fighter.shiny ? form?.shiny ?? entry?.shiny : form?.normal ?? entry?.normal
         const clip = battleClip(variant?.animations, fighter.motion)
         const start = battlePositions.get(index) ?? fighter.x
         const x = start + (fighter.x - start) * Math.min(1, elapsed * 13)

@@ -1,5 +1,16 @@
+export const arenaShopItems = ['toxic-orb', 'quick-claw', 'damp-rock', 'heat-rock', 'grip-claw', 'wise-glasses', 'shell-bell', 'leppa-berry', 'leftovers']
+
 export const heldItems = {
   'sitrus-berry': ['Baya Zidra', 'Sitrus Berry'],
+  'toxic-orb': ['Toxisfera', 'Toxic Orb'],
+  'quick-claw': ['Garra Rápida', 'Quick Claw'],
+  'damp-rock': ['Roca Lluvia', 'Damp Rock'],
+  'heat-rock': ['Roca Calor', 'Heat Rock'],
+  'grip-claw': ['Garra Garfio', 'Grip Claw'],
+  'wise-glasses': ['Gafas Especiales', 'Wise Glasses'],
+  'shell-bell': ['Cascabel Concha', 'Shell Bell'],
+  'leppa-berry': ['Baya Zanama', 'Leppa Berry'],
+  leftovers: ['Restos', 'Leftovers'],
   'silk-scarf': ['Pañuelo Seda', 'Silk Scarf', 'normal'],
   'black-belt': ['Cinturón Negro', 'Black Belt', 'fighting'],
   'sharp-beak': ['Pico Afilado', 'Sharp Beak', 'flying'],

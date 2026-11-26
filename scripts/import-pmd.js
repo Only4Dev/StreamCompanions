@@ -1,4 +1,5 @@
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { battleFormAssets, battleFormFallbacks } from '../ui/abilities.js'
 import { nationalDex } from '../cloud/national-dex.js'
 
 const revision = 'ef13b72c6cd3de0c0cb5a99c50c22c9c4ace4729'
@@ -25,11 +26,11 @@ function tag(xml, name) {
   return xml.match(new RegExp('<' + name + '>([^<]+)</' + name + '>'))?.[1].trim()
 }
 
-async function importVariant(id, shiny, required = []) {
-  const path = 'sprite/' + id + (shiny ? '/0000/0001' : '')
+async function importVariant(id, shiny, required = [], subform = '') {
+  const path = 'sprite/' + id + subform + (shiny ? (subform ? '/0001' : '/0000/0001') : '')
   const xml = await download(path + '/AnimData.xml', true)
   if (!xml) return null
-  const folder = id + (shiny ? '-shiny' : '')
+  const folder = id + subform.replace('/', '-') + (shiny ? '-shiny' : '')
   const output = new URL(folder + '/', root)
   await mkdir(output, { recursive: true })
   const entries = new Map([...xml.toString().matchAll(/<Anim>([\s\S]*?)<\/Anim>/g)]
@@ -88,9 +89,10 @@ async function cachedVariant(variant) {
     return variant
   } catch { return null }
 }
-async function importStill(id) {
-  const url = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' + Number(id) + '.png'
+async function importStill(id, dex = Number(id), shiny = false, optional = false) {
+  const url = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' + (shiny ? 'shiny/' : '') + dex + '.png'
   const response = await fetch(url, { signal: AbortSignal.timeout(20_000) })
+  if (optional && response.status === 404) return null
   if (!response.ok) throw Error('Missing fallback sprite: ' + id + ' (' + response.status + ')')
   const png = Buffer.from(await response.arrayBuffer())
   const folder = new URL(id + '/', root)
@@ -114,6 +116,8 @@ async function importPortrait(id, shiny, known) {
   return '/pmd/' + folder + 'Portrait.png'
 }
 const species = []
+const formsOnly = process.argv.includes('--battle-forms-only')
+if (formsOnly && !cached.size) throw new Error('Import the base catalog first.')
 let next = 0
 await Promise.all(Array.from({ length: 40 }, async () => {
   while (next < ids.length) {
@@ -121,6 +125,10 @@ await Promise.all(Array.from({ length: 40 }, async () => {
     const { id, name } = ids[index]
     const entry = tracker[id]
     const old = cached.get(id)
+    if (formsOnly) {
+      species[index] = old
+      continue
+    }
     let normal = await cachedVariant(old?.normal) ??
       (entry?.sprite_credit?.primary ? await importVariant(id, false) : null)
     if (!normal) {
@@ -139,6 +147,24 @@ await Promise.all(Array.from({ length: 40 }, async () => {
   }
 }))
 const available = species.filter(Boolean)
+await Promise.all(available.filter(item => battleFormAssets[Number(item.id)]).map(async item => {
+  const forms = await Promise.all(Object.entries(battleFormAssets[Number(item.id)]).map(async ([key, index]) => {
+    const code = String(index).padStart(4, '0')
+    const path = '/' + code
+    const old = item.battleForms?.[key]
+    const dex = battleFormFallbacks[Number(item.id)]?.[key]
+    const folder = item.id + '-' + code
+    const normal = await cachedVariant(old?.normal) ?? await importVariant(item.id, false, [], path) ??
+      (dex ? await importStill(folder, dex, false, true) : null)
+    if (!normal) return null
+    const required = Object.keys(normal.animations)
+    const shinyCredit = tracker[item.id]?.subgroups?.[code]?.subgroups?.['0001']?.sprite_credit?.primary
+    const shiny = await cachedVariant(old?.shiny) ?? (shinyCredit ? await importVariant(item.id, true, required, path) : null) ??
+      (dex ? await importStill(folder + '-shiny', dex, true, true) : null)
+    return [key, { code, normal, shiny }]
+  }))
+  item.battleForms = Object.fromEntries(forms.filter(Boolean))
+}))
 const temporary = new URL('manifest.json.tmp', root)
 await writeFile(temporary, JSON.stringify({ revision, species: available,
   missing: available.filter(item => item.normal.source === 'pokeapi').map(item => item.id), strictShiny: true }))

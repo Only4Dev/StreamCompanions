@@ -113,6 +113,7 @@
     <label><span data-copy="duration"></span><input name="duration" type="number" min="1" value="3" required></label>
     <label><span data-copy="legendaryChancePercent"></span><input name="legendaryChancePercent" type="number" min="0" max="100" step="0.01" value="0.01" required></label>
     <label><span data-copy="catchGraceSeconds"></span><input name="catchGraceSeconds" type="number" min="0" max="120" value="10" required></label>
+    <div><span data-copy="shinyCue"></span><div><button type="button" id="choose-shiny-cue" data-copy="chooseShinyCue"></button> <button type="button" id="preview-shiny-cue" data-copy="preview"></button> <button type="button" id="reset-shiny-cue" data-copy="resetShinyCue"></button></div><small id="shiny-cue-status" role="status"></small></div>
     <label><span data-copy="shiny"></span><input name="shiny" type="number" min="1" max="100000" value="128" required></label>
     <label><span data-copy="duplicateMode"></span><select name="duplicateMode"><option value="1">XP</option><option value="2">+1 Lv.</option><option value="0" data-copy="duplicateOff"></option></select></label>
     <label><span data-copy="duplicateXpPercent"></span><input name="duplicateXpPercent" type="number" min="1" max="100" value="25" required></label>
@@ -124,7 +125,7 @@
     <label><span data-copy="summonXpPerSecond"></span><input name="summonXpPerSecond" type="number" min="0" max="100" step="0.1" required></label>
   </div></section><section><h2 data-copy="battleSettings"></h2><div class="settings-grid">
     <label><span data-copy="battleMoneyPerWin"></span><input name="battleMoneyPerWin" type="number" min="0" max="1000000" required></label>
-    <label><span data-copy="battleXpPerOpponent"></span><input name="battleXpPerOpponent" type="number" min="0" max="10000" required></label>
+    <label><span data-copy="battleXpPercentPerWin"></span><input name="battleXpPercentPerWin" type="number" min="0" max="100" step="0.1" required></label>
     <label><span data-copy="battleEveryEncounters"></span><input name="battleEveryEncounters" type="number" min="0" max="100" required></label>
     <label><span data-copy="battleEnabled"></span><select name="battleEnabled"><option value="0" data-copy="battleOff"></option><option value="1" data-copy="battleOn"></option></select></label>
     <label><span data-copy="battleHpMultiplier"></span><select name="battleHpMultiplier"><option value="1">1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>

@@ -11,11 +11,11 @@ export async function deviceWebGame(db, device, header) {
   const now = Date.now()
   const [, pending] = await db.batch([
     db.prepare(
-      'INSERT INTO web_game_runtime VALUES (?, ?, ?, ?, ?) ON CONFLICT (community_id) DO UPDATE SET ' +
+      'INSERT INTO web_game_runtime (community_id, seen_at, encounter_id, difficulty_en, difficulty_es, shiny) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (community_id) DO UPDATE SET ' +
       'seen_at = excluded.seen_at, encounter_id = excluded.encounter_id, difficulty_en = excluded.difficulty_en, ' +
-      'difficulty_es = excluded.difficulty_es WHERE web_game_runtime.seen_at <= excluded.seen_at - 10000 OR ' +
+      'difficulty_es = excluded.difficulty_es, shiny = excluded.shiny WHERE web_game_runtime.seen_at <= excluded.seen_at - 10000 OR ' +
       'web_game_runtime.encounter_id IS NOT excluded.encounter_id'
-    ).bind(device.community_id, now, id, difficulty('en'), difficulty('es')),
+    ).bind(device.community_id, now, id, difficulty('en'), difficulty('es'), Number(Boolean(id && runtime.shiny === true))),
     db.prepare('SELECT a.id, a.viewer_id AS viewerId, a.platform, a.command, a.encounter_id AS encounterId, ' +
       "(SELECT linked.viewer_id FROM account_identities linked WHERE linked.account_id = i.account_id AND linked.detached_at IS NULL " +
       "AND linked.viewer_id LIKE 'twitch:%' ORDER BY linked.viewer_id LIMIT 1) AS twitchId, " +

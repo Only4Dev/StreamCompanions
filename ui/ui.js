@@ -52,8 +52,8 @@ Object.assign(labels.es, { obsTitle: 'Fuentes de navegador para OBS', obsHelp: '
 Object.assign(labels.en, { obsTitle: 'OBS browser sources', obsHelp: 'Add one browser source per link. Set the companions source to 1920 × 550.',
   obsEncounter: 'Wild encounters', obsCompanions: 'Summoned companions', obsCopy: 'Copy link', obsCopied: 'Link copied.', obsCopyError: 'Select the link and copy it manually.' })
 
-Object.assign(labels.es, { summonMoneyPerMinute: 'Pokédólares por minuto invocado', summonXpPerSecond: 'XP por segundo invocado', battleXpPerOpponent: 'XP de victoria por rival' })
-Object.assign(labels.en, { summonMoneyPerMinute: 'Pokédollars per summon minute', summonXpPerSecond: 'Summon XP per second', battleXpPerOpponent: 'Victory XP per opponent' })
+Object.assign(labels.es, { summonMoneyPerMinute: 'Pokédólares por minuto invocado', summonXpPerSecond: 'XP por segundo invocado', battleXpPercentPerWin: 'XP del siguiente nivel por victoria (%)' })
+Object.assign(labels.en, { summonMoneyPerMinute: 'Pokédollars per summon minute', summonXpPerSecond: 'Summon XP per second', battleXpPercentPerWin: 'XP toward the next level per win (%)' })
 Object.assign(labels.es, { battleEveryEncounters: 'Salvajes por batalla (0 = manual)', startBattle: 'Iniciar batalla', battleNeedsPlayers: 'Necesitas dos compañeros activos.', battleUnavailable: 'Inicia el juego y espera a que termine la batalla anterior.', battleStarted: 'Batalla programada. Se esperará a que termine cualquier encuentro activo.' })
 Object.assign(labels.en, { battleEveryEncounters: 'Wild encounters per battle (0 = manual)', startBattle: 'Start battle', battleNeedsPlayers: 'At least two companions must be active.', battleUnavailable: 'Start the game and wait for the current battle to finish.', battleStarted: 'Battle queued. Any active encounter will finish first.' })
 
@@ -101,7 +101,7 @@ const tips = {
   visibleLimit: ['Máximo a la vez. Tienen prioridad las invocaciones recientes.', 'Maximum at once. Most recent summons appear first.'],
   summonMoneyPerMinute: ["Pokédólares por cada minuto con un compañero invocado.", "Pokédollars per minute with a summoned companion."],
   summonXpPerSecond: ['XP por segundo de invocación activa.', 'XP per second while summoned and active.'],
-  battleXpPerOpponent: ['El Pokémon ganador recibe esta XP por cada rival.', 'The winner receives this much XP for each opponent.'],
+  battleXpPercentPerWin: ['El ganador recibe este porcentaje del tramo al siguiente nivel. 0 desactiva la XP de victoria.', 'The winner receives this percentage of the XP needed for their next level. Set to 0 to disable.'],
   battleEveryEncounters: ['Intenta iniciar tras este número de encuentros si hay dos compañeros. Usa 0 para inicio manual.', 'Tries to start after this many encounters with two companions. Use 0 for manual only.'],
   battleEnabled: ['Habilita el inicio manual y la programación de batallas.', 'Enables manual and scheduled battles.'],
   battleMoneyPerWin: ['Premio para el ganador al cerrar la batalla. 0 desactiva el premio.', 'Paid to the winner when the battle ends. Set to 0 to disable.'],
@@ -206,12 +206,31 @@ function renderUpdateStatus() {
 }
 let viewer = 'Demo'
 let state
+Object.assign(labels.es, { shinyCue: 'Sonido shiny', chooseShinyCue: 'Elegir MP3 o WAV', resetShinyCue: 'Restablecer' })
+Object.assign(labels.en, { shinyCue: 'Shiny sound', chooseShinyCue: 'Choose MP3 or WAV', resetShinyCue: 'Reset' })
+
 let lastEncounter
+function playShinyCue() {
+  const cue = new Audio('/sfx/shiny.wav?play=' + Date.now())
+  cue.volume = .55
+  return cue.play()
+}
 let settingsLoaded = false
 let setupLoaded = false
 let translateLab
 const catalog = (await (await fetch('/catalog')).json()).species
 if (panel) {
+  const cueStatus = $('shiny-cue-status')
+  const reportCueError = () => cueStatus.textContent = $('language').value === 'en' ?
+    'Choose a valid MP3 or WAV up to 512 KB.' : 'Elige un MP3 o WAV válido de hasta 512 KB.'
+  for (const action of ['choose', 'reset']) $(action + '-shiny-cue').addEventListener('click', async () => {
+    cueStatus.textContent = ''
+    try {
+      const response = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shinyCue: action }) })
+      if (!response.ok) reportCueError()
+    } catch { reportCueError() }
+  })
+  $('preview-shiny-cue').addEventListener('click', () => playShinyCue().catch(reportCueError))
   for (const [id, product] of Object.entries(shopItems)) {
     const label = document.createElement('label')
     const name = document.createElement('span')
@@ -297,19 +316,15 @@ async function refresh() {
   const previewMode = new URLSearchParams(location.search).get('preview')
   const response = await fetch(panel ? '/state' : '/state?overlay=' + location.pathname.slice(1) + (previewMode ? '&preview=' + encodeURIComponent(previewMode) : ''))
   state = await response.json()
-  if (!panel) {
-    if (location.pathname === '/encounter') {
-      const encounter = state.encounter
-      const id = encounter?.id ?? encounter?.endsAt ?? null
-      if (lastEncounter !== undefined && id !== lastEncounter && encounter?.shiny && encounter.endsAt > Date.now()) {
-        const cue = new Audio('/sfx/shiny.wav')
-        cue.volume = .55
-        cue.play().catch(error => console.warn('Could not play shiny cue', error))
-      }
-      lastEncounter = id
+  if (panel || location.pathname === '/encounter') {
+    const encounter = state.encounter
+    const id = encounter?.id ?? encounter?.endsAt ?? null
+    if (lastEncounter !== undefined && id !== lastEncounter && encounter?.shiny && encounter.endsAt > Date.now()) {
+      playShinyCue().catch(error => console.warn('Could not play shiny cue', error))
     }
-    return
+    lastEncounter = id
   }
+  if (!panel) return
   $('connection').textContent = connectionMessage(state.syncStatus) || ''
   $('chat').closest('section').hidden = state.live || !state.battleLab
   if (!setupLoaded && state.setup) {

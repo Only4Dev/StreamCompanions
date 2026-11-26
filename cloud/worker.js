@@ -1,9 +1,10 @@
 import { completeProjectBot, projectBotAuthorization, twitchProjectReply } from './project-bots.js'
+import { cueType, maxCueBytes } from '../ui/shiny-cue.js'
 import { deviceWebGame, finishWebGame } from './web-game.js'
 import { portal } from './portal.js'
 import { readMovesets } from './movesets.js'
 import { completeKickLink, kickDevice, kickWebhook, seal, startKickLink } from './kick.js'
-import { heldItems } from '../ui/held-items.js'
+import { arenaShopItems, heldItems } from '../ui/held-items.js'
 import { normalizeShopPrices } from '../ui/shop.js'
 
 const json = (data, status = 200) => Response.json(data, {
@@ -184,7 +185,9 @@ async function deviceShop(request, db) {
         const raw = header.length <= 2048 ? JSON.parse(header) : null
         prices = normalizeShopPrices(raw)
         dna = Boolean(prices && Object.hasOwn(raw, 'dna-booster'))
-        if (prices && !Object.hasOwn(raw, 'master-ball')) delete prices['master-ball']
+        for (const item of ['master-ball', ...arenaShopItems]) {
+          if (prices && !Object.hasOwn(raw, item)) delete prices[item]
+        }
       } catch { /* invalid header */ }
       if (!prices) return json({ error: 'invalid prices' }, 400)
     }
@@ -200,7 +203,8 @@ async function deviceShop(request, db) {
         'shop_online.supports_dna != excluded.supports_dna OR shop_online.supports_quantity != excluded.supports_quantity)').bind(community, Date.now(), packed, dnaLevel, supportsQuantity),
       db.prepare('SELECT id, viewer_id AS viewerId, item, price, species_key AS speciesKey, quantity FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
         'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) AND (? = 1 OR quantity = 1) ' +
-        "AND (item != 'master-ball' OR ? = 1) ORDER BY created_at, id LIMIT 10").bind(community, packed, dnaLevel, supportsQuantity, Number(Boolean(prices?.['master-ball'])))
+        "AND (item NOT IN (SELECT value FROM json_each(?)) OR item IN (SELECT key FROM json_each(?))) " +
+        'ORDER BY created_at, id LIMIT 10').bind(community, packed, dnaLevel, supportsQuantity, JSON.stringify(['master-ball', ...arenaShopItems]), packed)
     ])
     const state = request.headers.get('X-Web-Game')
     const webActions = state === null ? undefined : await deviceWebGame(db, device, state)
@@ -312,6 +316,35 @@ export default {
           .bind(device.community_id, device.community_id)
       ])
       return json({ received: events.length })
+    }
+    if (path === '/api/shiny-cue') {
+      const device = await authorizedDevice(request, env.DB)
+      if (!device) return json({ error: 'unauthorized' }, 401)
+      if (request.method === 'DELETE') {
+        await env.DB.prepare('DELETE FROM shiny_cues WHERE community_id = ?').bind(device.community_id).run()
+        return new Response(null, { status: 204 })
+      }
+      if (request.method !== 'PUT') return new Response(null, { status: 405 })
+      const reader = request.body?.getReader()
+      if (!reader) return new Response(null, { status: 400 })
+      const bytes = new Uint8Array(maxCueBytes)
+      let count = 0
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (count + value.length > maxCueBytes) {
+          await reader.cancel()
+          return new Response(null, { status: 413 })
+        }
+        bytes.set(value, count)
+        count += value.length
+      }
+      const audio = bytes.slice(0, count)
+      const type = cueType(audio)
+      if (!type) return new Response(null, { status: 415 })
+      await env.DB.prepare('INSERT INTO shiny_cues VALUES (?, ?, ?) ON CONFLICT (community_id) DO UPDATE SET type = excluded.type, audio = excluded.audio')
+        .bind(device.community_id, type, audio.buffer).run()
+      return new Response(null, { status: 204 })
     }
     if (path === '/api/web-game') {
       const device = await authorizedDevice(request, env.DB)

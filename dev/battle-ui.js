@@ -338,7 +338,9 @@ export function mountBattleLab({ catalog, mount, language, advanced = false }) {
     for (const actor of battle.actors) {
       const faintAge = actor.hp ? 0 : visualTime - actor.faintedAt
       if (!actor.hp && (!Number.isFinite(faintAge) || faintAge >= .62)) continue
-      const pokemon = art.get(actor.id)
+      const base = art.get(actor.id)
+      const form = base?.battleForms?.[actor.form]
+      const pokemon = form ? { ...base, normal: form.normal ?? base.normal, shiny: form.shiny ?? base.shiny } : base
       const animations = (actor.shiny ? pokemon?.shiny ?? pokemon?.normal : pokemon?.normal)?.animations
       const hurt = actor.hurtUntil > battle.time
       const frozen = actor.status?.kind === 'freeze'

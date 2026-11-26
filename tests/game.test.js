@@ -269,6 +269,20 @@ test('Master Ball drops use one 0.01 percent roll per active minute and persist 
   }
 })
 
+test('Pickup boosts held-item drops without boosting the Master Ball roll', () => {
+  const catalog = [{ id: 19, name: 'Rattata' }, { id: 4, name: 'Charmander' }]
+  for (const [name, expected] of [['Rattata', 1], ['Charmander', 0]]) {
+    let time = 0
+    const game = createGame({ catalog, now: () => time, random: () => .03,
+      progress: { viewers: { A: { collection: { [name]: 0 } } } } })
+    assert.equal(game.chat('A', '!summon ' + name.toLowerCase()), 'summoned')
+    time = 60_000
+    const viewer = game.snapshot().viewers.A
+    assert.equal(viewer.heldItems?.length ?? 0, expected)
+    assert.equal(game.ballInventory('A')?.master ?? 0, 0)
+  }
+})
+
 test('roaming rewards roll once per completed active minute and survive restart', () => {
   let time = 0
   const game = createGame({ now: () => time, random: () => 0,
@@ -285,16 +299,23 @@ test('roaming rewards roll once per completed active minute and survive restart'
   assert.equal(restarted.progress().viewers.A.pokeDollars, 50)
 })
 
-test('a community battle rewards the winning variant per unique opponent', () => {
+test('each battle win awards the same percentage of the winner’s current level span', () => {
   const game = createGame({ random: () => 0, progress: { viewers: {
     A: { collection: { Brasa: 5, 'Brasa ✦': 10 } },
     B: { collection: { Gota: 0 } }, C: { collection: { Musgo: 0 } }
   } } })
   game.recordBattle(['A', 'B', 'B', 'C'], 'A', 'Brasa ✦')
   const viewers = game.progress().viewers
-  assert.deepEqual(viewers.A.collection, { Brasa: 5, 'Brasa ✦': 250 })
+  assert.deepEqual(viewers.A.collection, { Brasa: 5, 'Brasa ✦': 40 })
   assert.deepEqual(viewers.A.heldItems, ['sitrus-berry'])
   assert.equal(viewers.B.collection.Gota, 0)
+  const veteran = createGame({ progress: { config: { battleXpPerOpponent: 120 }, viewers: {
+    A: { collection: { Brasa: xpAtLevel(40) } }, B: { collection: { Gota: 0 } }
+  } } })
+  veteran.configure({ ...veteran.config, battleXpPercentPerWin: 50 })
+  veteran.recordBattle(['A', 'B'], 'A', 'Brasa')
+  assert.equal(veteran.progress().viewers.A.collection.Brasa, (xpAtLevel(40) + xpAtLevel(41)) / 2)
+  assert.throws(() => veteran.configure({ ...veteran.config, battleXpPercentPerWin: 101 }))
 })
 
 test('stopping hides the encounter and summons, preserves XP and persists across restart', () => {
