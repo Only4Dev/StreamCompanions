@@ -248,7 +248,9 @@ async function pollShop() {
       !/^[a-f0-9-]{36}$/.test(order?.id ?? '') || !/^(twitch|kick):\d{1,24}$/.test(order?.viewerId ?? ''))) return
     const receipts = orders.map(order => ({ id: order.id, result: game.fulfillOrder(order) }))
     persistGame()
-    const acknowledgement = await request(receipts)
+    const acknowledgement = await request(receipts.map((receipt, index) => ({ ...receipt,
+      ...(receipt.result === 'purchased' ? { viewer: progress.viewer(orders[index].viewerId) } : {})
+    })))
     if (!acknowledgement.ok || kickAbort.signal.aborted) return
     const { received } = await acknowledgement.json()
     if (kickAbort.signal.aborted) return
@@ -259,7 +261,7 @@ async function pollShop() {
   } catch (error) {
     if (!kickAbort.signal.aborted) console.warn('Could not sync shop:', error.message)
   } finally {
-    if (!kickAbort.signal.aborted) shopTimer = setTimeout(pollShop, 1_500)
+    if (!kickAbort.signal.aborted) shopTimer = setTimeout(pollShop, 1_000)
   }
 }
 

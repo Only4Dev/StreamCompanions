@@ -216,9 +216,10 @@ export async function portal(request, url, env) {
               receipt.textContent = receipt.dataset.waiting;
             }
           }
-          setTimeout(refresh, receipt?.hasAttribute('data-order-pending') ? 1500 : 5000);
+          setTimeout(refresh, receipt?.hasAttribute('data-order-pending') ? 500 : 5000);
         }
-        setTimeout(refresh, 1000);
+        if (receipt) refresh();
+        else setTimeout(refresh, 1000);
       }`, { headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=300' } })
   }
   if (request.method === 'GET' && url.pathname === '/assets/moveset.js') {
@@ -292,16 +293,13 @@ export async function portal(request, url, env) {
     if (!identity) return json({ error: 'authentication required' }, 401)
     const community = url.searchParams.get('community')
     const viewer = await env.DB.prepare(
-      'SELECT p.viewer_id, p.payload, s.seen_at FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
-      'LEFT JOIN shop_online s ON s.community_id = p.community_id WHERE i.account_id = ? AND p.community_id = ? ' +
-      'ORDER BY p.updated_at DESC, p.viewer_id LIMIT 1'
-    ).bind(identity.account_id, community).first()
+      'SELECT p.payload, s.seen_at, o.id AS order_id, o.result FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
+      'LEFT JOIN shop_online s ON s.community_id = p.community_id ' +
+      'LEFT JOIN shop_orders o ON o.community_id = p.community_id AND o.viewer_id = p.viewer_id AND o.id = ? ' +
+      'WHERE i.account_id = ? AND p.community_id = ? ORDER BY o.id IS NOT NULL DESC, p.updated_at DESC, p.viewer_id LIMIT 1'
+    ).bind(url.searchParams.get('purchase'), identity.account_id, community).first()
     if (!viewer) return json({ error: 'community not found' }, 404)
-    const purchase = url.searchParams.get('purchase')
-    const order = /^[a-f0-9-]{36}$/.test(purchase ?? '') ? await env.DB.prepare(
-      'SELECT result FROM shop_orders WHERE community_id = ? AND viewer_id = ? AND id = ?'
-    ).bind(community, viewer.viewer_id, purchase).first() : null
-    const pending = order?.result === null
+    const pending = Boolean(viewer.order_id && viewer.result === null)
     const online = viewer.seen_at > Date.now() - 70_000
     const { pokeDollars: balance = 0, balls = {}, heldItems = [] } = JSON.parse(viewer.payload)
     const messages = {
@@ -314,7 +312,7 @@ export async function portal(request, url, env) {
     }
     const message = pending && !online
       ? (language === 'en' ? 'Streamer app disconnected. Order still pending.' : 'App del streamer desconectada. El pedido sigue pendiente.')
-      : (order?.result && messages[order.result]) || ''
+      : (viewer.result && messages[viewer.result]) || ''
     return json({ balance, balls, heldItems, pending, online, message })
   }
 

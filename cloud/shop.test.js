@@ -84,11 +84,19 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.deepEqual(await readStatus(), {
     balance: 500, balls: { normal: 5, great: 0, ultra: 0, master: 0 }, heldItems: [], pending: true, online: true, message: ''
   })
-  await device('POST', { viewers: [{ id: bulk, result: 'purchased' }] })
-  assert.equal((await readStatus()).message, 'Compra realizada.')
+  const updatedViewer = { id: 'twitch:1', revision: 2, displayName: 'viewer', collection: {},
+    balls: { normal: 8, great: 0, ultra: 0, master: 0 }, pokeDollars: 200 }
+  const receipt = { id: bulk, result: 'purchased', viewer: updatedViewer }
+  assert.equal((await device('POST', { viewers: [{ ...receipt, viewer: { ...updatedViewer, id: 'twitch:2' } }] })).status, 400)
+  assert.equal((await readStatus()).pending, true)
+  assert.equal((await device('POST', { viewers: [receipt] })).status, 200)
+  assert.equal((await device('POST', { viewers: [receipt] })).status, 200)
+  assert.deepEqual(await readStatus(), {
+    balance: 200, balls: updatedViewer.balls, heldItems: [], pending: false, online: true, message: 'Compra realizada.'
+  })
   const syncCapture = capture => worker.fetch(new Request(base + '/api/sync', {
     method: 'POST', headers: { Authorization: 'Bearer ' + token },
-    body: JSON.stringify({ viewers: [{ id: 'twitch:1', revision: 2, displayName: 'viewer',
+    body: JSON.stringify({ viewers: [{ id: 'twitch:1', revision: 3, displayName: 'viewer',
       balls: { normal: 5, great: 0, ultra: 0, master: 0 }, collection: {},
       log: [{ at: 1, platform: 'twitch', action: '!catch great', result: 'escaped', capture }] }] })
   }), { DB: D1 })

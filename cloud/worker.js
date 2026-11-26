@@ -78,7 +78,13 @@ async function synchronize(request, db) {
   let viewers
   try { viewers = await readBatch(request) } catch { return json({ error: 'invalid batch' }, 400) }
   if (!Array.isArray(viewers) || viewers.length < 1 || viewers.length > 10) return json({ error: 'invalid batch' }, 400)
+  const writes = viewerWrites(db, device, viewers)
+  if (writes instanceof Response) return writes
+  await db.batch(writes)
+  return json({ received: viewers.map(({ id, revision }) => ({ id, revision })) })
+}
 
+function viewerWrites(db, device, viewers) {
   const ids = new Set()
   const writes = []
   for (const viewer of viewers) {
@@ -137,8 +143,7 @@ async function synchronize(request, db) {
     writes.push(db.prepare('INSERT OR IGNORE INTO erasure_devices SELECT ?, viewer_id FROM erased_viewers WHERE viewer_id = ?')
       .bind(device.community_id, viewer.id))
   }
-  await db.batch(writes)
-  return json({ received: viewers.map(({ id, revision }) => ({ id, revision })) })
+  return writes
 }
 
 async function deviceErasure(request, db) {
@@ -204,8 +209,22 @@ async function deviceShop(request, db) {
     !/^[a-f0-9-]{36}$/.test(row?.id ?? '') || !['unavailable', 'owned', 'funds', 'purchased', 'maxed', 'repriced'].includes(row?.result))) {
     return json({ error: 'invalid receipts' }, 400)
   }
-  await db.batch(receipts.map(({ id, result }) => db.prepare('UPDATE shop_orders SET result = ? WHERE community_id = ? AND id = ? AND result IS NULL')
-    .bind(result, community, id)))
+  const viewers = []
+  for (const receipt of receipts) {
+    if (receipt.viewer === undefined) continue
+    const order = await db.prepare('SELECT viewer_id, result FROM shop_orders WHERE community_id = ? AND id = ?')
+      .bind(community, receipt.id).first()
+    if (!order || receipt.result !== 'purchased' || receipt.viewer?.id !== order.viewer_id) {
+      return json({ error: 'invalid purchase viewer' }, 400)
+    }
+    if (order.result === null) viewers.push(receipt.viewer)
+  }
+  const writes = viewerWrites(db, device, viewers)
+  if (writes instanceof Response) return writes
+  await db.batch([...writes, ...receipts.map(({ id, result }) => db.prepare(
+    'UPDATE shop_orders SET result = ? WHERE community_id = ? AND id = ? AND result IS NULL AND ' +
+    'EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
+  ).bind(result, community, id, device.key_hash))])
   return json({ received: receipts.map(({ id }) => id) })
 }
 
