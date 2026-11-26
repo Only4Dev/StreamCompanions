@@ -10,7 +10,7 @@ import { kanto } from './kanto.js'
 import { equippedMoves, moveCooldown, movePp, moves } from '../dev/battle.js'
 import { familyDnaCount, familyRoot, maxDnaBoosters } from '../ui/evolution.js'
 import { creatureMoves, parseLoadout, speciesName, validMoveset } from './movesets.js'
-import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles } from './portal-style.js'
+import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles, mobileStyles } from './portal-style.js'
 import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
 import { heldItems } from '../ui/held-items.js'
 import { maxShopQuantity, shopItems, validShopQuantity } from '../ui/shop.js'
@@ -323,7 +323,7 @@ function renderPage(body, status, language, theme, url) {
   headers.append('Set-Cookie', cookie('sc_lang', language, 31_536_000))
   headers.append('Set-Cookie', cookie('sc_theme', theme, 31_536_000))
   return new Response('<!doctype html><html lang="' + language + '" data-theme="' + theme + '"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
-    '<title>Stream Companions</title><style>' + portalStyles + dexStyles + providerStyles + languageStyles + helpStyles + darkStyles + '</style>' +
+    '<title>Stream Companions</title><style>' + portalStyles + dexStyles + providerStyles + languageStyles + helpStyles + darkStyles + mobileStyles + '</style>' +
     '<main><header class="mast"><span class="mark" aria-hidden="true">✦</span>Stream Companions<nav class="web-language" aria-label="' + (language === 'en' ? 'Portal navigation' : 'Navegación del portal') + '"><a href="/">' +
     (language === 'en' ? 'Home' : 'Inicio') + '</a>' + '<a class="help-header" href="?' + escape(new URLSearchParams({
       tab: 'help', ...(url.searchParams.get('community') ? { community: url.searchParams.get('community') } : {})
@@ -525,9 +525,12 @@ export async function portal(request, url, env) {
     const mainTabs = stream ? '<nav class="tabs live-sections" aria-label="' + (en ? 'Live sections' : 'Secciones del directo') +
       '"><a href="#watch-live">' + (en ? 'Watch stream' : 'Ver directo') + '</a><a href="#play-web">' +
       (en ? 'Play on the web' : 'Jugar en web') + '</a></nav>' : ''
+    const channelUrl = stream && (platform === 'twitch' ? 'https://www.twitch.tv/' : 'https://kick.com/') + encodeURIComponent(stream.login)
     const watch = '<section class="sheet live-watch" id="watch-live"><h1>' + title + '</h1>' + mainTabs + channelTabs +
       (player ? '<div class="live-player"><iframe title="' + escape(stream.login) + '" src="' + escape(player) +
-        '" width="960" height="540" allowfullscreen></iframe></div>' :
+        '" width="960" height="540" allowfullscreen></iframe></div>' +
+        '<a class="live-mobile-channel" href="' + escape(channelUrl) + '">' +
+        (en ? 'Open on ' : 'Abrir en ') + (platform === 'twitch' ? 'Twitch' : 'Kick') + '</a>' :
         '<p class="meta">' + (communities.length
           ? (en ? 'Choose a live channel to watch and play here.' : 'Elige un canal en directo para ver el stream y jugar aquí.')
           : (en ? 'No channels are live right now.' : 'No hay canales en directo en este momento.')) + '</p>') +

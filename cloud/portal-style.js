@@ -23,6 +23,53 @@ export const helpStyles = `
 .overview-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:12px;margin:0}.overview-stats>div{border:2px solid var(--line);border-radius:14px;background:#f1e9ff;padding:14px 16px}.overview-stats dt{font-weight:750;color:var(--muted)}.overview-stats dd{margin:8px 0 0;font-size:clamp(1.35rem,3vw,2rem);font-weight:850}
 .help-title{font-size:clamp(2.5rem,6vw,4rem);margin-top:22px}.help-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;list-style:none;padding:0;margin:20px 0}.help-steps li{background:#cbefda;border:2px solid var(--line);border-radius:18px;padding:16px;box-shadow:2px 3px 0 var(--line)}.help-steps li:nth-child(even){background:#ffedbe}.help-steps p,.command-sheet p{line-height:1.48;color:var(--muted);margin:0}.help-note{background:#f9f2ff;border-left:4px solid #8355bf;padding:12px 16px;margin:24px 0;line-height:1.5}.help-commands{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:14px}.command-sheet{margin:0}.command-sheet ul{list-style:none;margin:0;padding:0;display:grid;gap:14px}.command-sheet li+li{border-top:1px dashed #b6a5c8;padding-top:12px}.command-sheet code{display:inline-block;font-size:.84rem;background:#eae2ff;border-radius:6px;padding:3px 6px;margin:0 4px 5px 0;overflow-wrap:anywhere}.web-language{flex-wrap:wrap;justify-content:flex-end}
 `
+export const mobileStyles = `
+.live-mobile-channel { display: none; }
+
+@media (max-width: 700px), (max-width: 1100px) and (orientation: portrait) {
+  main, main:has(.live-layout) {
+    padding: 14px max(12px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
+  .mast { flex-wrap: wrap; margin-bottom: 14px; }
+  .mast .web-language { width: 100%; margin: 0; justify-content: flex-start; }
+  .web-language a { min-height: 36px; display: inline-flex; align-items: center; }
+  .sheet, .hero { padding: clamp(12px, 3vw, 22px); margin-bottom: 14px; border-radius: 16px; }
+  .toolbar { gap: .65rem; margin-bottom: 12px; }
+  .toolbar h1 { font-size: clamp(1.85rem, 7vw, 3.1rem); }
+  .album-actions { gap: .5rem; }
+  .tabs { flex-wrap: wrap; gap: .4rem; }
+  .tabs a, .live-platforms span[aria-disabled] { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .community-tabs { gap: .4rem; margin-bottom: .85rem; }
+  .community-tabs a { flex: 1 0 auto; white-space: nowrap; padding: .4rem .6rem; font-size: .88rem; }
+  .generations a { padding: .35rem .55rem; min-height: 40px; }
+  .live-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .live-layout .live-watch { position: static; padding: clamp(12px, 3vw, 22px); }
+  .live-watch h1 { font-size: clamp(1.65rem, 6vw, 3rem); letter-spacing: -.045em; margin-bottom: .8rem; }
+  .live-platforms > *, .live-sections > * { flex: 1 1 0; text-align: center; }
+  .live-player { container-type: inline-size; width: 100%; }
+  .live-player iframe { width: 100%; }
+  .live-mobile-channel { display: inline-flex; align-items: center; min-height: 44px; margin-top: .25rem; }
+  .live-layout #play-web { padding: clamp(12px, 3vw, 22px); }
+  .live-game-card select, .live-game-card button { min-height: 44px; }
+  .live-game-card form button { justify-self: stretch; }
+  .live-companion { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+  .live-companion select { width: 100%; }
+  .live-ball { min-height: 56px; }
+  .live-game-status:not(:empty) { margin: .5rem 0 .85rem; }
+  .shop-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 138px), 1fr)); }
+  .shop-grid li { min-width: 0; }
+  .shop-grid button, .shop-quantity input { min-height: 44px; }
+  .shop-quantity input { width: 4rem; font-size: 16px; }
+  .dex-heading { flex-wrap: wrap; }
+  .bag { width: 100%; }
+}
+@supports (zoom: calc(100px / 100px)) {
+  @container (max-width: 533px) {
+    .live-player iframe { width: 534px; height: 300px; zoom: calc(100cqw / 534px); }
+  }
+}
+`
+
 export const darkStyles = `
 .danger-action{color:#b12242;text-decoration:underline}[data-theme=dark] .danger-action{color:#ff9bb0}
 .account-card{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 16px;border:2px solid var(--line);border-radius:12px}
