@@ -2,6 +2,8 @@
 
 ## 1.2.0
 
+- Make shop quantities visible on every connection state, add persistent portal navigation and an Unlocked Pokédex toggle, and let streamers customize catch percentages.
+
 - Add bulk Poké Ball and DNA Booster purchases with live order, wallet, and inventory updates.
 - Add Twitch and Kick players to the Live portal, with signed-in controls for catching, summoning, withdrawing, and using Rare Candy.
 - Support `!poke web` and apply counted Rare Candy purchases to the active companion with `!candy` and `!caramelo`.

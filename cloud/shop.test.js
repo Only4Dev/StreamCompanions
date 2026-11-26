@@ -40,6 +40,13 @@ test('a signed-in viewer can submit one shop order while their device is online'
   }), { DB: D1 })
   const first = crypto.randomUUID()
   const second = crypto.randomUUID()
+  const offlineShop = await worker.fetch(new Request(base + '/?community=stream&tab=shop', {
+    headers: { Cookie: 'sc_session=' + session }
+  }), { DB: D1 })
+  const offlineHtml = await offlineShop.text()
+  assert.match(offlineHtml, /name="quantity"/)
+  assert.match(offlineHtml, /<a href="\/">Inicio<\/a>/)
+  assert.match(offlineHtml, /data-shop-availability/)
   assert.match((await order(first)).headers.get('Location'), /reason=offline/)
   assert.deepEqual(await (await device('GET')).json(), { orders: [] })
   assert.equal((await order(first)).status, 303)
@@ -82,7 +89,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
     headers: { Cookie: 'sc_session=' + session }
   }), { DB: D1 })).json()
   assert.deepEqual(await readStatus(), {
-    balance: 500, balls: { normal: 5, great: 0, ultra: 0, master: 0 }, heldItems: [], pending: true, online: true, message: ''
+    balance: 500, balls: { normal: 5, great: 0, ultra: 0, master: 0 }, heldItems: [], pending: true, online: true, bulk: true, message: ''
   })
   const updatedViewer = { id: 'twitch:1', revision: 2, displayName: 'viewer', collection: {},
     balls: { normal: 8, great: 0, ultra: 0, master: 0 }, pokeDollars: 200 }
@@ -92,7 +99,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.equal((await device('POST', { viewers: [receipt] })).status, 200)
   assert.equal((await device('POST', { viewers: [receipt] })).status, 200)
   assert.deepEqual(await readStatus(), {
-    balance: 200, balls: updatedViewer.balls, heldItems: [], pending: false, online: true, message: 'Compra realizada.'
+    balance: 200, balls: updatedViewer.balls, heldItems: [], pending: false, online: true, bulk: true, message: 'Compra realizada.'
   })
   const runtimeHeaders = { Authorization: 'Bearer ' + token, 'X-Web-Game': JSON.stringify({ id: '100:1', en: 'Easy', es: 'Fácil' }) }
   db.prepare('INSERT INTO community_stream_status VALUES (?, ?, ?)').run('stream', Date.now(), JSON.stringify([
@@ -106,6 +113,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const liveHtml = await livePage.text()
   assert.match(liveHtml, /player\.twitch\.tv\/\?channel=streamer&amp;parent=example\.test/)
   assert.match(liveHtml, /data-capture-form/)
+  assert.match(liveHtml, /<a href="\/">Inicio<\/a>/)
   const actionId = crypto.randomUUID()
   const webAction = (encounter, origin = base) => worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
     method: 'POST', headers: { Origin: origin, Cookie: 'sc_session=' + session },

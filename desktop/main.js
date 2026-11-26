@@ -657,6 +657,7 @@ const routes = new Map([
   ['/ui/levels.js', ['levels.js', 'text/javascript']],
   ['/ui/held-items.js', ['held-items.js', 'text/javascript']],
   ['/ui/shop.js', ['shop.js', 'text/javascript']],
+  ['/ui/capture-rates.js', ['capture-rates.js', 'text/javascript']],
   ['/ui/about.js', ['about.js', 'text/javascript']],
   ['/ui/evolution.js', ['evolution.js', 'text/javascript']],
   ['/ui/evolution-data.js', ['evolution-data.js', 'text/javascript']],
@@ -901,6 +902,7 @@ const server = createServer(async (req, res) => {
         game.spawn(action.spawn)
       }
       else if (action.clearStatistics === true) game.clearStatistics()
+      else if (action.capturePercentages) game.setCapturePercentages(action.capturePercentages)
       else if (action.shopPrices) game.setShopPrices(action.shopPrices)
       else if (action.config) {
         const enabled = game.config.battleEnabled

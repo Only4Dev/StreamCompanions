@@ -1,7 +1,7 @@
 import { normalizeCommand } from './commands.js'
 import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, maxDnaBoosters, nextEvolutionLevel } from '../ui/evolution.js'
 import { defaultSummonXpPerSecond, level, maxLevel, maxXp, xpAtLevel } from '../ui/levels.js'
-import { catchChance, catchDifficulty } from '../ui/capture-rates.js'
+import { captureCategories, catchChance, catchDifficulty, normalizeCapturePercentages } from '../ui/capture-rates.js'
 import { heldItems } from '../ui/held-items.js'
 import { normalizeShopPrices, shopItems, validShopPrice, validShopQuantity } from '../ui/shop.js'
 
@@ -37,6 +37,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   config.battleEveryEncounters ??= 5
   config.battleEnabled ??= 0
   config.battleHpMultiplier ??= 1
+  config.capturePercentages = normalizeCapturePercentages(config.capturePercentages) ??
+    Object.fromEntries(captureCategories.map(({ id, defaults }) => [id, [...defaults]]))
   config.shopPrices = normalizeShopPrices(config.shopPrices ?? {}) ?? normalizeShopPrices({})
   let encounter = null
   let wildPaused = false
@@ -227,7 +229,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       if (!Object.hasOwn(viewer.balls, ball)) return 'invalidBall'
       if (!viewer.balls[ball]) return 'noBalls'
       viewer.balls[ball]--
-      if (ball !== 'master' && random() >= catchChance(ball, byName.get(encounter.name)?.id, encounter.legendary)) return 'escaped'
+      if (ball !== 'master' && random() >= catchChance(ball, byName.get(encounter.name)?.id, encounter.legendary, config.capturePercentages)) return 'escaped'
       viewer.caughtChannels ??= new Set()
       viewer.caughtChannels.add(channel)
       recentCaptures.push({ id: ++captureSequence, encounterId: encounter.id, viewer: viewer.displayName || id,
@@ -278,6 +280,11 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       else erasedViewers.add(id)
       recentCaptures.length = 0
       return true
+    },
+    setCapturePercentages(values) {
+      const percentages = normalizeCapturePercentages(values)
+      if (!percentages) throw new Error('Invalid capture percentages')
+      config.capturePercentages = percentages
     },
     setShopPrices(values) {
       const prices = normalizeShopPrices(values)

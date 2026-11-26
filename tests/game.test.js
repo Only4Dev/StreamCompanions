@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { catchChance, createGame } from '../desktop/game.js'
+import { captureCategories } from '../ui/capture-rates.js'
 import { xpAtLevel } from '../ui/levels.js'
 
 test('an existing viewer with no Pokémon can claim a starter without a community reset', () => {
@@ -111,6 +112,20 @@ test('capture rates vary by species and ball, with guaranteed Master Ball', () =
   assert.ok(catchChance('ultra', 1) > catchChance('great', 1))
   assert.equal(catchChance('normal', 150, true), .01)
   assert.equal(catchChance('master', 150, true), 1)
+})
+
+test('streamer capture settings apply to throws and persist without changing Master Ball', () => {
+  const percentages = Object.fromEntries(captureCategories.map(({ id, defaults }) => [id, [...defaults]]))
+  percentages.superEasy[0] = 0
+  const catalog = [{ id: 19, name: 'Rattata' }]
+  const game = createGame({ catalog, random: () => 0 })
+  game.setCapturePercentages(percentages)
+  game.chat('player', '!poke join')
+  game.spawn('Rattata')
+  assert.equal(game.chat('player', '!catch'), 'escaped')
+  assert.throws(() => game.setCapturePercentages({ ...percentages, superEasy: [101, 56, 75] }))
+  assert.deepEqual(createGame({ catalog, progress: game.progress() }).config.capturePercentages, percentages)
+  assert.equal(catchChance('master', 19, false, percentages), 1)
 })
 
 test('a scheduled legendary survives restart and appears at level 1 for five minutes', () => {

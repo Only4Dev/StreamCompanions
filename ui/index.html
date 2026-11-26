@@ -24,6 +24,7 @@
     <button type="button" data-view="game" data-copy="config"></button>
     <button type="button" data-view="obs" data-copy="sourcesTab"></button>
     <button type="button" data-view="bot" data-copy="botTab"></button>
+    <button type="button" data-view="capture" data-copy="captureTab"></button>
     <button type="button" data-view="shop" data-copy="shopTab"></button>
     <button type="button" data-view="connections" data-copy="connectionsTab"></button>
     <button type="button" data-view="activity" data-copy="activityTab"></button>
@@ -66,6 +67,13 @@
     <p id="portal-status" role="status"></p>
     <p id="statistics-status" role="status"></p>
   </div>
+  <div data-pane="capture" hidden><section><h2 data-copy="captureTab"></h2><p data-copy="captureHelp"></p>
+    <form id="capture-settings"><div class="capture-table-wrap"><table class="capture-table">
+      <thead><tr><th scope="col" data-copy="captureDifficulty"></th><th scope="col">Poké Ball</th><th scope="col" data-copy="captureGreatBall"></th><th scope="col">Ultra Ball</th></tr></thead>
+      <tbody id="capture-rows"></tbody>
+    </table></div><button data-copy="save"></button><button type="button" id="capture-defaults" data-copy="captureDefaults"></button></form>
+    <p id="capture-status" role="status"></p>
+  </section></div>
   <div data-pane="shop" hidden><section><h2 data-copy="shopTab"></h2><p data-copy="shopPricesHelp"></p>
     <form id="shop-prices"><div id="shop-price-fields"></div><button data-copy="publishShopPrices"></button></form>
     <p id="shop-price-status" role="status"></p>

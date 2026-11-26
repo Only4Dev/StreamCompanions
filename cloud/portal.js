@@ -205,7 +205,8 @@ function renderPage(body, status, language, theme, url) {
   headers.append('Set-Cookie', cookie('sc_theme', theme, 31_536_000))
   return new Response('<!doctype html><html lang="' + language + '" data-theme="' + theme + '"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
     '<title>Stream Companions</title><style>' + portalStyles + dexStyles + providerStyles + languageStyles + helpStyles + darkStyles + '</style>' +
-    '<main><header class="mast"><span class="mark" aria-hidden="true">✦</span>Stream Companions<nav class="web-language" aria-label="Language">' + '<a class="help-header" href="?' + escape(new URLSearchParams({
+    '<main><header class="mast"><span class="mark" aria-hidden="true">✦</span>Stream Companions<nav class="web-language" aria-label="' + (language === 'en' ? 'Portal navigation' : 'Navegación del portal') + '"><a href="/">' +
+    (language === 'en' ? 'Home' : 'Inicio') + '</a>' + '<a class="help-header" href="?' + escape(new URLSearchParams({
       tab: 'help', ...(url.searchParams.get('community') ? { community: url.searchParams.get('community') } : {})
     })) + '">' + (language === 'en' ? 'Help' : 'Ayuda') + '</a><a href="/?tab=about">' + aboutCopy[language].about + '</a><a href="/?tab=live">' + (language === 'en' ? 'Live' : 'En directo') + '</a>' + themeLink + languageLinks + '</nav></header>' + body + '</main></html>', { status, headers })
 }
@@ -227,8 +228,8 @@ function platformButton(provider, enabled, t, language) {
 }
 
 function quantityField(en, price, limit) {
-  return '<label>' + (en ? 'Quantity' : 'Cantidad') + ' <input type="number" name="quantity" data-shop-quantity="' +
-    price + '" min="1" max="' + Math.max(1, limit) + '" value="1" required></label> <label>Total <output>$' + price + '</output></label> '
+  return '<div class="shop-quantity"><label>' + (en ? 'Quantity' : 'Cantidad') + ' <input type="number" name="quantity" data-shop-quantity="' +
+    price + '" min="1" max="' + Math.max(1, limit) + '" value="1" required></label><span>Total <output aria-live="polite">$' + price + '</output></span></div>'
 }
 
 function submittingPurchase(en) {
@@ -264,6 +265,24 @@ export async function portal(request, url, env) {
       const receipt = document.querySelector('[data-order-pending]');
       const wallet = document.querySelector('[data-shop-wallet]');
       const controls = [...document.querySelectorAll('[data-shop-product]')];
+      const availability = document.querySelector('[data-shop-availability]');
+      let latestState;
+      function updateControl(form, state) {
+        const {shopProduct, shopPrice, shopBall} = form.dataset;
+        const owned = state.heldItems.includes(shopProduct);
+        const limit = Math.min(${maxShopQuantity}, Math.floor(state.balance / Number(shopPrice)));
+        const input = form.querySelector('[data-shop-quantity]');
+        if (input) input.max = Math.max(1, limit);
+        const button = form.querySelector('button');
+        button.disabled = submitted || !state.online || state.pending || owned || limit < 1 ||
+          Boolean(input && (!input.validity.valid || (!state.bulk && input.valueAsNumber > 1)));
+        button.textContent = owned ? button.dataset.owned : button.dataset.buy;
+        const count = form.querySelector('[data-shop-count]');
+        if (count) count.textContent = '×' + (state.balls[shopBall] ?? 0);
+      }
+      for (const form of controls) form.addEventListener('input', () => {
+        if (latestState) updateControl(form, latestState);
+      });
       if (receipt || wallet) {
         const query = new URLSearchParams(location.search);
         const status = new URL('/shop/status', location.origin);
@@ -286,22 +305,10 @@ export async function portal(request, url, env) {
                 balance = state.balance;
                 wallet.textContent = '$' + balance;
               }
-              for (const form of controls) {
-                const {shopProduct, shopPrice, shopBall} = form.dataset;
-                const owned = state.heldItems.includes(shopProduct);
-                const limit = Math.min(${maxShopQuantity}, Math.floor(balance / Number(shopPrice)));
-                const input = form.querySelector('[data-shop-quantity]');
-                if (input) {
-                  input.max = Math.max(1, limit);
-                  if (input.valueAsNumber > Number(input.max)) input.value = input.max;
-                  input.dispatchEvent(new Event('input'));
-                }
-                const button = form.querySelector('button');
-                button.disabled = submitted || !state.online || state.pending || owned || limit < 1;
-                button.textContent = owned ? button.dataset.owned : button.dataset.buy;
-                const count = form.querySelector('[data-shop-count]');
-                if (count) count.textContent = '×' + (state.balls[shopBall] ?? 0);
-              }
+              latestState = state;
+              availability.hidden = state.online && state.bulk;
+              availability.textContent = state.online ? availability.dataset.upgrade : availability.dataset.offline;
+              for (const form of controls) updateControl(form, state);
             }
             if (receipt && state.message) {
               receipt.textContent = state.message;
@@ -403,7 +410,7 @@ export async function portal(request, url, env) {
     if (!identity) return json({ error: 'authentication required' }, 401)
     const community = url.searchParams.get('community')
     const viewer = await env.DB.prepare(
-      'SELECT p.payload, s.seen_at, o.id AS order_id, o.result FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
+      'SELECT p.payload, s.seen_at, s.supports_quantity, o.id AS order_id, o.result FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
       'LEFT JOIN shop_online s ON s.community_id = p.community_id ' +
       'LEFT JOIN shop_orders o ON o.community_id = p.community_id AND o.viewer_id = p.viewer_id AND o.id = ? ' +
       'WHERE i.account_id = ? AND p.community_id = ? ORDER BY o.id IS NOT NULL DESC, p.updated_at DESC, p.viewer_id LIMIT 1'
@@ -424,7 +431,7 @@ export async function portal(request, url, env) {
     const message = pending && !online
       ? (language === 'en' ? 'Streamer app disconnected. Order still pending.' : 'App del streamer desconectada. El pedido sigue pendiente.')
       : (viewer.result && messages[viewer.result]) || ''
-    return json({ balance, balls, heldItems, pending, online, message })
+    return json({ balance, balls, heldItems, pending, online, bulk: Boolean(viewer.supports_quantity), message })
   }
 
   if (url.pathname === '/live/action' || url.pathname === '/live/status') {
@@ -684,8 +691,7 @@ export async function portal(request, url, env) {
       dnaOrder ? (dnaOrder.result === 'battleLocked' ? botCopy[language].battleLocked : dnaOrder.result === 'purchased' ? (en ? 'Purchase complete.' : 'Compra realizada.') :
         dnaOrder.result === 'funds' ? fundsText : dnaOrder.result === 'repriced' ? (en ? 'The price changed.' : 'El precio cambió.') : dnaOrder.result ? (en ? 'Purchase could not be completed.' : 'No se pudo completar la compra.') :
           (en ? 'Order sent. Waiting for the streamer’s app to confirm…' : 'Pedido enviado. Esperando confirmación de la app del streamer…')) : '')
-    const dnaQuantity = online?.supports_quantity
-      ? quantityField(en, dnaPrice, Math.min(maxDnaBoosters - dna, Math.floor(pokeDollars / dnaPrice))) : ''
+    const dnaQuantity = quantityField(en, dnaPrice, Math.min(online?.supports_quantity ? maxDnaBoosters - dna : 1, Math.floor(pokeDollars / dnaPrice)))
     const dnaSection = '<div class="held-frame"><strong>DNA Booster ' + (dna >= maxDnaBoosters ? 'MAX' : dna + '/' + maxDnaBoosters) + '</strong>' +
       '<span>' + (en ? 'Shared across this evolution line' : 'Compartido en esta línea evolutiva') + '</span>' +
       helpHint(en ? 'About DNA Booster' : 'Sobre DNA Booster', en ?
@@ -778,21 +784,24 @@ export async function portal(request, url, env) {
     const pending = order && !order.result
     shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong> <span data-shop-delta aria-live="polite"></span></p>' +
       (url.searchParams.has('repriced') ? '<p role="status">' + (en ? 'The price changed. Check it before buying again.' : 'El precio cambió. Revísalo antes de volver a comprar.') + '</p>' : '') +
-      (purchaseWarning || !available ? '<p role="status" class="empty">' + escape(purchaseWarning || offlineText) + '</p>' : '') +
+      (purchaseWarning ? '<p role="status" class="empty">' + escape(purchaseWarning) + '</p>' : '') +
+      '<p role="status" class="empty" data-shop-availability data-offline="' + escape(offlineText) + '" data-upgrade="' +
+      escape(reasons.quantity) + '"' + (available && online?.supports_quantity ? ' hidden' : '') + '>' +
+      escape(available ? reasons.quantity : offlineText) + '</p>' +
       submittingPurchase(en) + (pending ? '<p role="status" data-order-receipt' + pendingPurchase(en) + '>' + (en ? 'Order sent. Waiting for the streamer’s app to confirm…' : 'Pedido enviado. Esperando confirmación de la app del streamer…') + '</p>' :
         order && status[order.result] ? '<p role="status" data-order-receipt>' + status[order.result] + '</p>' : '') +
-      '<ul class="held-grid">' + Object.entries(shopItems).filter(([, product]) => !product.dna).map(([id, product]) => {
+      '<ul class="held-grid shop-grid">' + Object.entries(shopItems).filter(([, product]) => !product.dna).map(([id, product]) => {
         const owned = product.held && ownedItems.includes(id)
         const price = published?.[id] ?? product.price
         const action = '/shop/buy?' + new URLSearchParams({ community: selected.community_id, item: id, order: crypto.randomUUID(), price })
         const button = '<button data-buy="' + (en ? 'Buy' : 'Comprar') + '" data-owned="' + (en ? 'Owned' : 'Ya lo tienes') + '"' + (!available || pending || owned || pokeDollars < price ? ' disabled' : '') + '>' +
           (owned ? (en ? 'Owned' : 'Ya lo tienes') : (en ? 'Buy' : 'Comprar')) + '</button>'
-        const quantityInput = product.ball && online?.supports_quantity
+        const quantityInput = product.ball
           ? quantityField(en, price, Math.min(maxShopQuantity, Math.floor(pokeDollars / price))) : ''
         return '<li>' + itemIcon(id) + '<strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
           '<form method="post" data-shop-buy data-shop-product="' + id + '" data-shop-price="' + price + '" action="' + escape(action) + '"' +
           (product.ball ? ' data-shop-ball="' + product.ball + '"' : '') + '>' +
-          (product.ball ? '<span data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</span> ' : '') + quantityInput + button + '</form>' + (available && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
+          (product.ball ? '<span class="shop-count">' + (en ? 'In bag' : 'En la bolsa') + ' <strong data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</strong></span>' : '') + quantityInput + button + '</form>' + (available && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
       }).join('') + '</ul></section><script src="/assets/shop-status.js" defer></script>'
   }
   const logDescription = entry => {
@@ -885,8 +894,8 @@ export async function portal(request, url, env) {
       (tab === name ? ' aria-current="page"' : '') + '>' + label + '</a>').join('')
   return page('<div class="toolbar"><div><p class="meta">Viewer · ' + escape(displayName) + '</p><h1>' + t("Tu álbum") + '</h1></div>' +
     actions + '</div><p class="meta community-label">' + t('Comunidad · ') + escape(selected.community_name ?? selected.community_id) + '</p><nav class="tabs" aria-label="Álbum">' + nav + '</nav>' +
-    (tab === 'dex' ? borders + '<section class="sheet"><h2>Pokédex</h2><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><a class="button" aria-pressed="' + caughtOnly + '" href="' + escape(href('dex', region[0], !caughtOnly)) + '">' +
-      (caughtOnly ? (en ? 'Show all' : 'Mostrar todos') : (en ? 'Caught only' : 'Solo atrapados')) + '</a><ol class="dex-grid">' + slots + '</ol></section>'
+    (tab === 'dex' ? borders + '<section class="sheet"><div class="dex-heading"><h2>Pokédex</h2><a class="button"' + (caughtOnly ? ' aria-current="true"' : '') + ' href="' + escape(href('dex', region[0], !caughtOnly)) + '">' +
+      (en ? 'Unlocked' : 'Desbloqueados') + '</a></div><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><ol class="dex-grid">' + slots + '</ol></section>'
       : tab === 'overview' ? overview : tab === 'shop' ? shopPage : tab === 'log' ?
         '<section class="sheet"><h2>' + (en ? 'Activity log' : 'Registro de actividad') + '</h2><ul>' +
         [...log].reverse().map(entry => '<li><time>' + escape(new Date(entry.at).toLocaleString(language, { timeZone: 'America/Lima' })) +

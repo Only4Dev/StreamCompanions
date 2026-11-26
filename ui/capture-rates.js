@@ -36,20 +36,37 @@ const captureRates = [
 ]
 
 const bands = [
-  { minimum: 200, names: ['Muy fácil', 'Super easy'], chances: [.38, .56, .75] },
-  { minimum: 120, names: ['Fácil', 'Easy'], chances: [.26, .43, .63] },
-  { minimum: 70, names: ['Normal', 'Normal'], chances: [.17, .31, .50] },
-  { minimum: 30, names: ['Difícil', 'Hard'], chances: [.09, .19, .36] },
-  { minimum: 0, names: ['Muy difícil', 'Ultra hard'], chances: [.04, .09, .21] }
+  { id: 'superEasy', minimum: 200, names: ['Muy fácil', 'Super easy'], chances: [.38, .56, .75] },
+  { id: 'easy', minimum: 120, names: ['Fácil', 'Easy'], chances: [.26, .43, .63] },
+  { id: 'normal', minimum: 70, names: ['Normal', 'Normal'], chances: [.17, .31, .50] },
+  { id: 'hard', minimum: 30, names: ['Difícil', 'Hard'], chances: [.09, .19, .36] },
+  { id: 'ultraHard', minimum: 0, names: ['Muy difícil', 'Ultra hard'], chances: [.04, .09, .21] }
 ]
-const legendaryBand = { names: ['Legendario', 'Legendary'], chances: [.01, .025, .05] }
+const legendaryBand = { id: 'legendary', names: ['Legendario', 'Legendary'], chances: [.01, .025, .05] }
 const mythicalSpecies = new Set([151, 251, 385, 386, 489, 490, 491, 492, 493, 494, 647, 648, 649, 719, 720, 721, 801, 802, 807, 808, 809, 893, 1025])
 const bandFor = (id, legendary) => legendary || mythicalSpecies.has(id)
   ? legendaryBand : bands.find(band => (captureRates[id - 1] ?? 255) >= band.minimum)
 
-export function catchChance(ball, id, legendary = false) {
+export const captureCategories = [...bands, legendaryBand].map(({ id, names, chances }) => ({
+  id, names, defaults: chances.map(chance => Math.round(chance * 10_000) / 100)
+}))
+
+export function normalizeCapturePercentages(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== captureCategories.length) return null
+  const normalized = {}
+  for (const { id } of captureCategories) {
+    const row = value[id]
+    if (!Array.isArray(row) || row.length !== 3 || row.some(rate => !Number.isFinite(rate) || rate < 0 || rate > 100)) return null
+    normalized[id] = row.map(rate => Math.round(rate * 100) / 100)
+  }
+  return normalized
+}
+
+export function catchChance(ball, id, legendary = false, percentages) {
   if (ball === 'master') return 1
-  return bandFor(id, legendary).chances[['normal', 'great', 'ultra'].indexOf(ball)]
+  const band = bandFor(id, legendary)
+  const index = ['normal', 'great', 'ultra'].indexOf(ball)
+  return percentages ? percentages[band.id]?.[index] / 100 : band.chances[index]
 }
 
 export function catchDifficulty(id, legendary = false, language = 'es') {

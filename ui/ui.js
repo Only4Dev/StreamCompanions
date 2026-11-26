@@ -1,5 +1,6 @@
 import { botCopy } from './bot-copy.js'
 import { level, showScene } from './sprites.js'
+import { captureCategories } from '/ui/capture-rates.js'
 import { shopItems } from '/ui/shop.js'
 import { aboutCopy } from '/ui/about.js'
 
@@ -62,6 +63,12 @@ Object.assign(labels.en, { battleEnabled: 'Battles', battleOff: 'Disabled', batt
 Object.assign(labels.es, { queueLegendary: 'Programar próximo legendario', queuedLegendary: 'Próximo legendario', demoMaster: 'Dar Master Ball de prueba', candyUsed: 'Caramelo usado. El Pokémon subió un nivel.', noCandy: 'No tienes Caramelos Raros.', candyMaxLevel: 'Ese Pokémon alcanzó el nivel máximo.' })
 Object.assign(labels.en, { queueLegendary: 'Queue next legendary encounter', queuedLegendary: 'Next legendary', demoMaster: 'Give test Master Ball', candyUsed: 'Candy used. The Pokémon gained a level.', noCandy: 'You have no Rare Candies.', candyMaxLevel: 'That Pokémon is already at the level cap.' })
 
+Object.assign(labels.es, { captureTab: 'Captura', captureDifficulty: 'Dificultad', captureGreatBall: 'Super Ball',
+  captureHelp: 'Ajusta los porcentajes por lanzamiento para tu comunidad. La Master Ball mantiene el 100 %.',
+  captureDefaults: 'Cargar valores iniciales', captureSaved: 'Porcentajes guardados.' })
+Object.assign(labels.en, { captureTab: 'Capture', captureDifficulty: 'Difficulty', captureGreatBall: 'Great Ball',
+  captureHelp: 'Set the percentage per throw for your community. The Master Ball always catches.',
+  captureDefaults: 'Load defaults', captureSaved: 'Capture rates saved.' })
 Object.assign(labels.es, { shopTab: 'Tienda', shopPricesHelp: 'Edita los precios en Pokédólares. Se publican en la siguiente conexión de la tienda con el juego activo.', publishShopPrices: 'Guardar y publicar precios', shopPricesSaved: 'Precios guardados. Se publicarán en la próxima sincronización de la tienda.' })
 Object.assign(labels.en, { shopTab: 'Shop', shopPricesHelp: 'Edit prices in Pokédollars. They go live on the next shop sync while the game is running.', publishShopPrices: 'Save and publish prices', shopPricesSaved: 'Prices saved. They will go live on the next shop sync.' })
 
@@ -319,6 +326,7 @@ async function refresh() {
     translate()
   }
   if (!settingsLoaded) {
+    loadCapturePercentages(state.config.capturePercentages)
     for (const [id, price] of Object.entries(state.config.shopPrices ?? {})) $('shop-prices').elements.namedItem(id).value = price
     for (const [name, value] of Object.entries(state.config)) {
       const field = document.getElementById("settings").elements.namedItem(name)
@@ -451,11 +459,23 @@ if (panel) {
     button.addEventListener('click', () => showPane(button.dataset.view))
   }
 }
+function loadCapturePercentages(percentages) {
+  for (const { id, defaults } of captureCategories) {
+    for (let index = 0; index < defaults.length; index++) {
+      $('capture-settings').elements.namedItem(id + '-' + index).value = percentages?.[id]?.[index] ?? defaults[index]
+    }
+  }
+}
+
 function translate() {
   for (const element of document.querySelectorAll('[data-about]')) element.textContent = aboutCopy[$('language').value][element.dataset.about]
   renderUpdateStatus()
   for (const item of document.querySelectorAll('[data-shop-item]')) {
     item.textContent = shopItems[item.dataset.shopItem].names[Number($('language').value === 'en')]
+  }
+  for (const item of document.querySelectorAll('[data-capture-category]')) {
+    const category = captureCategories.find(({ id }) => id === item.dataset.captureCategory)
+    item.textContent = category.names[Number($('language').value === 'en')]
   }
   translateLab?.()
   document.documentElement.lang = $('language').value
@@ -491,6 +511,38 @@ function translate() {
 }
 
 if (panel) {
+  for (const { id, defaults } of captureCategories) {
+    const row = $('capture-rows').insertRow()
+    const heading = document.createElement('th')
+    heading.scope = 'row'
+    heading.id = 'capture-category-' + id
+    heading.dataset.captureCategory = id
+    row.append(heading)
+    defaults.forEach((rate, index) => {
+      const input = document.createElement('input')
+      Object.assign(input, { name: id + '-' + index, type: 'number', min: '0', max: '100', step: '0.01', value: rate, required: true })
+      input.setAttribute('aria-label', ['Poké Ball %', 'Great Ball / Super Ball %', 'Ultra Ball %'][index])
+      input.setAttribute('aria-describedby', heading.id)
+      row.insertCell().append(input)
+    })
+  }
+  $('capture-defaults').addEventListener('click', () => {
+    loadCapturePercentages()
+    $('capture-status').textContent = ''
+  })
+  $('capture-settings').addEventListener('submit', async event => {
+    event.preventDefault()
+    const copy = labels[$('language').value]
+    const form = event.currentTarget
+    const capturePercentages = Object.fromEntries(captureCategories.map(({ id, defaults }) => [
+      id, defaults.map((_, index) => form.elements.namedItem(id + '-' + index).valueAsNumber)
+    ]))
+    try {
+      const response = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ capturePercentages }) })
+      $('capture-status').textContent = response.ok ? copy.captureSaved : copy.invalidSettings
+    } catch { $('capture-status').textContent = copy.invalidSettings }
+  })
   $('shop-prices').addEventListener('submit', async event => {
     event.preventDefault()
     const copy = labels[$('language').value]
