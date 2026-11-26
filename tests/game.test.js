@@ -173,6 +173,25 @@ test('a real battle blocks game commands and never catches up paused summon rewa
   assert.equal(game.snapshot().viewers.viewer.rareCandies, 0)
 })
 
+test('Master Ball drops use one 0.01 percent roll per active minute and persist in inventory', () => {
+  for (const [roll, expected] of [[.000099, 1], [.0001, 0]]) {
+    let time = 0
+    const values = [.5, .5, roll]
+    const game = createGame({ now: () => time, random: () => values.shift() ?? .5,
+      progress: { viewers: { A: { collection: { Brasa: 0 }, balls: { normal: 5, great: 0, ultra: 0, master: 0 } } } } })
+    game.chat('A', '!summon brasa')
+    time = 59_999
+    assert.equal(game.snapshot().viewers.A.balls.master, 0)
+    time = 60_000
+    assert.equal(game.snapshot().viewers.A.balls.master, expected)
+    const restarted = createGame({ progress: game.progress(), random: () => .99 })
+    assert.equal(restarted.ballInventory('A').master, expected)
+    restarted.spawn('Gota')
+    assert.equal(restarted.chat('A', '!catch master'), expected ? 'caught' : 'noBalls')
+    assert.equal(restarted.ballInventory('A').master, 0)
+  }
+})
+
 test('roaming rewards roll once per completed active minute and survive restart', () => {
   let time = 0
   const game = createGame({ now: () => time, random: () => 0,
@@ -182,7 +201,7 @@ test('roaming rewards roll once per completed active minute and survive restart'
   assert.equal(game.snapshot().viewers.A.rareCandies, undefined)
   time = 60_000
   const viewer = game.overlay('companions').viewers.A
-  assert.deepEqual(viewer.active.pickup, { at: 60_000, candy: true, money: 50 })
+  assert.deepEqual(viewer.active.pickup, { at: 60_000, candy: true, money: 50, masterBall: true })
   assert.equal(viewer.collection.Brasa, 480)
   const restarted = createGame({ progress: game.progress() })
   assert.equal(restarted.progress().viewers.A.rareCandies, 1)

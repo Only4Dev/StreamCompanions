@@ -269,8 +269,10 @@ export async function portal(request, url, env) {
       let latestState;
       function updateControl(form, state) {
         const {shopProduct, shopPrice, shopBall} = form.dataset;
+        const dna = shopProduct === 'dna-booster';
         const owned = state.heldItems.includes(shopProduct);
-        const limit = Math.min(${maxShopQuantity}, Math.floor(state.balance / Number(shopPrice)));
+        const cap = dna ? (state.dna ? ${maxDnaBoosters} - state.dnaCount : 0) : ${maxShopQuantity};
+        const limit = Math.min(cap, Math.floor(state.balance / Number(shopPrice)));
         const input = form.querySelector('[data-shop-quantity]');
         if (input) input.max = Math.max(1, limit);
         const button = form.querySelector('button');
@@ -288,6 +290,8 @@ export async function portal(request, url, env) {
         const status = new URL('/shop/status', location.origin);
         status.searchParams.set('community', query.get('community'));
         if (receipt) status.searchParams.set('purchase', query.get('purchase'));
+        if (query.has('pokemon')) status.searchParams.set('pokemon', query.get('pokemon'));
+        const dnaCount = document.querySelector('[data-shop-dna-count]');
         const delta = document.querySelector('[data-shop-delta]');
         let balance = wallet ? Number(wallet.dataset.shopWallet) : null;
         let attempts = 0;
@@ -299,15 +303,20 @@ export async function portal(request, url, env) {
             if (!response.ok) throw new Error('HTTP ' + response.status);
             const state = await response.json();
             attempts = 0;
+            if (dnaCount && Number.isInteger(state.dnaCount)) {
+              dnaCount.textContent = state.dnaCount >= ${maxDnaBoosters} ? 'MAX' : state.dnaCount + '/${maxDnaBoosters}';
+            }
             if (wallet && Number.isSafeInteger(state.balance)) {
               if (state.balance !== balance) {
-                delta.textContent = state.balance > balance ? '+$' + (state.balance - balance) : '';
+                if (delta) delta.textContent = state.balance > balance ? '+$' + (state.balance - balance) : '';
                 balance = state.balance;
                 wallet.textContent = '$' + balance;
               }
               latestState = state;
-              availability.hidden = state.online && state.bulk;
-              availability.textContent = state.online ? availability.dataset.upgrade : availability.dataset.offline;
+              if (availability) {
+                availability.hidden = state.online && state.bulk;
+                availability.textContent = state.online ? availability.dataset.upgrade : availability.dataset.offline;
+              }
               for (const form of controls) updateControl(form, state);
             }
             if (receipt && state.message) {
@@ -410,7 +419,7 @@ export async function portal(request, url, env) {
     if (!identity) return json({ error: 'authentication required' }, 401)
     const community = url.searchParams.get('community')
     const viewer = await env.DB.prepare(
-      'SELECT p.payload, s.seen_at, s.supports_quantity, o.id AS order_id, o.result FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
+      'SELECT p.payload, s.seen_at, s.supports_quantity, s.supports_dna, o.id AS order_id, o.result FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
       'LEFT JOIN shop_online s ON s.community_id = p.community_id ' +
       'LEFT JOIN shop_orders o ON o.community_id = p.community_id AND o.viewer_id = p.viewer_id AND o.id = ? ' +
       'WHERE i.account_id = ? AND p.community_id = ? ORDER BY o.id IS NOT NULL DESC, p.updated_at DESC, p.viewer_id LIMIT 1'
@@ -418,7 +427,9 @@ export async function portal(request, url, env) {
     if (!viewer) return json({ error: 'community not found' }, 404)
     const pending = Boolean(viewer.order_id && viewer.result === null)
     const online = viewer.seen_at > Date.now() - 70_000
-    const { pokeDollars: balance = 0, balls = {}, heldItems = [] } = JSON.parse(viewer.payload)
+    const { pokeDollars: balance = 0, balls = {}, heldItems = [], dnaBoosters = {}, collection = {} } = JSON.parse(viewer.payload)
+    const species = url.searchParams.get('pokemon')
+    const dnaCount = species && Object.hasOwn(collection, species) ? sharedDna(dnaBoosters, species) : undefined
     const messages = {
       purchased: language === 'en' ? 'Purchase complete.' : 'Compra realizada.',
       owned: language === 'en' ? 'Already owned.' : 'Ya tienes ese objeto.',
@@ -431,7 +442,7 @@ export async function portal(request, url, env) {
     const message = pending && !online
       ? (language === 'en' ? 'Streamer app disconnected. Order still pending.' : 'App del streamer desconectada. El pedido sigue pendiente.')
       : (viewer.result && messages[viewer.result]) || ''
-    return json({ balance, balls, heldItems, pending, online, bulk: Boolean(viewer.supports_quantity), message })
+    return json({ balance, balls, heldItems, pending, online, bulk: Boolean(viewer.supports_quantity), dnaCount, ...(dnaCount !== undefined ? { dna: viewer.supports_dna >= 3 } : {}), message })
   }
 
   if (url.pathname === '/live/action' || url.pathname === '/live/status') {
@@ -692,14 +703,15 @@ export async function portal(request, url, env) {
         dnaOrder.result === 'funds' ? fundsText : dnaOrder.result === 'repriced' ? (en ? 'The price changed.' : 'El precio cambió.') : dnaOrder.result ? (en ? 'Purchase could not be completed.' : 'No se pudo completar la compra.') :
           (en ? 'Order sent. Waiting for the streamer’s app to confirm…' : 'Pedido enviado. Esperando confirmación de la app del streamer…')) : '')
     const dnaQuantity = quantityField(en, dnaPrice, Math.min(online?.supports_quantity ? maxDnaBoosters - dna : 1, Math.floor(pokeDollars / dnaPrice)))
-    const dnaSection = '<div class="held-frame"><strong>DNA Booster ' + (dna >= maxDnaBoosters ? 'MAX' : dna + '/' + maxDnaBoosters) + '</strong>' +
+    const dnaSection = '<div class="held-frame"><strong>DNA Booster <span data-shop-dna-count>' + (dna >= maxDnaBoosters ? 'MAX' : dna + '/' + maxDnaBoosters) + '</span></strong>' +
       '<span>' + (en ? 'Shared across this evolution line' : 'Compartido en esta línea evolutiva') + '</span>' +
       helpHint(en ? 'About DNA Booster' : 'Sobre DNA Booster', en ?
         'Boosts the battle stats of the whole evolution line, including shiny Pokémon. Max 10.' :
         'Mejora las estadísticas de toda la línea evolutiva, incluidas las variantes shiny. Máximo 10.') +
-      '<span>' + escape(walletText) + '</span>' + submittingPurchase(en) +
+      '<span>' + (en ? 'Current balance: ' : 'Saldo actual: ') + '<strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong></span>' + submittingPurchase(en) +
       (dnaMessage || dnaBlocked ? '<span role="status" data-order-receipt' + (dnaOrder && !dnaOrder.result ? pendingPurchase(en) : '') + '>' + escape(dnaMessage || dnaBlocked) + '</span>' : '') +
-      (dna < maxDnaBoosters ? '<form method="post" data-shop-buy action="' + escape(dnaAction) + '">' + dnaQuantity + '<button' +
+      (dna < maxDnaBoosters ? '<form method="post" data-shop-buy data-shop-product="dna-booster" data-shop-price="' + dnaPrice + '" action="' + escape(dnaAction) + '">' + dnaQuantity +
+        '<button data-buy="' + (en ? 'Buy · $' : 'Comprar · $') + dnaPrice + '"' +
         (dnaBlocked || (dnaOrder && !dnaOrder.result) ? ' disabled' : '') + '>' +
         (en ? 'Buy · $' : 'Comprar · $') + dnaPrice + '</button></form>' : '') + '</div>'
     const saved = await env.DB.prepare('SELECT moves FROM viewer_movesets WHERE community_id = ? AND viewer_id = ? AND species_key = ?')

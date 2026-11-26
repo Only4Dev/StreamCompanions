@@ -174,8 +174,13 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         const money = config.summonMoneyPerMinute
         if (candy) viewer.rareCandies = (viewer.rareCandies ?? 0) + 1
         if (money) viewer.pokeDollars = (viewer.pokeDollars ?? 0) + money
-        if (candy || money) active.pickup = { at: until, candy, money }
         if (random() < .002) grantHeldItem(viewer)
+        const masterBall = random() < .0001
+        if (masterBall) {
+          viewer.balls ??= { normal: 0, great: 0, ultra: 0, master: 0 }
+          viewer.balls.master = (viewer.balls.master ?? 0) + 1
+        }
+        if (candy || money || masterBall) active.pickup = { at: until, candy, money, ...(masterBall ? { masterBall } : {}) }
       }
       active.last = until
     }

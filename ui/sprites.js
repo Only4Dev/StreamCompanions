@@ -392,8 +392,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         context.save()
         context.globalAlpha *= 1 - pickupAge
         const top = labelY - (levelUpAge < 1650 ? 105 : 40) - pickupAge * 42
-        if (pickup.candy) label(context, '🍬 +1', actor.x, top, 25)
-        if (pickup.money) label(context, '+$' + pickup.money, actor.x, top - (pickup.candy ? 29 : 0), 25)
+        const rewards = [pickup.candy && '🍬 +1', pickup.money && '+$' + pickup.money, pickup.masterBall && 'Master Ball +1'].filter(Boolean)
+        rewards.forEach((reward, index) => label(context, reward, actor.x, top - index * 29, 25))
         context.restore()
       }
       if (showNames) {
