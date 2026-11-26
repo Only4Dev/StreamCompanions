@@ -1,6 +1,19 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { battleClip, chooseBehavior, showScene, spriteScale } from '../ui/sprites.js'
+import { battleClip, chooseBehavior, createCaptureQueue, showScene, spriteScale } from '../ui/sprites.js'
+
+test('overlay capture feed reveals simultaneous catches in order and frees space as each fades', () => {
+  const queue = createCaptureQueue()
+  const catches = Array.from({ length: 5 }, (_, index) => ({ id: index + 1, encounterId: 'wild', at: 10_000 }))
+  const rows = time => queue(catches, time, 10_000 + time, .1)
+  assert.deepEqual(rows(0).map(row => row.id), [1])
+  assert.deepEqual(rows(450).map(row => row.id), [1, 2])
+  assert.deepEqual(rows(900).map(row => row.id), [1, 2, 3])
+  assert.ok(rows(3850)[0].opacity < 1)
+  assert.deepEqual(rows(4100).map(row => row.id), [2, 3, 4])
+  assert.deepEqual(rows(4550).map(row => row.id), [3, 4, 5])
+  assert.deepEqual(rows(9000), [])
+})
 
 test('large static fallback sprites shrink without changing PMD sprites or zoom behavior', () => {
   const clip = { url: '/pmd/0001/Static.png', width: 96, height: 96 }

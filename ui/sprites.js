@@ -96,10 +96,36 @@ function label(context, text, x, y, size = 15, color = '#fff') {
   context.fillText(text, x, y)
 }
 
+export function createCaptureQueue() {
+  let seen = new Set()
+  let nextRowAt = 0
+  const pending = []
+  let visible = []
+  return (captures, time, wallTime, elapsed) => {
+    const current = new Set()
+    for (const capture of captures) {
+      const key = capture.encounterId + ':' + capture.id
+      current.add(key)
+      if (!seen.has(key) && wallTime - capture.at < 10_000) pending.push(capture)
+    }
+    seen = current
+    visible = visible.filter(row => time - row.shownAt < 4100)
+    if (visible.length < 3 && pending.length && time >= nextRowAt) {
+      visible.push({ capture: pending.shift(), shownAt: time, y: visible.length * 24 + 12 })
+      nextRowAt = time + 450
+    }
+    return visible.map((row, index) => {
+      row.y += (index * 24 - row.y) * (1 - Math.exp(-elapsed * 18))
+      const age = time - row.shownAt
+      return { ...row.capture, y: row.y, opacity: Math.min(1, age / 180, (4100 - age) / 700) }
+    })
+  }
+}
+
 function encounterCard(ctx, wild, entry, captures, width, height, fade, time, formatTime, language, arrivalAge) {
-  const scale = Math.min(1, height / 245, width / 410)
+  const scale = Math.min(1, height / 295, width / 410)
   const x = width / 2
-  const y = height / 2 - 101 * scale + (1 - fade) * 8
+  const y = height / 2 - 124 * scale + (1 - fade) * 8
   const accent = wild.specialTag ? '#d7a7ff' : wild.shiny ? '#fad77f' : '#c2d9c8'
   const box = (left, top, w, h, radius, color) => {
     ctx.beginPath()
@@ -147,13 +173,12 @@ function encounterCard(ctx, wild, entry, captures, width, height, fade, time, fo
   label(ctx, wild.name + (wild.shiny ? ' ✦' : '') + ' · Lv. ' + (wild.level ?? 1), 0, 140, wild.name.length > 13 ? 13 : 15)
   box(-69, 146, 138, 19, 4, '#101e23')
   label(ctx, [wild.difficulty, formatTime(wild.endsAt)].filter(Boolean).join(' · '), 0, 161, 13)
-  for (const [index, caught] of captures.entries()) {
-    const age = Date.now() - caught.at
-    ctx.globalAlpha = fade * Math.min(1, age / 180, (4600 - age) / 500)
-    box(-185, 184 + index * 24, 370, 22, 6, '#17232bef')
+  for (const caught of captures) {
+    ctx.globalAlpha = fade * caught.opacity
+    box(-185, 184 + caught.y, 370, 22, 6, '#17232bef')
     const name = caught.viewer.length > 20 ? caught.viewer.slice(0, 19) + '…' : caught.viewer
     const text = language === 'en' ? name + ' caught ' + caught.pokemon + '!' : '¡' + name + ' capturó a ' + caught.pokemon + '!'
-    label(ctx, text, 0, 200 + index * 24, text.length > 47 ? 12 : 14)
+    label(ctx, text, 0, 200 + caught.y, text.length > 47 ? 12 : 14)
   }
   ctx.restore()
 }
@@ -269,6 +294,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
   let previous = 0
   let shownEncounter
   let shownEncounterAt = 0
+  const captureQueue = createCaptureQueue()
   let encounterOpacity = 0
   function draw(time) {
     requestAnimationFrame(draw)
@@ -298,10 +324,10 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         }
         shownEncounter = wild
       }
-      encounterOpacity = Math.max(0, Math.min(1, encounterOpacity + elapsed * (active ? 3.1 : -2.7)))
-      if (!shownEncounter || !encounterOpacity) return
-      const captures = (state.recentCaptures ?? []).filter(item => item.encounterId === shownEncounter.id &&
-        Date.now() >= item.at && Date.now() - item.at < 4600).slice(-2)
+      if (!shownEncounter) return
+      const captures = captureQueue(state.recentCaptures ?? [], time, Date.now(), elapsed)
+      encounterOpacity = Math.max(0, Math.min(1, encounterOpacity + elapsed * (active || captures.length ? 3.1 : -2.7)))
+      if (!encounterOpacity) return
       encounterCard(context, shownEncounter, species.get(shownEncounter.name), captures, width, height,
         encounterOpacity * encounterOpacity * (3 - 2 * encounterOpacity), time, formatTime, state.bot?.language, time - shownEncounterAt)
       return

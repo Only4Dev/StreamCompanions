@@ -242,7 +242,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       viewer.caughtChannels.add(channel)
       recentCaptures.push({ id: ++captureSequence, encounterId: encounter.id, viewer: viewer.displayName || id,
         pokemon: key, at: now() })
-      if (recentCaptures.length > 12) recentCaptures.shift()
+      if (recentCaptures.length > 40) recentCaptures.shift()
       if (!owned) {
         viewer.collection[key] = familyXp(viewer, key)
         shareFamily(viewer, key, viewer.collection[key])
