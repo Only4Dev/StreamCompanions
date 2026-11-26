@@ -13,6 +13,7 @@ import { createEncounterNotices } from './notices.js'
 import { createGame, creatures } from './game.js'
 import { level } from '../ui/levels.js'
 import { spriteScale } from '../ui/sprites.js'
+import { specialEncounterTag } from '../ui/capture-rates.js'
 import { projectLinks } from '../ui/about.js'
 import { hasAppArchive, stageUpdate } from './install-update.js'
 import { checkForUpdate } from './update-check.js'
@@ -953,7 +954,8 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ ...manifest, species: manifest.species.map(item => {
         const id = Number(item.id)
         const legendary = Boolean(battleStats[id - 1]?.[5])
-        return { ...item, legendary, wildEligible: legendary || !evolutionParent(id) }
+        const specialTag = specialEncounterTag(id, legendary)
+        return { ...item, legendary, specialTag, wildEligible: Boolean(specialTag) || !evolutionParent(id) }
       }) }))
       return
     }
@@ -1126,8 +1128,10 @@ app.whenReady().then(() => {
         lastWild = wild.id
         const pokemon = wild.name + (wild.shiny ? ' ✦' : '')
         const difficulty = game.encounterDifficulty(wild.name, bot.language)
-        remember(activityLog, { name: pokemon, message: 'Wild encounter', result: difficulty })
-        const message = botSignature(bot, formatBotReply(bot, 'wildAppeared', { pokemon, difficulty, chance: difficulty }))
+        remember(activityLog, { name: pokemon, message: wild.specialTag ? 'Ultra-rare encounter' : 'Wild encounter', result: difficulty })
+        const encounterReply = formatBotReply(bot, 'wildAppeared', { pokemon, difficulty, chance: difficulty })
+        const specialPrefix = wild.specialTag ? (bot.language === 'en' ? 'Ultra-rare encounter · ' : 'Aparición ultrarrara · ') : ''
+        const message = botSignature(bot, encounterReply && specialPrefix + encounterReply)
         if (message) announceInLiveChats(message)
       }
       notices(game.schedule(), botResponse(bot, 'notice'), bot.language).catch(error => {

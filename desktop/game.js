@@ -1,7 +1,7 @@
 import { normalizeCommand } from './commands.js'
 import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, maxDnaBoosters, nextEvolutionLevel } from '../ui/evolution.js'
 import { defaultSummonXpPerSecond, level, maxLevel, maxXp, xpAtLevel } from '../ui/levels.js'
-import { captureCategories, catchChance, catchDifficulty, normalizeCapturePercentages } from '../ui/capture-rates.js'
+import { captureCategories, catchChance, catchDifficulty, normalizeCapturePercentages, specialEncounterTag } from '../ui/capture-rates.js'
 import { heldItems } from '../ui/held-items.js'
 import { normalizeShopPrices, shopItems, validShopPrice, validShopQuantity } from '../ui/shop.js'
 
@@ -15,8 +15,9 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   const shinySpecies = new Set(catalog.filter(item => item.shiny).map(item => item.name))
   const byName = new Map(catalog.map(item => [item.name, item]))
   const byId = new Map(catalog.filter(item => item.id).map(item => [item.id, item]))
-  const legendarySpecies = catalog.filter(item => item.legendary).map(item => item.name)
-  const wildSpecies = catalog.filter(item => !item.legendary && !evolutionParent(item.id)).map(item => item.name)
+  const specialTags = new Map(catalog.map(item => [item.name, specialEncounterTag(item.id, item.legendary)]))
+  const specialSpecies = catalog.filter(item => specialTags.get(item.name)).map(item => item.name)
+  const wildSpecies = catalog.filter(item => !specialTags.get(item.name) && !evolutionParent(item.id)).map(item => item.name)
   const recentCaptures = []
   let captureSequence = 0
   const initialMetrics = () => ({ wins: 0, losses: 0, summonSeconds: 0 })
@@ -50,7 +51,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   let captureBaseline = 0
   const statistics = () => ({ encounters: savedEncounters + encounterCount - encounterBaseline,
     captures: savedCaptures + captureSequence - captureBaseline })
-  let nextLegendary = legendarySpecies.includes(progress?.nextLegendary) ? progress.nextLegendary : undefined
+  let nextLegendary = specialSpecies.includes(progress?.nextLegendary) ? progress.nextLegendary : undefined
   let nextAt = now() + config.interval * 60_000
   let notice = ''
 
@@ -133,12 +134,13 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   function spawn(name) {
     if (wildPaused) throw new Error("Wild encounters are paused for battle")
     const entry = byName.get(name)
-    if (!entry || evolutionParent(entry.id)) throw new Error('Invalid wild creature')
+    const specialTag = specialTags.get(name)
+    if (!entry || (!specialTag && evolutionParent(entry.id))) throw new Error('Invalid wild creature')
     const time = now()
-    const legendary = Boolean(byName.get(name)?.legendary)
-    const endsAt = time + (legendary ? 5 : config.duration) * 60_000
+    const legendary = specialTag === 'legendary' || specialTag === 'mythical'
+    const endsAt = time + (specialTag ? 5 : config.duration) * 60_000
     const catchUntil = endsAt + config.catchGraceSeconds * 1000
-    encounter = { id: time + ':' + ++encounterCount, name, level: 1, legendary,
+    encounter = { id: time + ':' + ++encounterCount, name, level: 1, legendary, specialTag,
       shiny: shinySpecies.has(name) && random() < 1 / config.shiny, endsAt, catchUntil }
     nextAt = Math.max(time + config.interval * 60_000, catchUntil)
     for (const viewer of viewers.values()) viewer.caughtChannels = new Set()
@@ -153,7 +155,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         spawn(nextLegendary)
         nextLegendary = undefined
       } else {
-        const pool = legendarySpecies.length && random() < config.legendaryChancePercent / 100 ? legendarySpecies : wildSpecies
+        const pool = specialSpecies.length && random() < config.legendaryChancePercent / 100 ? specialSpecies : wildSpecies
         if (pool.length) spawn(pool[Math.floor(random() * pool.length)])
       }
     }
@@ -341,7 +343,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       captureBaseline = captureSequence
     },
     queueLegendary(name) {
-      if (!legendarySpecies.includes(name)) throw new Error('Invalid legendary')
+      if (!specialSpecies.includes(name)) throw new Error('Invalid legendary')
       nextLegendary = name
     },
     grantDemoMasterBall(id) {

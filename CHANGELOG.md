@@ -2,6 +2,8 @@
 
 ## 1.2.0
 
+- Reserve Legendary, Mythical, Ultra Beast, and Paradox Pokémon for ultra-rare encounters with a distinct overlay effect.
+
 - Add a live portal feed for automatic bot announcements and let streamers mute those announcements in Twitch and Kick chat.
 
 - Active summons have a 0.01% chance per completed minute to find a Master Ball. It appears in inventory and is available with `!catch master`.

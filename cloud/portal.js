@@ -417,6 +417,7 @@ export async function portal(request, url, env) {
     const player = stream && url.protocol === 'https:' && (platform === 'twitch'
       ? 'https://player.twitch.tv/?' + new URLSearchParams({ channel: stream.login, parent: url.hostname, autoplay: 'false' })
       : 'https://player.kick.com/' + encodeURIComponent(stream.login) + '?autoplay=false')
+    let activeStreams = 0
     const cards = results.map(({ community_id, seen_at, platforms }) => {
       const channels = JSON.parse(platforms)
       const live = seen_at > Date.now() - 90_000
@@ -431,6 +432,7 @@ export async function portal(request, url, env) {
             thumbnail = '<img width="160" height="90" loading="lazy" alt="" src="' + escape(url.href) + '">'
           }
         } catch { /* platform did not supply a usable thumbnail */ }
+        if (live && channel.live) activeStreams++
         const play = live && channel.live && url.protocol === 'https:'
           ? '/?' + new URLSearchParams({ tab: 'live', community: community_id, platform: channel.provider }) : href
         return '<a href="' + escape(play) + '">' + thumbnail + escape(name + ' · ' + (live && channel.live ? (language === 'en' ? 'Live' : 'En directo') : 'Offline')) + '</a>'
@@ -439,6 +441,9 @@ export async function portal(request, url, env) {
     }).join('')
     return page('<section class="sheet"><h1>' + title + '</h1>' + (player ? '<div style="overflow:auto"><iframe title="' + escape(stream.login) +
       '" src="' + escape(player) + '" width="800" height="450" style="width:100%;min-width:400px;min-height:300px;border:0" allowfullscreen></iframe></div>' : '') +
+      (!player ? '<p class="meta">' + (activeStreams
+        ? (language === 'en' ? 'Choose a live channel to watch and play here.' : 'Elige un canal en directo para ver el stream y jugar aquí.')
+        : (language === 'en' ? 'No channels are live right now.' : 'No hay canales en directo en este momento.')) + '</p>' : '') +
       '<ul class="community-list">' + cards + '</ul></section>' +
       (selectedStream ? renderAnnouncements(selectedStream.community_id, language) : '') +
       (stream ? await renderLiveGame(request, env.DB, url, language) : ''))

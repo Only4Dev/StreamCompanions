@@ -44,6 +44,17 @@ const bands = [
 ]
 const legendaryBand = { id: 'legendary', names: ['Legendario', 'Legendary'], chances: [.01, .025, .05] }
 const mythicalSpecies = new Set([151, 251, 385, 386, 489, 490, 491, 492, 493, 494, 647, 648, 649, 719, 720, 721, 801, 802, 807, 808, 809, 893, 1025])
+const ultraBeasts = new Set([793, 794, 795, 796, 797, 798, 799, 803, 804, 805, 806])
+const paradoxSpecies = new Set([984, 985, 986, 987, 988, 989, 990, 991, 992, 993, 994, 995, 1005, 1006, 1009, 1010, 1020, 1021, 1022, 1023])
+
+export function specialEncounterTag(id, legendary = false) {
+  if (mythicalSpecies.has(id)) return 'mythical'
+  if (ultraBeasts.has(id)) return 'ultraBeast'
+  if (legendary) return 'legendary'
+  if (paradoxSpecies.has(id)) return 'paradox'
+  return null
+}
+
 const bandFor = (id, legendary) => legendary || mythicalSpecies.has(id)
   ? legendaryBand : bands.find(band => (captureRates[id - 1] ?? 255) >= band.minimum)
 

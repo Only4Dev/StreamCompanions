@@ -96,11 +96,11 @@ function label(context, text, x, y, size = 15, color = '#fff') {
   context.fillText(text, x, y)
 }
 
-function encounterCard(ctx, wild, entry, captures, width, height, fade, time, formatTime, language) {
+function encounterCard(ctx, wild, entry, captures, width, height, fade, time, formatTime, language, arrivalAge) {
   const scale = Math.min(1, height / 245, width / 410)
   const x = width / 2
   const y = height / 2 - 101 * scale + (1 - fade) * 8
-  const accent = wild.shiny ? '#fad77f' : '#c2d9c8'
+  const accent = wild.specialTag ? '#d7a7ff' : wild.shiny ? '#fad77f' : '#c2d9c8'
   const box = (left, top, w, h, radius, color) => {
     ctx.beginPath()
     ctx.roundRect(left, top, w, h, radius)
@@ -111,6 +111,26 @@ function encounterCard(ctx, wild, entry, captures, width, height, fade, time, fo
   ctx.translate(x, y)
   ctx.scale(scale, scale)
   ctx.globalAlpha = fade
+  if (wild.specialTag && arrivalAge < 1250) {
+    const burst = arrivalAge / 1250
+    ctx.save()
+    ctx.globalAlpha = fade * (1 - burst)
+    for (let i = 0; i < 2; i++) {
+      ctx.beginPath()
+      ctx.ellipse(0, 84, 83 + burst * 54 + i * 15, 92 + burst * 12 + i * 7, 0, 0, 2 * Math.PI)
+      ctx.strokeStyle = i ? '#ffe7a3' : accent
+      ctx.lineWidth = i ? 2 : 4
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+  if (wild.specialTag) {
+    const tags = { legendary: ['Legendario', 'Legendary'], mythical: ['Mítico', 'Mythical'],
+      ultraBeast: ['Ultraente', 'Ultra Beast'], paradox: ['Paradoja', 'Paradox'] }
+    const en = language === 'en'
+    const text = (en ? 'Ultra-rare' : 'Ultrarraro') + ' · ' + tags[wild.specialTag][Number(en)]
+    label(ctx, text, 0, -6, 13, accent)
+  }
   box(-78, 4, 160, 176, 12, '#0e151dcc')
   box(-80, 0, 160, 176, 12, '#202d32')
   box(-77, 3, 154, 170, 10, accent)
@@ -248,6 +268,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
   const species = new Map(catalog.map(entry => [entry.name, entry]))
   let previous = 0
   let shownEncounter
+  let shownEncounterAt = 0
   let encounterOpacity = 0
   function draw(time) {
     requestAnimationFrame(draw)
@@ -271,7 +292,10 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       const wild = state.encounter
       const active = wild && Date.now() < wild.endsAt
       if (active) {
-        if (shownEncounter?.id !== wild.id) encounterOpacity = 0
+        if (shownEncounter?.id !== wild.id) {
+          encounterOpacity = 0
+          shownEncounterAt = time
+        }
         shownEncounter = wild
       }
       encounterOpacity = Math.max(0, Math.min(1, encounterOpacity + elapsed * (active ? 3.1 : -2.7)))
@@ -279,7 +303,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       const captures = (state.recentCaptures ?? []).filter(item => item.encounterId === shownEncounter.id &&
         Date.now() >= item.at && Date.now() - item.at < 4600).slice(-2)
       encounterCard(context, shownEncounter, species.get(shownEncounter.name), captures, width, height,
-        encounterOpacity * encounterOpacity * (3 - 2 * encounterOpacity), time, formatTime, state.bot?.language)
+        encounterOpacity * encounterOpacity * (3 - 2 * encounterOpacity), time, formatTime, state.bot?.language, time - shownEncounterAt)
       return
     }
 

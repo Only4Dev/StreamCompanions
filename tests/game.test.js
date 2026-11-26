@@ -128,6 +128,28 @@ test('streamer capture settings apply to throws and persist without changing Mas
   assert.equal(catchChance('master', 19, false, percentages), 1)
 })
 
+test('the regular pool excludes legendary, mythical, Ultra Beast, and Paradox species', () => {
+  const catalog = [
+    { id: 19, name: 'Rattata' }, { id: 150, name: 'Mewtwo', legendary: true },
+    { id: 151, name: 'Mew' }, { id: 793, name: 'Nihilego' },
+    { id: 804, name: 'Naganadel' }, { id: 984, name: 'Great Tusk' }
+  ]
+  let time = 0
+  const game = createGame({ catalog, now: () => time, random: () => .999,
+    progress: { config: { legendaryChancePercent: 0 } } })
+  time = game.schedule()
+  assert.equal(game.snapshot().encounter.name, 'Rattata')
+  assert.equal(game.snapshot().encounter.specialTag, null)
+  game.queueLegendary('Naganadel')
+  time = game.schedule()
+  assert.equal(game.snapshot().encounter.specialTag, 'ultraBeast')
+  assert.equal(game.snapshot().encounter.endsAt - time, 300_000)
+  game.spawn('Great Tusk')
+  assert.equal(game.snapshot().encounter.specialTag, 'paradox')
+  game.spawn('Mew')
+  assert.equal(game.snapshot().encounter.specialTag, 'mythical')
+})
+
 test('a scheduled legendary survives restart and appears at level 1 for five minutes', () => {
   let time = 0
   const catalog = [{ id: 19, name: 'Rattata' }, { id: 20, name: 'Raticate' }, { id: 150, name: 'Mewtwo', legendary: true }]
