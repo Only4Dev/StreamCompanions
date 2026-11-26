@@ -36,10 +36,15 @@ export const liveReactionStyles = `
 [data-effect=miss] .live-reaction-ball { animation: live-ball-miss .55s ease-out both; }
 .live-game-status[data-feedback] { border-inline-start: 4px solid #bf6b45; padding: .55rem .65rem; background: var(--paper); font-weight: 750; }
 .live-game-status[data-feedback=catch],.live-game-status[data-feedback=success] { border-color: #2c9a70; }
+@media (max-width: 700px), (max-width: 1100px) and (orientation: portrait) {
+  .live-reaction { position: fixed; inset: 0; z-index: 20; place-items: center; padding: 1rem; pointer-events: none; }
+  .live-reaction-badge { padding: .7rem .9rem; text-align: center; box-shadow: 0 6px 24px #0006; animation: live-feedback-fade 4.2s ease both; }
+}
+@keyframes live-feedback-fade { 0%,100% { opacity: 0; } 8%,86% { opacity: 1; } }
 @keyframes live-ball-pop { from { transform: scale(.65) rotate(-25deg); } 65% { transform: scale(1.26) rotate(8deg); } to { transform: none; } }
 @keyframes live-ball-spark { from { opacity: 0; transform: scale(.6); } 25% { opacity: 1; } to { opacity: 0; transform: scale(1.65); } }
 @keyframes live-ball-miss { 20%,60% { transform: translateX(-3px) rotate(-14deg); } 40%,80% { transform: translateX(3px) rotate(14deg); } }
-@media (prefers-reduced-motion: reduce) { .live-reaction-ball,.live-reaction-ball::after { animation: none !important; } [data-effect=catch] .live-reaction-ball::after { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .live-reaction-badge,.live-reaction-ball,.live-reaction-ball::after { animation: none !important; } [data-effect=catch] .live-reaction-ball::after { opacity: 1; } }
 `
 
 export const mobileStyles = `

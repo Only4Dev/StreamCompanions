@@ -2,6 +2,8 @@
 
 ## 1.2.0
 
+- Use a light blue summon XP bar, center action feedback on phones, and let streamers set Pokédollars awarded per battle win.
+
 - Sell Master Balls for 500,000 Pokédollars by default, with a configurable shop price.
 
 - Keep community navigation available in Help and Live, add an All regions Pokédex filter, and organize the shop by item type.

@@ -456,7 +456,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         const fraction = rank >= maxLevel ? 1 : (data.collection[key] - start) / (xpAtLevel(rank + 1) - start)
         context.fillStyle = '#332b24'
         context.fillRect(actor.x - 27, labelY + 14, 54, 5)
-        context.fillStyle = '#ffd84c'
+        context.fillStyle = '#79d7ff'
         context.fillRect(actor.x - 27, labelY + 14, 54 * Math.max(0, Math.min(1, fraction)), 5)
       }
       if (levelUpAge < 1650) {

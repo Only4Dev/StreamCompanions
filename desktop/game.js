@@ -34,6 +34,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   if (!savedConfig.summonXpTuned && config.summonXpPerSecond === 1) config.summonXpPerSecond = defaultSummonXpPerSecond
   config.summonXpPerSecond ??= defaultSummonXpPerSecond
   config.battleXpPerOpponent ??= 120
+  config.battleMoneyPerWin ??= 0
   config.summonMoneyPerMinute ??= 50
   config.battleEveryEncounters ??= 5
   config.battleEnabled ??= 0
@@ -479,21 +480,25 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       }
     },
     recordBattle(participants, winner, speciesKey) {
-      if (!winner || !participants.includes(winner)) return
-      for (const id of new Set(participants)) {
+      if (!winner || !participants.includes(winner)) return 0
+      const fighters = new Set(participants)
+      for (const id of fighters) {
         const metrics = viewers.get(id)?.metrics
         if (metrics) metrics[id === winner ? 'wins' : 'losses']++
       }
       const viewer = viewers.get(winner)
+      const money = viewer && fighters.size > 1 ? config.battleMoneyPerWin : 0
+      if (money) viewer.pokeDollars = (viewer.pokeDollars ?? 0) + money
       if (viewer && speciesKey && Object.hasOwn(viewer.collection, speciesKey)) {
-        const reward = (new Set(participants).size - 1) * config.battleXpPerOpponent
+        const reward = (fighters.size - 1) * config.battleXpPerOpponent
         if (viewer.collection[speciesKey] < maxXp) shareFamily(viewer, speciesKey, Math.min(maxXp, viewer.collection[speciesKey] + reward))
-        if (new Set(participants).size > 1) grantHeldItem(viewer)
+        if (fighters.size > 1) grantHeldItem(viewer)
       }
+      return money
     },
     configure(values) {
       const { summonMoneyPerMinute = config.summonMoneyPerMinute, summonXpPerSecond = config.summonXpPerSecond, battleXpPerOpponent = config.battleXpPerOpponent } = values
-      const { battleEveryEncounters = config.battleEveryEncounters } = values
+      const { battleEveryEncounters = config.battleEveryEncounters, battleMoneyPerWin = config.battleMoneyPerWin } = values
       const { battleEnabled = config.battleEnabled, battleHpMultiplier = config.battleHpMultiplier } = values
       const { interval, duration, catchGraceSeconds = config.catchGraceSeconds, legendaryChancePercent = config.legendaryChancePercent, shiny, nameLimit = config.nameLimit, visibleLimit = config.visibleLimit, spriteScale = config.spriteScale, duplicateMode = config.duplicateMode, duplicateXpPercent = config.duplicateXpPercent } = values
       if (!Number.isInteger(interval) || interval < 6 || interval > 1440 ||
@@ -508,11 +513,12 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
           !Number.isInteger(duplicateXpPercent) || duplicateXpPercent < 1 || duplicateXpPercent > 100 ||
           !Number.isInteger(summonMoneyPerMinute) || summonMoneyPerMinute < 0 || summonMoneyPerMinute > 100_000 ||
           !Number.isFinite(summonXpPerSecond) || summonXpPerSecond < 0 || summonXpPerSecond > 100 ||
+          !Number.isSafeInteger(battleMoneyPerWin) || battleMoneyPerWin < 0 || battleMoneyPerWin > 1_000_000 ||
           !Number.isSafeInteger(battleXpPerOpponent) || battleXpPerOpponent < 0 || battleXpPerOpponent > 10000 ||
           !Number.isSafeInteger(battleEveryEncounters) || battleEveryEncounters < 0 || battleEveryEncounters > 100 ||
           ![0, 1].includes(battleEnabled) || ![1, 1.5, 2].includes(battleHpMultiplier)) throw new Error('Invalid configuration')
       Object.assign(config, { interval, duration, catchGraceSeconds, legendaryChancePercent, shiny, nameLimit, visibleLimit, spriteScale, duplicateMode, duplicateXpPercent })
-      Object.assign(config, { summonMoneyPerMinute, summonXpPerSecond, battleXpPerOpponent, battleEveryEncounters, battleEnabled, battleHpMultiplier })
+      Object.assign(config, { summonMoneyPerMinute, summonXpPerSecond, battleXpPerOpponent, battleMoneyPerWin, battleEveryEncounters, battleEnabled, battleHpMultiplier })
       if (Object.hasOwn(values, 'summonXpPerSecond')) config.summonXpTuned = true
       nextAt = Math.max(now() + interval * 60_000, encounter?.catchUntil ?? 0)
     }

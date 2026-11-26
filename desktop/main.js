@@ -697,12 +697,12 @@ async function runCommunityBattle(waitForBanner) {
   communityBattle = { battle, finishedAt: 0 }
   battleTimer = setInterval(() => {
     battle.step(1 / 30)
-    if (!battle.over) return
-    game.setBattleActive(false)
-    logDiagnostic('battle_finished', { winner: Boolean(battle.winner) })
+    if (!battle.over || communityBattle.finishedAt) return
     communityBattle.finishedAt = Date.now()
     clearInterval(battleTimer)
-    game.recordBattle(entries.map(entry => entry.viewerId), battle.winner?.viewerId, battle.winner?.speciesKey)
+    game.setBattleActive(false)
+    const money = game.recordBattle(entries.map(entry => entry.viewerId), battle.winner?.viewerId, battle.winner?.speciesKey)
+    logDiagnostic('battle_finished', { winner: Boolean(battle.winner), money })
     persistGame()
   }, 1000 / 30)
   lastBattleEncounter = game.encounterCount()

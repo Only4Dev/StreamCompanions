@@ -122,6 +122,22 @@ test('Master Balls cost 500,000 by default and use the configured purchase price
   assert.equal(game.progress().viewers[viewerId].pokeDollars, 50_000)
 })
 
+test('a configured battle prize pays only the winner of a completed contested round', () => {
+  const game = createGame({ progress: { viewers: {
+    A: { collection: { Brasa: 0 }, pokeDollars: 10 },
+    B: { collection: { Gota: 0 }, pokeDollars: 10 }
+  } } })
+  assert.equal(game.config.battleMoneyPerWin, 0)
+  assert.throws(() => game.configure({ ...game.config, battleMoneyPerWin: -1 }))
+  game.configure({ ...game.config, battleMoneyPerWin: 250 })
+  assert.equal(game.recordBattle(['A', 'B'], null), 0)
+  assert.equal(game.recordBattle(['A'], 'A'), 0)
+  assert.equal(game.recordBattle(['A', 'B', 'B'], 'A', 'Brasa'), 250)
+  assert.equal(game.progress().viewers.A.pokeDollars, 260)
+  assert.equal(game.progress().viewers.B.pokeDollars, 10)
+  assert.equal(createGame({ progress: game.progress() }).config.battleMoneyPerWin, 250)
+})
+
 test('capture rates vary by species and ball, with guaranteed Master Ball', () => {
   assert.ok(catchChance('normal', 19) > catchChance('normal', 1))
   assert.ok(catchChance('ultra', 1) > catchChance('great', 1))
