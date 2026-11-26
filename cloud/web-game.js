@@ -16,8 +16,13 @@ export async function deviceWebGame(db, device, header) {
       'difficulty_es = excluded.difficulty_es WHERE web_game_runtime.seen_at <= excluded.seen_at - 10000 OR ' +
       'web_game_runtime.encounter_id IS NOT excluded.encounter_id'
     ).bind(device.community_id, now, id, difficulty('en'), difficulty('es')),
-    db.prepare('SELECT id, viewer_id AS viewerId, platform, command, encounter_id AS encounterId, created_at AS createdAt ' +
-      'FROM web_game_actions WHERE community_id = ? AND result IS NULL AND created_at > ? ORDER BY created_at, id LIMIT 10')
+    db.prepare('SELECT a.id, a.viewer_id AS viewerId, a.platform, a.command, a.encounter_id AS encounterId, ' +
+      "(SELECT linked.viewer_id FROM account_identities linked WHERE linked.account_id = i.account_id AND linked.detached_at IS NULL " +
+      "AND linked.viewer_id LIKE 'twitch:%' ORDER BY linked.viewer_id LIMIT 1) AS twitchId, " +
+      "(SELECT linked.viewer_id FROM account_identities linked WHERE linked.account_id = i.account_id AND linked.detached_at IS NULL " +
+      "AND linked.viewer_id LIKE 'kick:%' ORDER BY linked.viewer_id LIMIT 1) AS kickId " +
+      'FROM web_game_actions a JOIN account_identities i ON i.viewer_id = a.viewer_id ' +
+      'WHERE a.community_id = ? AND a.result IS NULL AND a.created_at > ? ORDER BY a.created_at, a.id LIMIT 10')
       .bind(device.community_id, now - 15000)
   ])
   return pending.results
@@ -30,6 +35,7 @@ export async function finishWebGame(request, db, device, receipts) {
     'UPDATE web_game_actions SET result = ? WHERE community_id = ? AND id = ? AND result IS NULL ' +
     'AND EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
   ).bind(result, device.community_id, id, device.key_hash)))
+  for (const { id, result } of receipts) console.info(JSON.stringify({ event: 'web_game_receipt', requestId: id, result }))
   return receipts.map(({ id }) => id)
 }
 
@@ -37,12 +43,9 @@ export async function webGameViewer(db, account, community, platform) {
   if (!isPlatform(platform)) return null
   return db.prepare(
     'SELECT p.viewer_id, p.payload FROM viewer_progress p JOIN account_identities i ON i.viewer_id = p.viewer_id ' +
-    "WHERE p.community_id = ? AND i.account_id = ? AND (? = 'kick' OR p.viewer_id LIKE 'twitch:%') AND EXISTS" +
-    ' (SELECT 1 FROM account_identities a ' +
-    "WHERE a.account_id = i.account_id AND a.detached_at IS NULL AND a.viewer_id LIKE ?) " +
-    "ORDER BY CASE WHEN p.viewer_id LIKE 'twitch:%' AND ? = 'kick' THEN 0 WHEN p.viewer_id LIKE ? THEN 1 ELSE 2 END, " +
-    'p.updated_at DESC, p.viewer_id LIMIT 1'
-  ).bind(community, account, platform, platform + ':%', platform, platform + ':%').first()
+    'WHERE p.community_id = ? AND i.account_id = ? AND i.detached_at IS NULL ' +
+    "ORDER BY CASE WHEN p.viewer_id LIKE 'twitch:%' THEN 0 ELSE 1 END, p.updated_at DESC, p.viewer_id LIMIT 1"
+  ).bind(community, account).first()
 }
 
 export async function enqueueWebGame(db, account, community, platform, form) {
@@ -82,6 +85,7 @@ export async function enqueueWebGame(db, account, community, platform, form) {
       .bind(id, community, viewer.viewer_id, platform, command, encounter, Date.now(), community, viewer.viewer_id, platform, Date.now() - 15000)
   ])
   const order = await webGameStatus(db, account, community, id)
+  console.info(JSON.stringify({ event: 'web_game_queue', requestId: id, platform, action, result: order?.id ? 'accepted' : 'pending' }))
   return order?.id ? id : 'pending'
 }
 

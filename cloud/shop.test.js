@@ -103,7 +103,8 @@ test('a signed-in viewer can submit one shop order while their device is online'
   })
   const runtimeHeaders = { Authorization: 'Bearer ' + token, 'X-Web-Game': JSON.stringify({ id: '100:1', en: 'Easy', es: 'Fácil' }) }
   db.prepare('INSERT INTO community_stream_status VALUES (?, ?, ?)').run('stream', Date.now(), JSON.stringify([
-    { provider: 'twitch', login: 'streamer', live: true }
+    { provider: 'twitch', login: 'streamer', live: true },
+    { provider: 'kick', login: 'streamer', live: true }
   ]))
   const pollWeb = async () => (await (await worker.fetch(new Request(base + '/api/shop', { headers: runtimeHeaders }), { DB: D1 })).json()).webActions
   assert.deepEqual(await pollWeb(), [])
@@ -140,6 +141,8 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.match(liveHtml, /name="ball" value="master"/)
   const [queued] = await pollWeb()
   assert.equal(queued.command, '!catch normal')
+  assert.equal(queued.twitchId, 'twitch:1')
+  assert.equal(queued.kickId, null)
   assert.equal(queued.encounterId, '100:1')
   const actionStatus = new URL(base + '/live/status?community=stream&platform=twitch&game=' + actionId)
   assert.equal((await worker.fetch(new Request(actionStatus), { DB: D1 })).status, 401)
@@ -149,6 +152,11 @@ test('a signed-in viewer can submit one shop order while their device is online'
   }), { DB: D1 })
   assert.deepEqual(await finish.json(), { received: [actionId] })
   assert.deepEqual(await pollWeb(), [])
+  const kickStatus = await worker.fetch(new Request(base + '/live/status?community=stream&platform=kick', {
+    headers: { Cookie: 'sc_session=' + session }
+  }), { DB: D1 })
+  assert.equal(kickStatus.status, 200)
+  assert.equal((await kickStatus.json()).balls.normal, 8)
   const complete = await worker.fetch(new Request(actionStatus, { headers: { Cookie: 'sc_session=' + session } }), { DB: D1 })
   assert.match((await complete.json()).message, /Capturaste/)
   const syncCapture = capture => worker.fetch(new Request(base + '/api/sync', {

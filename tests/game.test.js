@@ -165,6 +165,30 @@ test('a scheduled legendary survives restart and appears at level 1 for five min
   assert.equal(game.snapshot().nextLegendary, undefined)
 })
 
+test('linked accounts share one summon and candy evolution replaces the sprite in the same layer', () => {
+  const twitch = 'twitch:1'
+  const kick = 'kick:2'
+  const catalog = [{ id: 884, name: 'Duraludon' }, { id: 1018, name: 'Archaludon' }]
+  const diagnostics = []
+  const game = createGame({ catalog, onSummonChange: change => diagnostics.push(change), progress: { viewers: {
+    [twitch]: { collection: { Duraludon: xpAtLevel(30) }, rareCandies: 1 },
+    [kick]: { collection: { Duraludon: xpAtLevel(30) }, rareCandies: 1 }
+  } } })
+  assert.equal(game.chat(twitch, '!summon duraludon', 'Viewer', 'twitch'), 'summoned')
+  assert.equal(game.chat(kick, '!summon duraludon', 'Viewer', 'kick'), 'summoned')
+  const before = game.overlay('companions').viewers[twitch].active.layer
+  game.linkKickViewer(kick, twitch)
+  const web = { sharedSummon: true }
+  assert.equal(game.chat(twitch, '!candy', undefined, 'kick', web), 'candyUsed')
+  const visible = game.overlay('companions').viewers
+  assert.deepEqual(Object.keys(visible), [twitch])
+  assert.equal(visible[twitch].active.key, 'Archaludon')
+  assert.equal(visible[twitch].active.layer, before)
+  assert.equal(game.chat(twitch, '!summon out', undefined, 'kick', web), 'removed')
+  assert.deepEqual(game.overlay('companions').viewers, {})
+  assert.equal(diagnostics.filter(change => change.event === 'evolved').length, 1)
+})
+
 test('Rare Candy levels the owned variant and preserves candy at the cap', () => {
   const game = createGame({ progress: { viewers: { a: { collection: { Brasa: xpAtLevel(49) }, rareCandies: 2 } } } })
   assert.equal(game.chat('a', '!candy'), 'candyNoSummon')

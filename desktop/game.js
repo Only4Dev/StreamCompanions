@@ -9,7 +9,7 @@ export const creatures = ['Brasa', 'Musgo', 'Gota']
 
 export { catchChance }
 
-export function createGame({ now = Date.now, random = Math.random, streamStarters = false, progress, onEvolution = () => {}, catalog = creatures.map(name => ({ name, shiny: true })) } = {}) {
+export function createGame({ now = Date.now, random = Math.random, streamStarters = false, progress, onEvolution = () => {}, onSummonChange = () => {}, catalog = creatures.map(name => ({ name, shiny: true })) } = {}) {
   const species = catalog.map(item => item.name)
   const starterSpecies = catalog.filter(item => item.id && !item.legendary && !evolutionParent(item.id) && [1,4,7,152,155,158,252,255,258,387,390,393,495,498,501,650,653,656,722,725,728,810,813,816,906,909,912].includes(item.id))
   const shinySpecies = new Set(catalog.filter(item => item.shiny).map(item => item.name))
@@ -107,6 +107,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       if (evolutionChildren(byName.get(key.replace(/ ✦$/, ''))?.id).includes(byName.get(target.replace(/ ✦$/, ''))?.id)) {
         viewer.active.key = target
         viewer.active.evolvedAt = now()
+        onSummonChange({ event: 'evolved', from: key, species: target, layer: viewer.active.layer })
       }
     }
     onEvolution(viewer.displayName, newForms)
@@ -188,7 +189,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     }
   }
 
-  function chat(id, raw, displayName, channel) {
+  function chat(id, raw, displayName, channel, { sharedSummon = false } = {}) {
     if (erasedViewers.has(id)) return ''
     if (config.running === false) return ''
     tick()
@@ -208,7 +209,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     if (viewer && displayName) viewer.displayName = displayName
     if (!viewer) return 'joinFirst'
     if (message === '!summon out') {
-      if (viewer.active && viewer.active.channel !== channel) return 'summonOtherChannel'
+      if (!sharedSummon && viewer.active && viewer.active.channel !== channel) return 'summonOtherChannel'
+      if (viewer.active) onSummonChange({ event: 'withdrawn', species: viewer.active.key, layer: viewer.active.layer })
       viewer.active = null
       return 'removed'
     }
@@ -216,7 +218,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     const argument = parts.join(' ')
     if (command === '!candy') {
       const key = viewer.active?.key
-      if (!key || viewer.active.channel !== channel) return 'candyNoSummon'
+      if (!key || (!sharedSummon && viewer.active.channel !== channel)) return 'candyNoSummon'
       const quantity = argument ? Number(argument) : 1
       if (argument && (!/^\d+$/.test(argument) || !Number.isSafeInteger(quantity) || quantity < 1)) return 'candyQuantity'
       const rank = level(viewer.collection[key])
@@ -257,12 +259,13 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       return 'duplicateReward'
     }
     if (command === '!summon' || command === '!summonshiny') {
-      if (viewer.active && viewer.active.channel !== channel) return 'summonOtherChannel'
+      if (!sharedSummon && viewer.active && viewer.active.channel !== channel) return 'summonOtherChannel'
       const name = species.find(item => item.toLowerCase() === argument)
       if (!name) return 'missingCreature'
       const key = name + (command === '!summonshiny' ? ' ✦' : '')
       if (!Object.hasOwn(viewer.collection, key)) return 'missingCreature'
-      viewer.active = { key, channel, expires: Number.MAX_SAFE_INTEGER, last: now(), layer: ++layer }
+      viewer.active = { key, channel, expires: Number.MAX_SAFE_INTEGER, last: now(), layer: viewer.active?.layer ?? ++layer }
+      onSummonChange({ event: 'summoned', species: key, layer: viewer.active.layer })
       return 'summoned'
     }
     return 'ignored'
@@ -387,8 +390,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       tick()
       return wildPaused ? null : nextAt
     },
-    chat(id, message, displayName, channel = 'local') {
-      const result = chat(id, message, displayName, channel)
+    chat(id, message, displayName, channel = 'local', options) {
+      const result = chat(id, message, displayName, channel, options)
       notice = result
       return result
     },
@@ -419,7 +422,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
           target.collection[name] = Math.max(target.collection[name] ?? 0, xp)
         }
         for (const name of Object.keys(target.collection)) shareFamily(target, name, familyXp(target, name), false)
-        for (const key of Object.keys(target.balls)) target.balls[key] = Math.max(target.balls[key], source.balls[key] ?? 0)
+        target.balls ??= { normal: 0, great: 0, ultra: 0, master: 0 }
+        for (const key of Object.keys(target.balls)) target.balls[key] = Math.max(target.balls[key], source.balls?.[key] ?? 0)
         for (const key of Object.keys(target.metrics)) target.metrics[key] = Math.max(target.metrics[key], source.metrics[key] ?? 0)
         target.heldItems = [...new Set([...(target.heldItems ?? []), ...(source.heldItems ?? [])])]
         target.rareCandies = Math.max(target.rareCandies ?? 0, source.rareCandies ?? 0)
@@ -438,6 +442,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
           }
         }
         target.caughtChannels = new Set([...(target.caughtChannels ?? []), ...(source.caughtChannels ?? [])])
+        if (source.active && target.active) onSummonChange({ event: 'linkedSummonsMerged', layers: [source.active.layer, target.active.layer] })
         if (!target.active || source.active && source.active.layer < target.active.layer) target.active = source.active
       }
       viewers.delete(kickId)
