@@ -1,5 +1,5 @@
 import { botCopy } from './bot-copy.js'
-import { level, showScene } from './sprites.js'
+import { level, showScene } from './sprites.js?v=blue-xp'
 import { captureCategories } from '/ui/capture-rates.js'
 import { maxShopPrice, shopItems } from '/ui/shop.js'
 import { aboutCopy } from '/ui/about.js'

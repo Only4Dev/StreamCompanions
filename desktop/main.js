@@ -1035,7 +1035,7 @@ const server = createServer(async (req, res) => {
       return
     }
     const file = await readFile(new URL('../ui/' + route[0], import.meta.url))
-    res.writeHead(200, { 'Content-Type': route[1], 'X-Content-Type-Options': 'nosniff' })
+    res.writeHead(200, { 'Content-Type': route[1], 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' })
     res.end(file)
   } catch {
     res.writeHead(400).end()

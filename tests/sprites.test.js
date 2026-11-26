@@ -84,7 +84,8 @@ test('a visible companion announces a level increase without announcing its init
   const original = globalThis.requestAnimationFrame
   globalThis.requestAnimationFrame = callback => { frame = callback }
   const labels = []
-  const context = { clearRect() {}, fillRect() {}, save() {}, restore() {}, strokeText() {},
+  const fills = []
+  const context = { clearRect() {}, fillRect(x, y, width, height) { fills.push([this.fillStyle, width, height]) }, save() {}, restore() {}, strokeText() {},
     fillText(text) { labels.push([text, this.font]) } }
   const companion = { active: { key: 'Brasa', expires: Infinity, layer: 1 }, collection: { Brasa: 0 } }
   const canvas = { clientWidth: 600, clientHeight: 338, getContext: () => context }
@@ -96,6 +97,9 @@ test('a visible companion announces a level increase without announcing its init
     frame(900)
     assert.ok(labels.some(([text]) => text === 'Lv. 1'))
     assert.ok(!labels.some(([text]) => text === 'Level up!!'))
+    companion.collection.Brasa = 60
+    frame(925)
+    assert.ok(fills.some(([color, width, height]) => color === '#79d7ff' && width > 0 && height === 5))
     companion.collection.Brasa = 120
     frame(950)
     frame(1150)

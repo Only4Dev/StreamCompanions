@@ -454,7 +454,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         label(context, 'Lv. ' + rank, actor.x, labelY + bounce * .3, 19 + bounce, bounce ? '#a2fce1' : '#fff')
         const start = xpAtLevel(rank)
         const fraction = rank >= maxLevel ? 1 : (data.collection[key] - start) / (xpAtLevel(rank + 1) - start)
-        context.fillStyle = '#332b24'
+        context.fillStyle = '#142c44'
         context.fillRect(actor.x - 27, labelY + 14, 54, 5)
         context.fillStyle = '#79d7ff'
         context.fillRect(actor.x - 27, labelY + 14, 54 * Math.max(0, Math.min(1, fraction)), 5)
