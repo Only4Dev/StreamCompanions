@@ -209,7 +209,6 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     if (viewer && displayName) viewer.displayName = displayName
     if (!viewer) return 'joinFirst'
     if (message === '!summon out') {
-      if (!sharedSummon && viewer.active && viewer.active.channel !== channel) return 'summonOtherChannel'
       if (viewer.active) onSummonChange({ event: 'withdrawn', species: viewer.active.key, layer: viewer.active.layer })
       viewer.active = null
       return 'removed'
@@ -259,7 +258,6 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       return 'duplicateReward'
     }
     if (command === '!summon' || command === '!summonshiny') {
-      if (!sharedSummon && viewer.active && viewer.active.channel !== channel) return 'summonOtherChannel'
       const name = species.find(item => item.toLowerCase() === argument)
       if (!name) return 'missingCreature'
       const key = name + (command === '!summonshiny' ? ' ✦' : '')

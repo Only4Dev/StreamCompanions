@@ -55,7 +55,11 @@ export const botCopy = {
   }
 }
 
-export const defaultBot = { nickname: '', language: 'es', announceInChat: true, responses: {} }
+export const defaultBot = { nickname: '', language: 'es', announceInChat: true, captureInChat: true, actionInChat: true, responses: {} }
+export const botCategory = (code, command) => ['web', 'ballInventory', 'follow'].includes(code) || command === '!balls' ? 'info' :
+  ['catchSuccess', 'escaped', 'noBalls', 'invalidBall', 'alreadyCaught', 'noEncounter'].includes(code) ? 'capture' : 'action'
+export const chatBotEnabled = (bot, category) => category === 'info' ||
+  bot[category === 'capture' ? 'captureInChat' : category === 'action' ? 'actionInChat' : 'announceInChat'] !== false
 export const botResponse = (bot, action) => bot.responses?.[action] ?? botCopy[bot.language]?.[action] ?? ''
 export const botSignature = (bot, text) => text && (bot.nickname ? '[' + bot.nickname + '] ' + text : text)
 export const formatBotReply = (bot, action, values) => {
@@ -67,7 +71,7 @@ export const formatBotReply = (bot, action, values) => {
 export function validateBot(value) {
   if (!value || typeof value.nickname !== 'string' || value.nickname.length > 32 ||
       /[\r\n]/.test(value.nickname) || !Object.hasOwn(botCopy, value.language)) return null
-  if (value.announceInChat !== undefined && typeof value.announceInChat !== 'boolean') return null
+  if (['announceInChat', 'captureInChat', 'actionInChat'].some(key => value[key] !== undefined && typeof value[key] !== 'boolean')) return null
   const responses = {}
   const hasLegacyReplies = value.responses?.es || value.responses?.en
   const alternate = value.language === 'es' ? 'en' : 'es'
@@ -87,5 +91,6 @@ export function validateBot(value) {
     if (text && key === 'web' && !text.includes('{url}')) return null
     responses[key] = text.trim()
   }
-  return { nickname: value.nickname.trim(), language: value.language, announceInChat: value.announceInChat ?? true, responses }
+  return { nickname: value.nickname.trim(), language: value.language, announceInChat: value.announceInChat ?? true, captureInChat: value.captureInChat ?? value.announceInChat ?? true,
+    actionInChat: value.actionInChat ?? value.announceInChat ?? true, responses }
 }

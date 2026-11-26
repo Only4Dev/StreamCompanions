@@ -334,7 +334,7 @@ test('one account can catch once per channel and can summon from only one channe
   assert.equal(game.chat('linked-account', '!catch', 'Viewer', 'kick'), 'duplicateReward')
   assert.equal(game.snapshot().recentCaptures.length, 2)
   assert.equal(game.chat('linked-account', '!summon brasa', 'Viewer', 'twitch'), 'summoned')
-  assert.equal(game.chat('linked-account', '!summon brasa', 'Viewer', 'kick'), 'summonOtherChannel')
+  assert.equal(game.chat('linked-account', '!summon brasa', 'Viewer', 'kick'), 'summoned')
   assert.equal(game.chat('linked-account', '!summon out', 'Viewer', 'twitch'), 'removed')
   assert.equal(game.chat('linked-account', '!summon brasa', 'Viewer', 'kick'), 'summoned')
 })
@@ -354,7 +354,7 @@ test('a verified Kick link uses the Twitch record without doubling its inventory
   assert.equal(viewers['twitch:22'].balls.normal, 4)
   assert.equal(viewers['twitch:22'].active.channel, 'twitch')
   assert.equal(game.chat('twitch:22', '!catch', 'Kick viewer', 'kick'), 'alreadyCaught')
-  assert.equal(game.chat('twitch:22', '!summon brasa', 'Kick viewer', 'kick'), 'summonOtherChannel')
+  assert.equal(game.chat('twitch:22', '!summon brasa', 'Kick viewer', 'kick'), 'summoned')
 })
 
 test('manual spawn resets schedule and both viewers can catch', () => {

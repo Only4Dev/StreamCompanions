@@ -3,6 +3,26 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { connectTwitch, twitchChatHandler } from '../desktop/twitch.js'
 
+test('chat mute keeps inventory replies and still forwards catches to the portal', async () => {
+  const replies = []
+  const portal = []
+  const bot = validateBot({ nickname: '', language: 'en', announceInChat: false, responses: {} })
+  const handler = twitchChatHandler({ owner: '1', getBot: () => bot, commandFeedback: true,
+    command: (_, viewer, text) => text === '!balls' ? { code: 'ballInventory', viewer, inventory: 'Poké Ball ×5' } :
+      { code: 'catchSuccess', viewer, pokemon: 'Eevee' },
+    onBotMessage: message => portal.push(message), reply: message => replies.push(message)
+  })
+  const event = (id, text) => ({ message_id: id, broadcaster_user_id: '1', chatter_user_id: '2',
+    chatter_user_name: 'Viewer', message: { text } })
+  await handler(event('1', '!catch'))
+  await handler(event('2', '!inventory'))
+  await handler(event('3', '!poke bag'))
+  assert.equal(portal.length, 1)
+  assert.match(portal[0], /caught Eevee/)
+  assert.equal(replies.length, 2)
+  assert.ok(replies.every(reply => reply.includes('Poké Ball ×5')))
+})
+
 test('the Twitch bot passes the stable owner identity to evolution and explains automatic unlocks', async () => {
   const replies = []
   const handler = twitchChatHandler({ owner: '1', command: (id, _, text) => {

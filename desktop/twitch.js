@@ -1,12 +1,12 @@
 import { normalizeCommand } from './commands.js'
-import { botResponse, botSignature, defaultBot, formatBotReply } from '../ui/bot-copy.js'
+import { botCategory, chatBotEnabled, botResponse, botSignature, defaultBot, formatBotReply } from '../ui/bot-copy.js'
 
 const oauth = 'https://id.twitch.tv/oauth2/'
 const helix = 'https://api.twitch.tv/helix/'
 const endpoint = 'wss://eventsub.wss.twitch.tv/ws'
 const scopes = 'user:read:chat user:write:chat moderator:read:followers'
 
-export function twitchChatHandler({ owner, follows, command, reply, webUrl, getBot = () => defaultBot, isRunning = () => true, allowOwner = false, commandFeedback = false, onChat = () => {}, now = Date.now }) {
+export function twitchChatHandler({ owner, follows, command, reply, webUrl, getBot = () => defaultBot, isRunning = () => true, allowOwner = false, commandFeedback = false, onChat = () => {}, onBotMessage = () => {}, now = Date.now }) {
   const seen = new Map()
   let lastLink = -Infinity
   let lastEvolutionReply = -Infinity
@@ -24,7 +24,13 @@ export function twitchChatHandler({ owner, follows, command, reply, webUrl, getB
     const viewer = 'twitch:' + event.chatter_user_id
     if (allowOwner && !isRunning()) return
     const bot = getBot()
-    const send = message => reply(botSignature(bot, message).slice(0, 500))
+    let code
+    let category = 'info'
+    const send = message => {
+      const formatted = botSignature(bot, message).slice(0, 500)
+      if (code === 'catchSuccess') onBotMessage(formatted)
+      if (chatBotEnabled(bot, category)) return reply(formatted)
+    }
     if (['!web', '!poke web'].includes(text.trim().toLowerCase().replace(/\s+/g, ' '))) {
       if (webUrl && time - lastLink >= 60_000) {
         lastLink = time
@@ -40,7 +46,9 @@ export function twitchChatHandler({ owner, follows, command, reply, webUrl, getB
       return
     }
     const result = await command(viewer, event.chatter_user_name, text)
-    if (commandFeedback && text.startsWith('!')) {
+    code = result?.code ?? result
+    category = botCategory(code, text)
+    if ((commandFeedback || category === 'info') && text.startsWith('!')) {
       const hint = formatBotReply(bot, result?.code ?? result, result ?? {})
       if (hint) await send(hint)
       return
@@ -59,7 +67,7 @@ export function twitchChatHandler({ owner, follows, command, reply, webUrl, getB
   }
 }
 
-export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, command, webUrl, getBot, isRunning, savedToken, saveToken = () => {}, sendOnly = false, sendReply, botOnly = false, allowOwner = false, onChat }) {
+export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, command, webUrl, getBot, isRunning, savedToken, saveToken = () => {}, sendOnly = false, sendReply, botOnly = false, allowOwner = false, onChat, onBotMessage }) {
   const requestedScopes = sendOnly ? 'user:write:chat' : scopes
   const stop = new AbortController()
   let socket
@@ -258,7 +266,7 @@ export function connectTwitch({ clientId, announceCode, onStatus, onAuthorized, 
     onAuthorized?.(current, token.access_token)
     if (sendOnly) { onStatus('Twitch bot · ' + current.login); return }
     handleChat = twitchChatHandler({
-      owner: identity.user_id, command, webUrl, getBot, isRunning, allowOwner, commandFeedback: allowOwner, onChat,
+      owner: identity.user_id, command, webUrl, getBot, isRunning, allowOwner, commandFeedback: allowOwner, onChat, onBotMessage,
       follows: async viewer => (await api('channels/followers?' + new URLSearchParams({
         broadcaster_id: identity.user_id, user_id: viewer
       }))).data.length > 0,

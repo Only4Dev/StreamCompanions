@@ -36,7 +36,7 @@ const copy = {
 }
 
 const commands = [
-  [['!registrar', '!poke join'], ['!web', '!poke web']],
+  [['!registrar', '!poke join'], ['!web', '!poke web'], ['!inventory', '!poke bag', '!bolas']],
   [['!captura', '!catch'], ['!captura super', '!captura ultra', '!captura maestra', '!catch great', '!catch ultra', '!catch master']],
   [['!invocar weedle', '!summon weedle'], ['!invocarshiny weedle', '!summonshiny weedle'], ['!retirar', '!summon out'], ['!caramelo 2', '!candy 2']]
 ]

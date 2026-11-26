@@ -2,6 +2,9 @@
 
 ## 1.2.0
 
+- Keep community navigation available in Help and Live, add an All regions Pokédex filter, and organize the shop by item type.
+- Let viewers replace their active companion from either platform, add inventory command aliases, and provide separate chat controls for bot messages.
+
 - Reserve Legendary, Mythical, Ultra Beast, and Paradox Pokémon for ultra-rare encounters with a distinct overlay effect.
 
 - Add a live portal feed for automatic bot announcements and let streamers mute those announcements in Twitch and Kick chat.

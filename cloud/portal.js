@@ -15,6 +15,16 @@ import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
 import { heldItems } from '../ui/held-items.js'
 import { maxShopQuantity, shopItems, validShopQuantity } from '../ui/shop.js'
 
+function communityTabs(community, language, current, region = 'kanto') {
+  const en = language === 'en'
+  const tabs = [['dex', 'Pokédex'], ['inventory', en ? 'Inventory' : 'Inventario'], ['shop', en ? 'Shop' : 'Tienda'],
+    ['overview', en ? 'Overview' : 'Resumen'], ['log', en ? 'Log' : 'Registro'], ['live', en ? 'Play on the web' : 'Jugar en web'],
+    ['help', en ? 'Help' : 'Ayuda']]
+  return '<nav class="tabs community-tabs" aria-label="' + (en ? 'Community' : 'Comunidad') + '">' + tabs.map(([tab, label]) =>
+    '<a href="/?' + escape(new URLSearchParams({ community, tab, region })) + '"' + (current === tab ? ' aria-current="page"' : '') +
+    '>' + label + '</a>').join('') + '</nav>'
+}
+
 const announcementsScript = `(() => {
 const feed = document.querySelector('[data-announcements]');
 const query = new URLSearchParams({community: feed.dataset.announcements});
@@ -62,6 +72,7 @@ endpoint.search = location.search;
 let submitting = false;
 let timer;
 let version = 0;
+let lastLog = '';
 function schedule(delay) {
   clearTimeout(timer);
   timer = setTimeout(refresh, delay);
@@ -116,6 +127,16 @@ async function refresh() {
     capture.querySelector('button').disabled = submitting || state.pending || !state.encounter ||
       !capture.querySelector('input[name="ball"]:checked:not(:disabled)');
     for (const button of root.querySelectorAll('form:not([data-capture-form]) button')) button.disabled = submitting || state.pending || !state.online;
+    const activity = root.querySelector('[data-live-activity]');
+    const key = JSON.stringify(state.activity ?? []);
+    if (key !== lastLog) {
+      lastLog = key;
+      activity.replaceChildren(...(state.activity ?? []).map(entry => {
+        const row = document.createElement('li');
+        row.textContent = entry.action + ' · ' + entry.message;
+        return row;
+      }));
+    }
     if (state.message) status.textContent = state.message;
     else if (!state.online) status.textContent = root.dataset.offline;
     else if (status.textContent === root.dataset.offline) status.textContent = '';
@@ -136,6 +157,7 @@ function webGameState(runtime, row, language) {
   const result = row?.result || (row && !pending ? 'expired' : '')
   const messages = {
     catchSuccess: en ? 'You caught the Pokémon!' : '¡Capturaste al Pokémon!',
+    ballInventory: en ? 'Checked Poké Ball inventory.' : 'Consultó el inventario de Poké Balls.',
     summoned: en ? 'Companion summoned.' : 'Compañero invocado.',
     removed: en ? 'Companion withdrawn.' : 'Compañero retirado.',
     expired: en ? 'The encounter or request expired.' : 'El encuentro o la solicitud caducó.',
@@ -205,7 +227,8 @@ async function renderLiveGame(request, db, url, language) {
     open('candy', ' class="live-candy"') + '<label>' + (en ? 'Rare Candy quantity' : 'Cantidad de Caramelos Raros') +
     ' <input type="number" name="quantity" min="1" max="50" value="1" required></label><button' +
     disabled + '>' + (en ? 'Use Rare Candy' : 'Usar Caramelo Raro') + '</button></form></section>' +
-    '</div></section><script src="/assets/web-game.js?v=2" defer></script>'
+    '</div><details class="live-activity" open><summary>' + (en ? 'Your game activity' : 'Tu actividad de juego') +
+    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=3" defer></script>'
 
 }
 
@@ -470,6 +493,13 @@ export async function portal(request, url, env) {
     const title = language === 'en' ? 'Streaming communities' : 'Comunidades de streaming'
     const selectedStream = results.find(row => row.community_id === url.searchParams.get('community'))
     const platform = url.searchParams.get('platform')
+    if (selectedStream && !platform && selectedStream.seen_at > Date.now() - 90_000) {
+      const available = JSON.parse(selectedStream.platforms).find(item => item.live && ['twitch', 'kick'].includes(item.provider))
+      if (available) {
+        url.searchParams.set('platform', available.provider)
+        return redirect(url.pathname + url.search, [])
+      }
+    }
     const stream = selectedStream?.seen_at > Date.now() - 90_000 && JSON.parse(selectedStream.platforms).find(channel =>
       channel.provider === platform && ['twitch', 'kick'].includes(platform) && channel.live && /^[a-z0-9_-]{1,30}$/i.test(channel.login))
     const player = stream && url.protocol === 'https:' && (platform === 'twitch'
@@ -503,7 +533,9 @@ export async function portal(request, url, env) {
           : (en ? 'No channels are live right now.' : 'No hay canales en directo en este momento.')) + '</p>') +
       '<ul class="community-list live-communities">' + cards + '</ul></section>'
     const game = stream ? await renderLiveGame(request, env.DB, url, language) : ''
-    return page((game ? '<div class="live-layout">' + watch + game + '</div>' : watch) +
+    const community = url.searchParams.get('community')
+    return page((community ? communityTabs(community, language, 'live', url.searchParams.get('region') ?? 'kanto') : '') +
+      (game ? '<div class="live-layout">' + watch + game + '</div>' : watch) +
       (selectedStream ? renderAnnouncements(selectedStream.community_id, language) : ''))
   }
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'about') {
@@ -513,13 +545,9 @@ export async function portal(request, url, env) {
       '</p><p>' + about.credits + '</p><ul><li><a href="' + projectLinks.sprites + '">PMDCollab / SpriteCollab</a></li><li><a href="' +
       projectLinks.spriteLicense + '">' + about.license + '</a></li><li><a href="' + projectLinks.pokeapi + '">PokéAPI Sprites</a></li></ul></section>')
   }
-  const helpLabel = language === 'en' ? 'Help' : 'Ayuda'
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'help') {
     const community = url.searchParams.get('community')
-    const nav = community ? '<nav class="tabs" aria-label="Stream Companions">' +
-      ['dex', 'inventory', 'overview'].map(tab => '<a href="?' + escape(new URLSearchParams({ community, tab })) +
-        '">' + (tab === 'overview' ? (language === 'en' ? 'Overview' : 'Resumen') : tab === 'dex' ? 'Dex' : 'Inventory') + '</a>').join('') + '<a aria-current="page" href="?' +
-      escape(new URLSearchParams({ community, tab: 'help' })) + '">' + helpLabel + '</a></nav>' :
+    const nav = community ? communityTabs(community, language, 'help', url.searchParams.get('region') ?? 'kanto') :
       '<nav class="tabs"><a href="/">' + (language === 'en' ? 'Back to portal' : 'Volver al portal') + '</a></nav>'
     return page(helpPage(language, nav))
   }
@@ -583,7 +611,10 @@ export async function portal(request, url, env) {
     if (!viewer) return new Response(null, { status: 404 })
     const runtime = await env.DB.prepare('SELECT * FROM web_game_runtime WHERE community_id = ?').bind(community).first()
     const row = await webGameStatus(env.DB, identity.account_id, community, url.searchParams.get('game'))
-    return Response.json({ ...webGameState(runtime, row, language), balls: JSON.parse(viewer.payload).balls ?? {} }, { headers: { 'Cache-Control': 'private, no-store' } })
+    const { balls = {}, log = [] } = JSON.parse(viewer.payload)
+    const activity = log.slice(-8).reverse().map(({ action, result }) => ({ action,
+      message: webGameState(null, { result: result === 'caught' || result === 'duplicateReward' ? 'catchSuccess' : result }, language).message }))
+    return Response.json({ ...webGameState(runtime, row, language), balls, activity }, { headers: { 'Cache-Control': 'private, no-store' } })
   }
 
   if (route) {
@@ -747,7 +778,7 @@ export async function portal(request, url, env) {
     if (product.dna && (!Object.hasOwn(collection, target ?? '') || sharedDna(dnaBoosters, target) + quantity > maxDnaBoosters)) {
       return new Response(null, { status: 409 })
     }
-    const destination = target ? { pokemon: target } : { tab: 'shop' }
+    const destination = target ? { pokemon: target } : { tab: 'shop', ...(product.held ? { section: 'held' } : {}) }
     const blocked = !shopOpen ? 'offline' : product.dna && !(online?.supports_dna >= 3) ? 'upgrade' : null
     const returnBlocked = reason => redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, reason }), [])
     if (blocked || (quantity > 1 && !online.supports_quantity)) return returnBlocked(blocked ?? 'quantity')
@@ -877,7 +908,7 @@ export async function portal(request, url, env) {
     const action = '/moveset?' + new URLSearchParams({ ...locationParams, pokemon: speciesKey })
     const sprite = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' +
       (speciesKey.endsWith(' ✦') ? 'shiny/' : '') + detail.id + '.png'
-    return page('<section class="sheet creature-summary"><p><a href="' + escape(returnToDex) + '">' +
+    return page(communityTabs(selected.community_id, language, 'dex', url.searchParams.get('region') ?? 'kanto') + '<section class="sheet creature-summary"><p><a href="' + escape(returnToDex) + '">' +
       (en ? 'Back to Pokédex' : 'Volver a la Pokédex') + '</a></p>' + familyNav + '<div class="summary-profile"><img alt="" width="120" height="120" src="' + sprite +
       '"><div><h1>' + escape(speciesKey) + '</h1><p class="summary-meta">#' + String(detail.id).padStart(3, '0') + ' · Lv. ' + detail.rank +
       detail.types.map(type => typeIcon(type, en)).join('') + '</p>' + (description ? '<p>' + escape(description) + '</p>' : '') +
@@ -903,6 +934,11 @@ export async function portal(request, url, env) {
   if (tab === 'shop') {
     const en = language === 'en'
     const available = shopOpen
+    const section = url.searchParams.get('section') === 'held' ? 'held' : 'balls'
+    const shopTabs = '<nav class="tabs shop-sections" aria-label="' + shopLabel + '">' +
+      [['balls', 'Poké Balls'], ['held', en ? 'Held items' : 'Objetos equipables']].map(([id, label]) =>
+        '<a href="/?' + escape(new URLSearchParams({ community: selected.community_id, tab: 'shop', section: id })) + '"' +
+        (section === id ? ' aria-current="page"' : '') + '>' + label + '</a>').join('') + '</nav>'
     const purchase = url.searchParams.get('purchase')
     const order = purchase && await env.DB.prepare('SELECT item, result FROM shop_orders WHERE community_id = ? AND viewer_id = ? AND id = ?')
       .bind(selected.community_id, selected.viewer_id, purchase).first()
@@ -911,7 +947,7 @@ export async function portal(request, url, env) {
       battleLocked: botCopy[language].battleLocked,
       maxed: en ? 'That Pokémon is at the DNA limit' : 'Ese Pokémon ya alcanzó el máximo de DNA' }
     const pending = order && !order.result
-    shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong> <span data-shop-delta aria-live="polite"></span></p>' +
+    shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong> <span data-shop-delta aria-live="polite"></span></p>' + shopTabs +
       (url.searchParams.has('repriced') ? '<p role="status">' + (en ? 'The price changed. Check it before buying again.' : 'El precio cambió. Revísalo antes de volver a comprar.') + '</p>' : '') +
       (purchaseWarning ? '<p role="status" class="empty">' + escape(purchaseWarning) + '</p>' : '') +
       '<p role="status" class="empty" data-shop-availability data-offline="' + escape(offlineText) + '" data-upgrade="' +
@@ -919,7 +955,7 @@ export async function portal(request, url, env) {
       escape(available ? reasons.quantity : offlineText) + '</p>' +
       submittingPurchase(en) + (pending ? '<p role="status" data-order-receipt' + pendingPurchase(en) + '>' + (en ? 'Order sent. Waiting for the streamer’s app to confirm…' : 'Pedido enviado. Esperando confirmación de la app del streamer…') + '</p>' :
         order && status[order.result] ? '<p role="status" data-order-receipt>' + status[order.result] + '</p>' : '') +
-      '<ul class="held-grid shop-grid">' + Object.entries(shopItems).filter(([, product]) => !product.dna).map(([id, product]) => {
+      '<ul class="held-grid shop-grid">' + Object.entries(shopItems).filter(([, product]) => section === 'held' ? product.held : product.ball).map(([id, product]) => {
         const owned = product.held && ownedItems.includes(id)
         const price = published?.[id] ?? product.price
         const action = '/shop/buy?' + new URLSearchParams({ community: selected.community_id, item: id, order: crypto.randomUUID(), price })
@@ -959,7 +995,7 @@ export async function portal(request, url, env) {
     ['hoenn', 'Hoenn', 252, 386], ['sinnoh', 'Sinnoh', 387, 493],
     ['unova', 'Unova', 494, 649], ['kalos', 'Kalos', 650, 721],
     ['alola', 'Alola', 722, 809], ['galar', 'Galar', 810, 898],
-    ['hisui', 'Hisui', 899, 905], ['paldea', 'Paldea', 906, 1025]
+    ['hisui', 'Hisui', 899, 905], ['paldea', 'Paldea', 906, 1025], ['all', language === 'en' ? 'All' : 'Todas', 1, nationalDex.length]
   ]
   const region = regions.find(([id]) => id === url.searchParams.get('region')) ?? regions[0]
   const caughtOnly = url.searchParams.get('caught') === '1'
@@ -1018,11 +1054,9 @@ export async function portal(request, url, env) {
   const actions = '<div class="album-actions"><a class="button" href="/?account=1">' + t("Cuentas vinculadas") + '</a><a class="button" href="/">' + t("Cambiar streamer") + '</a>' + logout + '</div>'
   const regionNav = regions.map(([id, label]) => '<a href="' + escape(href('dex', id)) + '"' +
     (id === region[0] ? ' aria-current="page"' : '') + '>' + label + '</a>').join('')
-  const nav = [['dex', 'Dex'], ['inventory', 'Inventory'], ['shop', shopLabel], ['overview', overviewLabel], ['log', en ? 'Log' : 'Registro'], ['help', helpLabel]]
-    .map(([name, label]) => '<a href="' + escape(href(name)) + '"' +
-      (tab === name ? ' aria-current="page"' : '') + '>' + label + '</a>').join('')
+  const nav = communityTabs(selected.community_id, language, tab, region[0])
   return page('<div class="toolbar"><div><p class="meta">Viewer · ' + escape(displayName) + '</p><h1>' + t("Tu álbum") + '</h1></div>' +
-    actions + '</div><p class="meta community-label">' + t('Comunidad · ') + escape(selected.community_name ?? selected.community_id) + '</p><nav class="tabs" aria-label="Álbum">' + nav + '</nav>' +
+    actions + '</div><p class="meta community-label">' + t('Comunidad · ') + escape(selected.community_name ?? selected.community_id) + '</p>' + nav +
     (tab === 'dex' ? borders + '<section class="sheet"><div class="dex-heading"><h2>Pokédex</h2><a class="button"' + (caughtOnly ? ' aria-current="true"' : '') + ' href="' + escape(href('dex', region[0], !caughtOnly)) + '">' +
       (en ? 'Unlocked' : 'Desbloqueados') + '</a></div><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><ol class="dex-grid">' + slots + '</ol></section>'
       : tab === 'overview' ? overview : tab === 'shop' ? shopPage : tab === 'log' ?

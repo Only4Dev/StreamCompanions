@@ -8,7 +8,7 @@ import { startCloudSync } from './cloud-sync.js'
 import { openProgress } from './progress.js'
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
-import { botCopy, botResponse, botSignature, defaultBot, formatBotReply, validateBot } from '../ui/bot-copy.js'
+import { botCategory, chatBotEnabled, botCopy, botResponse, botSignature, defaultBot, formatBotReply, validateBot } from '../ui/bot-copy.js'
 import { createEncounterNotices } from './notices.js'
 import { createGame, creatures } from './game.js'
 import { level } from '../ui/levels.js'
@@ -82,7 +82,7 @@ function publicCommunityLink() {
 function chatAction(viewer, displayName, text, platform, save = true, sharedSummon = false) {
   if (pendingReset || !isLive(platform)) return ''
   const [action, ball = 'normal'] = normalizeCommand(text).split(' ')
-  if (action.startsWith('!')) {
+  if (action.startsWith('!') && action !== '!balls') {
     if (!['!poke', '!catch', '!summon', '!summonshiny', '!evolve', '!candy', '!balls'].includes(action)) return ''
     const now = Date.now()
     const channelTimes = commandTimes.get(platform)
@@ -95,6 +95,8 @@ function chatAction(viewer, displayName, text, platform, save = true, sharedSumm
   const names = { normal: 'Poké Ball', great: en ? 'Great Ball' : 'Super Ball', ultra: 'Ultra Ball', master: 'Master Ball' }
   if (action === '!balls') {
     if (!balls) return { code: 'joinFirst', viewer: displayName }
+    game.recordAction(viewer, { platform, action: '!inventory', result: 'ballInventory' })
+    if (save) persistGame()
     const inventory = Object.entries(names).filter(([key]) => balls[key] > 0)
       .map(([key, name]) => name + ' ×' + balls[key]).join(' · ')
     return { code: 'ballInventory', viewer: displayName, inventory: inventory || (en ? 'No Poké Balls' : 'Sin Poké Balls') }
@@ -341,6 +343,8 @@ async function processWebGame(actions) {
   persistGame()
   for (const [platform, message] of announcements) {
     if (!message) continue
+    publishPortalMessage(message)
+    if (!chatBotEnabled(bot, 'capture')) continue
     if (platform === 'kick') sendKickMessage(message).catch(() => {})
     else disconnectTwitch?.announce(message)
   }
@@ -530,14 +534,19 @@ async function flushPortalAnnouncements() {
   finally { publishingAnnouncements = false }
 }
 
-function announceInLiveChats(message) {
+function publishPortalMessage(message) {
   if (!message) return
   if (syncDevice && !pendingReset) {
     portalAnnouncements.push({ community: syncDevice, id: randomBytes(16).toString('hex'), message: message.slice(0, 500) })
     if (portalAnnouncements.length > 24) portalAnnouncements.shift()
     void flushPortalAnnouncements()
   }
-  if (bot.announceInChat === false) return
+}
+
+function announceInLiveChats(message) {
+  if (!message) return
+  publishPortalMessage(message)
+  if (!chatBotEnabled(bot, 'announcement')) return
   return Promise.allSettled([
     twitchAllowed() && isLive('twitch') ? disconnectTwitch?.announce(message) : undefined,
     kickConnected && isLive('kick') ? sendKickMessage(message) : undefined
@@ -587,7 +596,11 @@ async function pollKick() {
         }
       } else {
         const result = chatAction(viewer, event.display_name, text, 'kick')
-        if (text.startsWith('!') && result?.code) replies.push(formatBotReply(bot, result.code, result))
+        if (text.startsWith('!') && result?.code) {
+          const reply = formatBotReply(bot, result.code, result)
+          if (result.code === 'catchSuccess' && reply) publishPortalMessage(botSignature(bot, reply))
+          if (chatBotEnabled(bot, botCategory(result.code, normalizeCommand(text)))) replies.push(reply)
+        }
       }
       kickCursor = event.sequence
     }
@@ -1144,6 +1157,7 @@ app.whenReady().then(() => {
       isRunning: () => twitchAllowed() && isLive('twitch') && game.config.running !== false,
       allowOwner: true,
       onChat: (name, message) => rememberChat('twitch', name, message),
+      onBotMessage: publishPortalMessage,
       botOnly: true,
       async sendReply(_broadcaster, message) {
         if (!syncDevice || syncDevice.url !== publicPortal) return false
