@@ -15,6 +15,44 @@ import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
 import { heldItems } from '../ui/held-items.js'
 import { maxShopQuantity, shopItems, validShopQuantity } from '../ui/shop.js'
 
+const announcementsScript = `
+const feed = document.querySelector('[data-announcements]');
+const query = new URLSearchParams({community: feed.dataset.announcements});
+const list = feed.querySelector('ol');
+const empty = feed.querySelector('[data-announcements-empty]');
+let latest = '';
+async function refresh() {
+  try {
+    if (!document.hidden) {
+      const response = await fetch('/live/announcements?' + query);
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const { events } = await response.json();
+      const key = events.map(event => event.id).join(',');
+      if (key !== latest) {
+        latest = key;
+        list.replaceChildren(...events.map(({ message }) => {
+          const row = document.createElement('li');
+          row.textContent = message;
+          return row;
+        }));
+        empty.hidden = events.length > 0;
+      }
+    }
+  } catch {}
+  setTimeout(refresh, document.hidden ? 10000 : 2500);
+}
+refresh();
+`
+
+function renderAnnouncements(community, language) {
+  const en = language === 'en'
+  return '<section class="sheet" data-announcements="' + escape(community) + '"><h2>' +
+    (en ? 'Bot announcements' : 'Avisos del bot') + '</h2><p class="meta" data-announcements-empty>' +
+    (en ? 'No announcements yet.' : 'Todavía no hay avisos.') +
+    '</p><ol class="announcement-feed" role="log" aria-live="polite" aria-relevant="additions"></ol></section>' +
+    '<script src="/assets/announcements.js" defer></script>'
+}
+
 const webGameScript = `
 const root = document.querySelector('[data-web-game]');
 const status = root.querySelector('[role=status]');
@@ -351,6 +389,16 @@ export async function portal(request, url, env) {
       form.addEventListener('change', update);
       update();`, { headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=300' } })
   }
+  if (request.method === 'GET' && url.pathname === '/assets/announcements.js') return new Response(announcementsScript, {
+    headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff' }
+  })
+  if (request.method === 'GET' && url.pathname === '/live/announcements') {
+    const community = url.searchParams.get('community')
+    if (!community || community.length > 100) return new Response(null, { status: 400 })
+    const { results } = await env.DB.prepare('SELECT id, message FROM portal_announcements WHERE community_id = ? AND created_at >= ? ' +
+      'ORDER BY created_at DESC, id DESC LIMIT 12').bind(community, Date.now() - 6 * 60 * 60_000).all()
+    return Response.json({ events: results.reverse() }, { headers: { 'Cache-Control': 'public, max-age=1' } })
+  }
   if (request.method === 'GET' && url.pathname === '/assets/web-game.js') return new Response(webGameScript, {
     headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff' }
   })
@@ -366,7 +414,7 @@ export async function portal(request, url, env) {
     const platform = url.searchParams.get('platform')
     const stream = selectedStream?.seen_at > Date.now() - 90_000 && JSON.parse(selectedStream.platforms).find(channel =>
       channel.provider === platform && ['twitch', 'kick'].includes(platform) && channel.live && /^[a-z0-9_-]{1,30}$/i.test(channel.login))
-    const player = stream && (platform === 'twitch'
+    const player = stream && url.protocol === 'https:' && (platform === 'twitch'
       ? 'https://player.twitch.tv/?' + new URLSearchParams({ channel: stream.login, parent: url.hostname, autoplay: 'false' })
       : 'https://player.kick.com/' + encodeURIComponent(stream.login) + '?autoplay=false')
     const cards = results.map(({ community_id, seen_at, platforms }) => {
@@ -392,6 +440,7 @@ export async function portal(request, url, env) {
     return page('<section class="sheet"><h1>' + title + '</h1>' + (player ? '<div style="overflow:auto"><iframe title="' + escape(stream.login) +
       '" src="' + escape(player) + '" width="800" height="450" style="width:100%;min-width:400px;min-height:300px;border:0" allowfullscreen></iframe></div>' : '') +
       '<ul class="community-list">' + cards + '</ul></section>' +
+      (selectedStream ? renderAnnouncements(selectedStream.community_id, language) : '') +
       (stream ? await renderLiveGame(request, env.DB, url, language) : ''))
   }
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'about') {

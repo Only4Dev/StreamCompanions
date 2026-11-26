@@ -10,7 +10,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
   for (const migration of ['0001_sync', '0002_portal', '0003_viewer_login', '0004_accounts', '0005_movesets', '0006_kick',
-    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity', '0019_web_game']) {
+    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity', '0019_web_game', '0020_portal_announcements']) {
     db.exec(await readFile(new URL('./migrations/' + migration + '.sql', import.meta.url), 'utf8'))
   }
   const D1 = {
@@ -114,6 +114,16 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.match(liveHtml, /player\.twitch\.tv\/\?channel=streamer&amp;parent=example\.test/)
   assert.match(liveHtml, /data-capture-form/)
   assert.match(liveHtml, /<a href="\/">Inicio<\/a>/)
+  const feed = base + '/live/announcements?community=stream'
+  const event = { id: 'c'.repeat(32), message: '¡Aparecerá un Pokémon en 2 minutos!' }
+  const announce = (headers = {}) => worker.fetch(new Request(base + '/api/announcements', {
+    method: 'POST', headers, body: JSON.stringify({ viewers: [event] })
+  }), { DB: D1 })
+  assert.equal((await announce()).status, 401)
+  assert.equal((await announce({ Authorization: 'Bearer ' + token })).status, 200)
+  assert.equal((await announce({ Authorization: 'Bearer ' + token })).status, 200)
+  assert.deepEqual(await (await worker.fetch(new Request(feed), { DB: D1 })).json(), { events: [event] })
+  assert.match(liveHtml, /data-announcements="stream"/)
   const actionId = crypto.randomUUID()
   const webAction = (encounter, origin = base) => worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
     method: 'POST', headers: { Origin: origin, Cookie: 'sc_session=' + session },

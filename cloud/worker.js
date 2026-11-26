@@ -261,7 +261,7 @@ export default {
       const statements = [
         db.prepare('INSERT INTO devices (key_hash, community_id) SELECT ?, ? WHERE ' + active)
           .bind(replacement, device.community_id, device.key_hash),
-        ...['viewer_progress', 'viewer_movesets', 'viewer_held_items', 'shop_orders', 'kick_messages', 'shop_online', 'community_stream_status', 'web_game_runtime', 'web_game_actions']
+        ...['viewer_progress', 'viewer_movesets', 'viewer_held_items', 'shop_orders', 'kick_messages', 'shop_online', 'community_stream_status', 'web_game_runtime', 'web_game_actions', 'portal_announcements']
           .map(table => db.prepare('DELETE FROM ' + table + ' WHERE community_id = ? AND ' + active).bind(device.community_id, device.key_hash)),
         db.prepare('UPDATE community_owners SET key_hash = ? WHERE key_hash = ? AND ' + active).bind(replacement, device.key_hash, device.key_hash),
         db.prepare('UPDATE devices SET revoked_at = ? WHERE key_hash = ? AND revoked_at IS NULL').bind(Date.now(), device.key_hash)
@@ -290,6 +290,26 @@ export default {
         'seen_at = excluded.seen_at, platforms = excluded.platforms')
         .bind(device.community_id, Date.now(), JSON.stringify(platforms)).run()
       return new Response(null, { status: 204 })
+    }
+    if (request.method === 'POST' && path === '/api/announcements') {
+      const device = await authorizedDevice(request, env.DB)
+      if (!device) return json({ error: 'unauthorized' }, 401)
+      let events
+      try { events = await readBatch(request) } catch { return json({ error: 'invalid announcements' }, 400) }
+      if (!Array.isArray(events) || !events.length || events.length > 12 || events.some(event =>
+        !/^[a-f0-9]{32}$/.test(event?.id ?? '') || typeof event.message !== 'string' ||
+        !event.message.trim() || event.message.length > 500)) return json({ error: 'invalid announcements' }, 400)
+      const now = Date.now()
+      await env.DB.batch([
+        ...events.map(({ id, message }, index) => env.DB.prepare(
+          'INSERT OR IGNORE INTO portal_announcements SELECT ?, ?, ?, ? ' +
+          'WHERE EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
+        ).bind(device.community_id, id, message, now + index, device.key_hash)),
+        env.DB.prepare('DELETE FROM portal_announcements WHERE community_id = ? AND id NOT IN ' +
+          '(SELECT id FROM portal_announcements WHERE community_id = ? ORDER BY created_at DESC, id DESC LIMIT 30)')
+          .bind(device.community_id, device.community_id)
+      ])
+      return json({ received: events.length })
     }
     if (path === '/api/web-game') {
       const device = await authorizedDevice(request, env.DB)

@@ -63,6 +63,8 @@ Object.assign(labels.en, { battleEnabled: 'Battles', battleOff: 'Disabled', batt
 Object.assign(labels.es, { queueLegendary: 'Programar próximo legendario', queuedLegendary: 'Próximo legendario', demoMaster: 'Dar Master Ball de prueba', candyUsed: 'Caramelo usado. El Pokémon subió un nivel.', noCandy: 'No tienes Caramelos Raros.', candyMaxLevel: 'Ese Pokémon alcanzó el nivel máximo.' })
 Object.assign(labels.en, { queueLegendary: 'Queue next legendary encounter', queuedLegendary: 'Next legendary', demoMaster: 'Give test Master Ball', candyUsed: 'Candy used. The Pokémon gained a level.', noCandy: 'You have no Rare Candies.', candyMaxLevel: 'That Pokémon is already at the level cap.' })
 
+Object.assign(labels.es, { botAnnounceInChat: 'Mostrar avisos automáticos en el chat', botAnnouncementHelp: 'Los avisos siguen apareciendo en En directo del portal.' })
+Object.assign(labels.en, { botAnnounceInChat: 'Show automatic announcements in chat', botAnnouncementHelp: 'Announcements still appear in the portal’s Live tab.' })
 Object.assign(labels.es, { captureTab: 'Captura', captureDifficulty: 'Dificultad', captureGreatBall: 'Super Ball',
   captureHelp: 'Ajusta los porcentajes por lanzamiento para tu comunidad. La Master Ball mantiene el 100 %.',
   captureDefaults: 'Cargar valores iniciales', captureSaved: 'Porcentajes guardados.' })
@@ -146,6 +148,7 @@ function showPane(name) {
 
 function loadBotEditor(bot) {
   const form = $('bot-form')
+  $('announce-in-chat').checked = bot.announceInChat !== false
   for (const action of botActions) {
     const row = document.createElement('div')
     row.className = 'bot-row'
@@ -665,7 +668,7 @@ if (panel) {
   $('bot-form').addEventListener('submit', async event => {
     event.preventDefault()
     const form = event.target
-    const bot = { nickname: '', responses: {} }
+    const bot = { nickname: '', announceInChat: $('announce-in-chat').checked, responses: {} }
     for (const key of botActions) {
       const input = form.elements.namedItem(key)
       if (input.dataset.custom === 'true') bot.responses[key] = input.value

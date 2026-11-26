@@ -182,6 +182,8 @@ let setup
 let setupFile
 let botFile
 let bot = defaultBot
+const portalAnnouncements = []
+let publishingAnnouncements = false
 let setupComplete = false
 let noticeTimer
 
@@ -242,6 +244,7 @@ async function pollShop() {
       }
     }
     if (!stopSync) return
+    void flushPortalAnnouncements()
     if (kickAbort.signal.aborted || game.config.running === false) return
     const encounter = game.currentEncounter()
     const webGame = encounter ? { id: encounter.id, en: game.encounterDifficulty(encounter.name, 'en'), es: game.encounterDifficulty(encounter.name, 'es') } : {}
@@ -471,7 +474,32 @@ function deviceRequest(path, body) {
   })
 }
 
+async function flushPortalAnnouncements() {
+  if (!syncDevice || pendingReset || kickAbort.signal.aborted || publishingAnnouncements || !portalAnnouncements.length) return
+  publishingAnnouncements = true
+  const community = syncDevice
+  const events = portalAnnouncements.filter(event => event.community === community).slice(0, 12)
+  try {
+    if (!events.length) return
+    const response = await deviceRequest('/api/announcements', { viewers: events.map(({ id, message }) => ({ id, message })) })
+    if (response.ok && community === syncDevice) {
+      const sent = new Set(events.map(event => event.id))
+      for (let i = portalAnnouncements.length - 1; i >= 0; i--) {
+        if (sent.has(portalAnnouncements[i].id)) portalAnnouncements.splice(i, 1)
+      }
+    }
+  } catch { /* retry on the next shop poll */ }
+  finally { publishingAnnouncements = false }
+}
+
 function announceInLiveChats(message) {
+  if (!message) return
+  if (syncDevice && !pendingReset) {
+    portalAnnouncements.push({ community: syncDevice, id: randomBytes(16).toString('hex'), message: message.slice(0, 500) })
+    if (portalAnnouncements.length > 24) portalAnnouncements.shift()
+    void flushPortalAnnouncements()
+  }
+  if (bot.announceInChat === false) return
   return Promise.allSettled([
     twitchAllowed() && isLive('twitch') ? disconnectTwitch?.announce(message) : undefined,
     kickConnected && isLive('kick') ? sendKickMessage(message) : undefined

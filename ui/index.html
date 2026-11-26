@@ -95,6 +95,8 @@
   <div data-pane="bot" hidden><section><h2>@streamcompanionsbot</h2><div class="connection-cards"><article><h3>Twitch</h3><p data-copy="botAccountHelp"></p><div class="overview-actions"><button type="button" data-copy-mod="twitch" data-copy="copyBotMod"></button><button type="button" id="test-twitch-bot" data-copy="testTwitchBot"></button></div></article><article><h3>Kick</h3><p data-copy="kickBotHelp"></p><div class="overview-actions"><button type="button" data-copy-mod="kick" data-copy="copyBotMod"></button><button type="button" id="test-kick-bot" data-copy="testKickBot"></button></div></article></div><p id="bot-test-result" role="status"></p>
     <h2 data-copy="botTab"></h2>
     <form id="bot-form">
+      <label class="bot-announcement-switch"><input type="checkbox" id="announce-in-chat" role="switch" checked aria-describedby="bot-announcement-help"> <span data-copy="botAnnounceInChat"></span></label>
+      <p id="bot-announcement-help" data-copy="botAnnouncementHelp"></p>
 
       <p class="bot-help" data-copy="botHelp"></p>
       <details class="bot-replies"><summary data-copy="editBotReplies"></summary><div id="bot-responses"></div></details>
