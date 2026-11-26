@@ -31,6 +31,9 @@ const ultimates = Object.fromEntries(Object.entries(ultimateSpecs).map(([type, [
 const moves = {
   ...ultimates,
   struggle: { name: 'Forcejeo', type: 'normal', kind: 'rush', power: 1, reach: 160, cooldown: 1.15, struggle: true },
+  judgment: { name: 'Sentencia', type: 'normal', kind: 'target', power: 56, reach: 430 },
+  multiattack: { name: 'Multiataque', type: 'normal', kind: 'rush', power: 53, reach: 140 },
+  technoblast: { name: 'Tecno Shock', type: 'normal', kind: 'projectile', power: 56, reach: 520 },
   relicsong: { name: 'Canto Arcaico', type: 'normal', kind: 'area', power: 36, reach: 350 },
   payday: { name: 'Día de Pago', type: 'normal', kind: 'projectile', power: 32, reach: 480, reward: 50 },
   makeitrain: { name: 'Fiebre Dorada', type: 'steel', kind: 'area', power: 45, reach: 375, reward: 100 },
@@ -303,7 +306,7 @@ function authoredProgression(id, types, family) {
   return progression
 }
 
-const signatureMoves = { 52: [1, 'payday'], 53: [1, 'payday'], 648: [20, 'relicsong'], 887: [20, 'dragondarts'], 1000: [20, 'makeitrain'] }
+const signatureMoves = { 493: [20, 'judgment'], 649: [20, 'technoblast'], 773: [20, 'multiattack'], 52: [1, 'payday'], 53: [1, 'payday'], 648: [20, 'relicsong'], 887: [20, 'dragondarts'], 1000: [20, 'makeitrain'] }
 
 export function movesFor(id, types, final, level = 100) {
   const [signature] = ultimateOptions(types, level)
@@ -398,6 +401,16 @@ export function battleManeuver(actor, time) {
   return { kind: cast.move.visual, phase: clamp((time - cast.start) / (cast.resolve - cast.start), 0, 1) }
 }
 
+const typedSignatures = { judgment: 493, multiattack: 773, technoblast: 649 }
+
+function heldForm(id, item) {
+  const type = heldItems[item]?.[2]
+  if (id === 493 || id === 773) return battleFormAssets[id][type] ? type : null
+  if (id === 649 && item?.endsWith('-drive')) return type
+  if (id === 888 && item === 'rusted-sword' || id === 889 && item === 'rusted-shield') return 'crowned'
+  return null
+}
+
 export function createBattle(entries, { auto = true, random = Math.random, hpMultiplier = 1, onMoveReward = () => {} } = {}) {
   let time = 0
   let winner = null
@@ -413,13 +426,16 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   const actors = entries.map((entry, index) => {
     const stats = battleStatsAtLevel(entry.id, entry.stats, entry.level, entry.dna)
     stats.maxHp = Math.round(stats.maxHp * hpMultiplier)
-    const unlockedUltimates = ultimateOptions(entry.types, entry.level)
+    const equipmentForm = heldForm(entry.id, entry.heldItem)
+    const types = equipmentForm === 'crowned' ? [...new Set([...entry.types, 'steel'])] :
+      equipmentForm && [493, 773].includes(entry.id) ? [equipmentForm] : entry.types
+    const unlockedUltimates = ultimateOptions(types, entry.level)
     const equippedUltimate = unlockedUltimates.includes(entry.selectedUltimate) ? entry.selectedUltimate : unlockedUltimates[0]
     const chosen = equippedMoves(entry.id, entry.types, entry.final, entry.level, entry.selectedMoves, entry.selectedAt)
     const kit = [...chosen, ...(equippedUltimate ? [equippedUltimate] : [])]
     const margin = clamp(entry.margin ?? 75, 75, arena.width / 2)
     return {
-      ...entry, ...stats, index, hp: stats.maxHp, abilities: new Set(abilitiesFor(entry.id)),
+      ...entry, ...stats, types, equipmentForm, index, hp: stats.maxHp, abilities: new Set(abilitiesFor(entry.id)),
       margin, x: clamp(150 + index * (arena.width - 300) / Math.max(1, entries.length - 1), margin, arena.width - margin),
       direction: index < entries.length / 2 ? 1 : -1, next: 0.5 + index * 0.12,
       shield: 0, boosts: {}, status: null, knockback: 0, hurtUntil: 0, motion: 'Idle', motionSince: 0,
@@ -450,7 +466,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       964: half || prior === 'hero' ? 'hero' : null,
       1024: actor.usedStellar ? 'stellar' : actor.tookDamage ? 'terastal' : null
     }
-    actor.form = forms[actor.id] ?? null
+    actor.form = actor.equipmentForm ?? forms[actor.id] ?? null
     if (actor.id === 351) actor.types = { sun: ['fire'], rain: ['water'], hail: ['ice'] }[actor.form] ?? ['normal']
     if (actor.id === 648) actor.types = ['normal', actor.form ? 'fighting' : 'psychic']
     if (actor.id === 555) actor.types = actor.form ? ['fire', 'psychic'] : ['fire']
@@ -460,6 +476,20 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   }
 
   for (const actor of actors) updateForm(actor)
+  for (const actor of actors) {
+    if (![132, 570, 571].includes(actor.id)) continue
+    const target = closest(actor, enemy => ![132, 570, 571].includes(enemy.id))
+    if (!target) continue
+    actor.appearance = { id: target.id, name: target.name, form: target.form, shiny: target.shiny, disguised: actor.id !== 132 }
+    if (actor.id !== 132) continue
+    const { attack, defense, specialAttack, specialDefense, speed, equipmentForm } = target
+    const equippedUltimate = actor.level >= ultimateLevel ? target.equippedUltimate : undefined
+    const kit = target.kit.filter(key => !moves[key].ultimate || key === equippedUltimate)
+    Object.assign(actor, { copiedSpecies: target.id, attack, defense, specialAttack, specialDefense, speed, equipmentForm,
+      types: [...target.types], abilities: new Set(target.abilities), equippedUltimate, hasUltimate: Boolean(equippedUltimate),
+      kit, pp: Object.fromEntries(kit.filter(key => !moves[key].ultimate).map(key => [key, Math.min(5, movePp(moves[key]))])) })
+    effects.push({ kind: 'clash', x: actor.x, at: time, expires: time + .6 })
+  }
 
   function useBerry(actor) {
     if (actor.heldItem !== 'sitrus-berry' || actor.berryUsed || actor.hp <= 0 || actor.hp > actor.maxHp * .2) return
@@ -472,10 +502,10 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     actor.hp = Math.min(actor.maxHp, actor.hp + Math.floor(actor.maxHp / 4))
   }
 
-  function closest(actor) {
+  function closest(actor, eligible) {
     let target
     for (const enemy of actors) {
-      if (enemy === actor || enemy.hp <= 0) continue
+      if (enemy === actor || enemy.hp <= 0 || eligible && !eligible(enemy)) continue
       if (!target || Math.abs(enemy.x - actor.x) < Math.abs(target.x - actor.x)) target = enemy
     }
     return target
@@ -522,9 +552,9 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     if (has('solar-power') && !physical && field?.kind === 'sun' || actor.flashFire && type === 'fire') amount *= 1.2
     if (def('thick-fat') && (type === 'fire' || type === 'ice') || def('filter') && matchup > 1) amount *= .8
     if (physical && (def('grass-pelt') && field?.kind === 'grass' || def('marvel-scale') && defender.status)) amount *= .8
-    if (['blade', 'hero', 'complete', 'school', 'sunshine', 'core', 'terastal', 'pirouette', 'ash', 'stellar'].includes(actor.form)) amount *= 1.15
+    if (['blade', 'hero', 'complete', 'school', 'sunshine', 'core', 'terastal', 'pirouette', 'ash', 'stellar', 'crowned'].includes(actor.form)) amount *= 1.15
     if (actor.form === 'zen' && !physical || actor.form === 'hangry' && type === 'dark') amount *= 1.2
-    if (['school', 'complete', 'sunshine', 'terastal'].includes(defender.form) || defender.id === 681 && !defender.form) amount *= .88
+    if (['school', 'complete', 'sunshine', 'terastal'].includes(defender.form) || defender.id === 889 && defender.form === 'crowned' || defender.id === 681 && !defender.form) amount *= .88
     return amount
   }
 
@@ -590,6 +620,10 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       return
     }
     if (damage) {
+      if (defender.appearance?.disguised) {
+        defender.appearance = undefined
+        effects.push({ kind: 'clash', x: defender.x, at: time, expires: time + .5 })
+      }
       defender.tookDamage = true
       const inflicted = Math.min(defender.hp, damage)
       defender.hp = Math.max(0, defender.hp - damage)
@@ -642,7 +676,9 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   }
 
   function cast(actor, moveId, force = false) {
-    const move = moveId === 'solar' && field?.kind === 'sun' ? { ...moves.solar, channel: 0 } : moves[moveId]
+    const species = actor.copiedSpecies ?? actor.id
+    const move = moveId === 'solar' && field?.kind === 'sun' ? { ...moves.solar, channel: 0 } :
+      species === typedSignatures[moveId] && actor.equipmentForm ? { ...moves[moveId], type: actor.equipmentForm } : moves[moveId]
     if (!move || over || ultimate || actor.hp <= 0 || actor.cast || actor.hurtUntil > time || immobilized(actor) ||
         actor.exhaustedUntil > time || actor.flinchUntil > time ||
         (!force && (actor.next > time || actor.cooldowns[moveId] > time)) ||
@@ -1049,7 +1085,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     if (status.ends <= time) actor.status = null
     else if ((status.kind === 'burn' || status.kind === 'poison') && status.tick <= time) {
       status.tick += 1
-      if (status.kind === 'poison' && hasPoisonHeal(actor.id)) {
+      if (status.kind === 'poison' && hasPoisonHeal(actor.copiedSpecies ?? actor.id)) {
         actor.hp = Math.min(actor.maxHp, actor.hp + Math.max(1, Math.round(actor.maxHp * .04)))
         return
       }

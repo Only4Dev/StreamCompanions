@@ -2,6 +2,8 @@
 
 ## 1.2.0
 
+- Add Ditto’s battle copy, Zorua and Zoroark’s Illusion, and equipment-driven forms for Arceus, Genesect, Silvally, Zacian, and Zamazenta.
+
 - Add 15 battle-form species with normal and shiny sprite support, more than 20 passive abilities, and six additional held items.
 - Add Pay Day and Make It Rain rewards on completed moves and two sequential Dreepy shots for Dragon Darts.
 - Let streamers choose, preview, and reset a shiny encounter sound. Add optional shiny audio to Play on web.

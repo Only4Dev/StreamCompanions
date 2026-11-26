@@ -653,7 +653,7 @@ function publicBattle(battle) {
     projectiles: battle.projectiles.map(({ x, move, direction, actor }) => ({ x, move, direction, actor: { types: actor.types } })),
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
-      return { name, ownerName, shiny, form: actor.form, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
+      return { name, ownerName, shiny, form: actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
         evasion: boosts.evasion > battle.time, flinched: flinchUntil > battle.time }
     }) }
@@ -819,8 +819,10 @@ const server = createServer(async (req, res) => {
       if (overlay === 'encounter' && state.encounter) state.encounter = { ...state.encounter,
         difficulty: game.encounterDifficulty(state.encounter.name, bot.language) }
       if (overlay === 'companions' && ['summon', 'battle'].includes(searchParams.get('preview'))) {
-        const samples = manifest.species.filter(entry => entry.normal && !evolutionParent(Number(entry.id))).slice(0, 3)
         const demo = searchParams.get('preview')
+        const samples = demo === 'battle'
+          ? [132, 774, 6].map(id => manifest.species.find(entry => Number(entry.id) === id)).filter(Boolean)
+          : manifest.species.filter(entry => entry.normal && !evolutionParent(Number(entry.id))).slice(0, 3)
         state.viewers = Object.fromEntries(samples.map(({ name }, index) => [index, {
           displayName: 'Preview ' + (index + 1), active: { key: name, layer: index + 1, expires: Date.now() + 60_000 },
           collection: { [name]: 0 }

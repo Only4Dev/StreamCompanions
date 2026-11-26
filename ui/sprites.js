@@ -351,9 +351,10 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       if (!battle.over) for (const shot of battle.projectiles) drawProjectile(context, shot, floor - 12, battle.time)
       for (const [index, fighter] of state.battle.actors.entries()) {
         if (!fighter.hp) continue
-        const entry = species.get(fighter.name)
-        const form = entry?.battleForms?.[fighter.form]
-        const variant = fighter.shiny ? form?.shiny ?? entry?.shiny : form?.normal ?? entry?.normal
+        const appearance = fighter.appearance ?? fighter
+        const entry = species.get(appearance.name)
+        const form = entry?.battleForms?.[appearance.form]
+        const variant = appearance.shiny ? form?.shiny ?? entry?.shiny : form?.normal ?? entry?.normal
         const clip = battleClip(variant?.animations, fighter.motion)
         const start = battlePositions.get(index) ?? fighter.x
         const x = start + (fighter.x - start) * Math.min(1, elapsed * 13)
@@ -366,7 +367,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         if (fighter.ongoing) drawOngoing(context, fighter.ongoing, x, y, battle.time)
         if (fighter.status) drawStatus(context, fighter.status, x, top - 55, battle.time, 26, 24)
         if (fighter.evasion || fighter.flinched) label(context, fighter.flinched ? '✦ ✦' : '≋', x + 32, top - 49, 20)
-        label(context, (fighter.ownerName ? fighter.ownerName + ' | ' : '') + fighter.name + ' · Lv. ' + fighter.level, x, top - 14, 21)
+        label(context, (fighter.ownerName ? fighter.ownerName + ' | ' : '') + (appearance.disguised ? appearance.name : fighter.name) + ' · Lv. ' + fighter.level, x, top - 14, 21)
         const hp = fighter.hp / fighter.maxHp
         context.fillStyle = '#131b22'
         context.fillRect(x - 46, top - 8, 92, 9)

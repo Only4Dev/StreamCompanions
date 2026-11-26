@@ -34,6 +34,41 @@ test('Damp Rock keeps rain active five extra seconds', () => {
   assert.equal(battle.field, null)
 })
 
+test('Ditto copies the nearest eligible rival in place with its own HP and five PP at most', () => {
+  const entries = [example(132), example(570), example(52), example(6, 31)]
+  const battle = createBattle(entries, { auto: false })
+  const [ditto, zorua, meowth] = battle.actors
+  const original = createBattle([example(132), example(132)], { auto: false }).actors[0]
+  assert.equal(ditto.id, 132)
+  assert.equal(ditto.maxHp, original.maxHp)
+  assert.equal(ditto.x, original.x)
+  assert.equal(ditto.appearance.id, 52)
+  assert.equal(ditto.attack, meowth.attack)
+  assert.deepEqual(ditto.types, meowth.types)
+  assert.notEqual(ditto.pp, meowth.pp)
+  assert.ok(ditto.kit.includes('payday'))
+  assert.equal(ditto.pp.payday, 5)
+  assert.equal(zorua.appearance.disguised, true)
+})
+
+test('Illusion breaks on damage while equipment changes the form and signature type', () => {
+  const battle = createBattle([example(570), { ...example(649), heldItem: 'burn-drive' },
+    { ...example(493), heldItem: 'mystic-water' }, { ...example(888), heldItem: 'rusted-sword' }], { auto: false, random: () => .5 })
+  const [zorua, genesect, arceus, zacian] = battle.actors
+  assert.equal(zorua.appearance.id, 649)
+  assert.equal(genesect.form, 'fire')
+  assert.deepEqual(arceus.types, ['water'])
+  assert.ok(zacian.types.includes('steel'))
+  assert.equal(zacian.form, 'crowned')
+  zorua.x = 500
+  genesect.x = 700
+  assert.ok(battle.manual(1, 'technoblast'))
+  run(battle, .5)
+  assert.equal(battle.projectiles[0].move.type, 'fire')
+  run(battle, .5)
+  assert.equal(zorua.appearance, undefined)
+})
+
 test('signature moves unlock and reward once per completed cast even with multiple targets', () => {
   const entries = [example(1000), example(19), example(20), example(52)]
   const rewards = []

@@ -1,4 +1,11 @@
+const indexedTypes = types => Object.fromEntries(types.split(' ').map((type, index) => [type, index + 1]))
+
 export const battleFormAssets = {
+  493: indexedTypes('bug dark dragon electric fighting fire flying ghost grass ground ice poison psychic rock steel water fairy'),
+  649: { water: 1, electric: 2, fire: 3, ice: 4 },
+  773: indexedTypes('fighting flying poison ground rock bug ghost steel fire water grass electric psychic ice dragon dark fairy'),
+  888: { crowned: 1 },
+  889: { crowned: 1 },
   351: { sun: 1, rain: 2, hail: 3 },
   421: { sunshine: 1 },
   555: { zen: 1 },
