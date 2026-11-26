@@ -117,6 +117,7 @@ let progress
 let checkpoint
 let stopSync
 let shopTimer
+let nextShopMaintenance = 0
 let syncStatus = ''
 let disconnectTwitch
 let twitchStatus = ''
@@ -216,16 +217,20 @@ async function refreshLiveChannels() {
 async function pollShop() {
   try {
     if (pendingReset) { await finishCommunityReset(); return }
-    await refreshLiveChannels()
-    if (!stopSync) return
-    const privacy = await fetch(new URL('/api/privacy', syncDevice.url), {
-      headers: { Authorization: 'Bearer ' + syncDevice.token }, redirect: 'error',
-      signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(6000)])
-    }).catch(() => null)
-    if (privacy?.ok && !kickAbort.signal.aborted) {
-      const { erasures } = await privacy.json()
-      if (!kickAbort.signal.aborted && Array.isArray(erasures)) applyPrivacy(erasures)
+    if (Date.now() >= nextShopMaintenance) {
+      nextShopMaintenance = Date.now() + 30_000
+      await refreshLiveChannels()
+      if (!stopSync) return
+      const privacy = await fetch(new URL('/api/privacy', syncDevice.url), {
+        headers: { Authorization: 'Bearer ' + syncDevice.token }, redirect: 'error',
+        signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(6000)])
+      }).catch(() => null)
+      if (privacy?.ok && !kickAbort.signal.aborted) {
+        const { erasures } = await privacy.json()
+        if (!kickAbort.signal.aborted && Array.isArray(erasures)) applyPrivacy(erasures)
+      }
     }
+    if (!stopSync) return
     if (kickAbort.signal.aborted || game.config.running === false) return
     const endpoint = new URL('/api/shop', syncDevice.url)
     const request = body => fetch(endpoint, {
@@ -254,7 +259,7 @@ async function pollShop() {
   } catch (error) {
     if (!kickAbort.signal.aborted) console.warn('Could not sync shop:', error.message)
   } finally {
-    if (!kickAbort.signal.aborted) shopTimer = setTimeout(pollShop, 30_000)
+    if (!kickAbort.signal.aborted) shopTimer = setTimeout(pollShop, 5_000)
   }
 }
 
@@ -1030,7 +1035,7 @@ app.whenReady().then(() => {
       })
     }, 1000)
   }
-  checkpoint = setInterval(persistGame, 15_000)
+  checkpoint = setInterval(persistGame, 5_000)
   shopTimer = setTimeout(pollShop, 1000)
   server.once('error', error => {
     console.error(error.code === 'EADDRINUSE' ? 'El puerto 43127 está ocupado. Cierra la otra instancia de Stream Companions.' : error.message)

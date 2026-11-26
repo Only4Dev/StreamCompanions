@@ -72,6 +72,16 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.deepEqual(await (await device('GET', null, { 'poke-ball': 100 }, true)).json(), {
     orders: [{ id: bulk, viewerId: 'twitch:1', item: 'poke-ball', price: 100, quantity: 3 }]
   })
+  const status = new URL(base + '/shop/status?community=stream&purchase=' + bulk)
+  assert.equal((await worker.fetch(new Request(status), { DB: D1 })).status, 401)
+  const readStatus = async () => (await worker.fetch(new Request(status, {
+    headers: { Cookie: 'sc_session=' + session }
+  }), { DB: D1 })).json()
+  assert.deepEqual(await readStatus(), {
+    balance: 500, balls: { normal: 5, great: 0, ultra: 0, master: 0 }, heldItems: [], pending: true, online: true, message: ''
+  })
+  await device('POST', { viewers: [{ id: bulk, result: 'purchased' }] })
+  assert.equal((await readStatus()).message, 'Compra realizada.')
   const syncCapture = capture => worker.fetch(new Request(base + '/api/sync', {
     method: 'POST', headers: { Authorization: 'Bearer ' + token },
     body: JSON.stringify({ viewers: [{ id: 'twitch:1', revision: 2, displayName: 'viewer',
@@ -80,6 +90,10 @@ test('a signed-in viewer can submit one shop order while their device is online'
   }), { DB: D1 })
   assert.equal((await syncCapture({ ball: 'great', remaining: -1 })).status, 400)
   assert.equal((await syncCapture({ ball: 'great', remaining: 0 })).status, 200)
+  db.prepare("UPDATE viewer_progress SET payload = json_set(payload, '$.pokeDollars', 200, '$.balls.normal', 8) WHERE community_id = ? AND viewer_id = ?").run('stream', 'twitch:1')
+  const updated = await readStatus()
+  assert.equal(updated.balance, 200)
+  assert.equal(updated.balls.normal, 8)
   const logPage = await worker.fetch(new Request(base + '/?community=stream&tab=log', {
     headers: { Cookie: 'sc_session=' + session }
   }), { DB: D1 })

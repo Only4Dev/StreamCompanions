@@ -139,25 +139,62 @@ export async function portal(request, url, env) {
         });
       }
       const receipt = document.querySelector('[data-order-pending]');
-      if (receipt) {
-        const refresh = async () => {
-          for (let attempt = 0; attempt < 15; attempt++) {
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            try {
-              const response = await fetch(location.href, {cache: 'no-store'});
-              if (!response.ok || response.redirected) continue;
-              const page = new DOMParser().parseFromString(await response.text(), 'text/html');
-              if (page.querySelector('[data-order-pending]')) continue;
-              const result = page.querySelector('[data-order-receipt]');
-              if (!result) continue;
-              receipt.textContent = result.textContent;
-              location.reload();
-              return;
-            } catch {}
+      const wallet = document.querySelector('[data-shop-wallet]');
+      const controls = [...document.querySelectorAll('[data-shop-product]')];
+      if (receipt || wallet) {
+        const query = new URLSearchParams(location.search);
+        const status = new URL('/shop/status', location.origin);
+        status.searchParams.set('community', query.get('community'));
+        if (receipt) status.searchParams.set('purchase', query.get('purchase'));
+        const delta = document.querySelector('[data-shop-delta]');
+        let balance = wallet ? Number(wallet.dataset.shopWallet) : null;
+        let attempts = 0;
+        async function refresh() {
+          try {
+            if (document.hidden) return void setTimeout(refresh, 5000);
+            const response = await fetch(status, {cache: 'no-store'});
+            if (response.status === 401 || response.status === 404) return;
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const state = await response.json();
+            if (wallet && Number.isSafeInteger(state.balance)) {
+              if (state.balance !== balance) {
+                delta.textContent = state.balance > balance ? '+$' + (state.balance - balance) : '';
+                balance = state.balance;
+                wallet.textContent = '$' + balance;
+              }
+              for (const form of controls) {
+                const {shopProduct, shopPrice, shopBall} = form.dataset;
+                const owned = state.heldItems.includes(shopProduct);
+                const limit = Math.min(${maxShopQuantity}, Math.floor(balance / Number(shopPrice)));
+                const input = form.querySelector('[data-shop-quantity]');
+                if (input) {
+                  input.max = Math.max(1, limit);
+                  if (input.valueAsNumber > Number(input.max)) input.value = input.max;
+                  input.dispatchEvent(new Event('input'));
+                }
+                const button = form.querySelector('button');
+                button.disabled = !state.online || state.pending || owned || limit < 1;
+                button.textContent = owned ? button.dataset.owned : button.dataset.buy;
+                const count = form.querySelector('[data-shop-count]');
+                if (count) count.textContent = '×' + (state.balls[shopBall] ?? 0);
+              }
+            }
+            if (receipt && state.message) {
+              receipt.textContent = state.message;
+              if (!state.pending) {
+                receipt.removeAttribute('data-order-pending');
+                status.searchParams.delete('purchase');
+                if (!wallet) return;
+              }
+            }
+          } catch {}
+          if (receipt?.hasAttribute('data-order-pending') && ++attempts >= 15 && !wallet) {
+            receipt.textContent = receipt.dataset.waiting;
+            return;
           }
-          receipt.textContent = receipt.dataset.waiting;
-        };
-        refresh();
+          setTimeout(refresh, receipt?.hasAttribute('data-order-pending') ? 2000 : 5000);
+        }
+        setTimeout(refresh, 1000);
       }`, { headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=300' } })
   }
   if (request.method === 'GET' && url.pathname === '/assets/moveset.js') {
@@ -225,6 +262,37 @@ export async function portal(request, url, env) {
     'SELECT s.viewer_id, s.login, ident.account_id FROM web_sessions s ' +
     'JOIN account_identities ident ON ident.viewer_id = s.viewer_id WHERE s.id IN (?, ?) AND s.expires_at > ? AND ident.detached_at IS NULL'
   ).bind(session, key, Date.now()).first() : null
+
+  if (request.method === 'GET' && url.pathname === '/shop/status') {
+    const json = (body, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } })
+    if (!identity) return json({ error: 'authentication required' }, 401)
+    const community = url.searchParams.get('community')
+    const viewer = await env.DB.prepare(
+      'SELECT p.viewer_id, p.payload, s.seen_at FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
+      'LEFT JOIN shop_online s ON s.community_id = p.community_id WHERE i.account_id = ? AND p.community_id = ? ' +
+      'ORDER BY p.updated_at DESC, p.viewer_id LIMIT 1'
+    ).bind(identity.account_id, community).first()
+    if (!viewer) return json({ error: 'community not found' }, 404)
+    const purchase = url.searchParams.get('purchase')
+    const order = /^[a-f0-9-]{36}$/.test(purchase ?? '') ? await env.DB.prepare(
+      'SELECT result FROM shop_orders WHERE community_id = ? AND viewer_id = ? AND id = ?'
+    ).bind(community, viewer.viewer_id, purchase).first() : null
+    const pending = order?.result === null
+    const online = viewer.seen_at > Date.now() - 70_000
+    const { pokeDollars: balance = 0, balls = {}, heldItems = [] } = JSON.parse(viewer.payload)
+    const messages = {
+      purchased: language === 'en' ? 'Purchase complete.' : 'Compra realizada.',
+      owned: language === 'en' ? 'Already owned.' : 'Ya tienes ese objeto.',
+      funds: language === 'en' ? 'Not enough Pokédollars.' : 'No tienes suficientes Pokédólares.',
+      repriced: language === 'en' ? 'The price changed.' : 'El precio cambió.',
+      maxed: language === 'en' ? 'That Pokémon is at the DNA limit.' : 'Ese Pokémon ya alcanzó el máximo de DNA.',
+      unavailable: language === 'en' ? 'Purchase could not be completed.' : 'No se pudo completar la compra.'
+    }
+    const message = pending && !online
+      ? (language === 'en' ? 'Streamer app disconnected. Order still pending.' : 'App del streamer desconectada. El pedido sigue pendiente.')
+      : (order?.result && messages[order.result]) || ''
+    return json({ balance, balls, heldItems, pending, online, message })
+  }
 
   if (route) {
     const [, provider, action] = route
@@ -548,7 +616,7 @@ export async function portal(request, url, env) {
       funds: fundsText, repriced: en ? 'The price changed.' : 'El precio cambió.', unavailable: en ? 'Purchase could not be completed' : 'No se pudo completar la compra',
       maxed: en ? 'That Pokémon is at the DNA limit' : 'Ese Pokémon ya alcanzó el máximo de DNA' }
     const pending = order && !order.result
-    shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong>$' + escape(pokeDollars) + '</strong></p>' +
+    shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong> <span data-shop-delta aria-live="polite"></span></p>' +
       (url.searchParams.has('repriced') ? '<p role="status">' + (en ? 'The price changed. Check it before buying again.' : 'El precio cambió. Revísalo antes de volver a comprar.') + '</p>' : '') +
       (purchaseWarning || !available ? '<p role="status" class="empty">' + escape(purchaseWarning || offlineText) + '</p>' : '') +
       (pending ? '<p role="status" data-order-receipt' + pendingPurchase(en) + '>' + (en ? 'Order sent. Waiting for confirmation…' : 'Pedido enviado. Esperando confirmación…') + '</p>' :
@@ -557,13 +625,15 @@ export async function portal(request, url, env) {
         const owned = product.held && ownedItems.includes(id)
         const price = published?.[id] ?? product.price
         const action = '/shop/buy?' + new URLSearchParams({ community: selected.community_id, item: id, order: crypto.randomUUID(), price })
-        const button = '<button' + (!available || pending || owned || pokeDollars < price ? ' disabled' : '') + '>' +
+        const button = '<button data-buy="' + (en ? 'Buy' : 'Comprar') + '" data-owned="' + (en ? 'Owned' : 'Ya lo tienes') + '"' + (!available || pending || owned || pokeDollars < price ? ' disabled' : '') + '>' +
           (owned ? (en ? 'Owned' : 'Ya lo tienes') : (en ? 'Buy' : 'Comprar')) + '</button>'
-        const quantityInput = product.ball && online?.supports_quantity && available && !pending && pokeDollars >= price
+        const quantityInput = product.ball && online?.supports_quantity
           ? '<label>' + (en ? 'Quantity' : 'Cantidad') + ' <input type="number" name="quantity" data-shop-quantity="' + price + '" min="1" max="' +
-            Math.min(maxShopQuantity, Math.floor(pokeDollars / price)) + '" value="1" required></label> <label>Total <output>$' + price + '</output></label>' : ''
+            Math.max(1, Math.min(maxShopQuantity, Math.floor(pokeDollars / price))) + '" value="1" required></label> <label>Total <output>$' + price + '</output></label>' : ''
         return '<li>' + itemIcon(id) + '<strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
-          '<form method="post" action="' + escape(action) + '">' + quantityInput + button + '</form>' + (available && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
+          '<form method="post" data-shop-product="' + id + '" data-shop-price="' + price + '" action="' + escape(action) + '"' +
+          (product.ball ? ' data-shop-ball="' + product.ball + '"' : '') + '>' +
+          (product.ball ? '<span data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</span> ' : '') + quantityInput + button + '</form>' + (available && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
       }).join('') + '</ul></section><script src="/assets/shop-status.js" defer></script>'
   }
   const logDescription = entry => {

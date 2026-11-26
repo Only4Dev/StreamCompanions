@@ -188,7 +188,9 @@ async function deviceShop(request, db) {
     const [, pending] = await db.batch([
       db.prepare('INSERT INTO shop_online (community_id, seen_at, prices, supports_dna, supports_quantity) VALUES (?, ?, ?, ?, ?) ' +
         'ON CONFLICT (community_id) DO UPDATE SET seen_at = excluded.seen_at, prices = excluded.prices, supports_dna = excluded.supports_dna, supports_quantity = excluded.supports_quantity ' +
-        'WHERE excluded.prices IS NOT NULL OR shop_online.prices IS NULL').bind(community, Date.now(), packed, dnaLevel, supportsQuantity),
+        'WHERE (excluded.prices IS NOT NULL OR shop_online.prices IS NULL) AND ' +
+        '(shop_online.seen_at <= excluded.seen_at - 15000 OR shop_online.prices IS NOT excluded.prices OR ' +
+        'shop_online.supports_dna != excluded.supports_dna OR shop_online.supports_quantity != excluded.supports_quantity)').bind(community, Date.now(), packed, dnaLevel, supportsQuantity),
       db.prepare('SELECT id, viewer_id AS viewerId, item, price, species_key AS speciesKey, quantity FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
         'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) AND (? = 1 OR quantity = 1) ORDER BY created_at, id LIMIT 10').bind(community, packed, dnaLevel, supportsQuantity)
     ])

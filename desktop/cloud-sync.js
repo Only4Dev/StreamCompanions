@@ -1,4 +1,4 @@
-export function startCloudSync({ progress, url, token, onStatus, interval = 15_000 }) {
+export function startCloudSync({ progress, url, token, onStatus, interval = 5_000 }) {
   const endpoint = new URL('/api/sync', url)
   if (endpoint.protocol !== 'https:' || !/^[0-9a-f]{64}$/.test(token)) {
     throw new Error('Configuración de sincronización inválida')
