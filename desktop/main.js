@@ -287,14 +287,14 @@ async function processWebGame(actions) {
   const receipts = []
   const announcements = []
   for (const action of actions.slice(0, 10)) {
-    const { id, viewerId, platform, command, encounterId, createdAt } = action
+    const { id, viewerId, platform, command, encounterId } = action
     if (!/^[a-f0-9-]{36}$/.test(id) || !/^(twitch|kick):\d{1,24}$/.test(viewerId) ||
         !['twitch', 'kick'].includes(platform) || typeof command !== 'string' || command.length > 90 ||
         !/^!(?:catch (?:normal|great|ultra|master)|summon .+|summonshiny .+|candy \d{1,2})$/.test(command)) continue
     let result = game.webReceipt(id)
     if (!result) {
       if (!isLive(platform)) result = 'offline'
-      else if (Date.now() - createdAt >= 15000 || (encounterId && game.currentEncounter()?.id !== encounterId)) result = 'expired'
+      else if (encounterId && game.currentEncounter()?.id !== encounterId) result = 'expired'
       else {
         const response = chatAction(viewerId, undefined, command, platform, false)
         result = response?.code || 'cooldown'

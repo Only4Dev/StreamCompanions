@@ -125,14 +125,18 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.deepEqual(await (await worker.fetch(new Request(feed), { DB: D1 })).json(), { events: [event] })
   assert.match(liveHtml, /data-announcements="stream"/)
   const actionId = crypto.randomUUID()
-  const webAction = (encounter, origin = base) => worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
-    method: 'POST', headers: { Origin: origin, Cookie: 'sc_session=' + session },
+  const webAction = (encounter, origin = base, json = false) => worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
+    method: 'POST', headers: { Origin: origin, Cookie: 'sc_session=' + session, ...(json && { Accept: 'application/json' }) },
     body: new URLSearchParams({ id: actionId, action: 'catch', encounter, ball: 'normal' })
   }), { DB: D1 })
   assert.equal((await webAction('100:1', 'https://other.test')).status, 403)
   assert.match((await webAction('100:0')).headers.get('Location'), /game=expired/)
   assert.match((await webAction('100:1')).headers.get('Location'), new RegExp('game=' + actionId))
-  assert.match((await webAction('100:1')).headers.get('Location'), new RegExp('game=' + actionId))
+  const submitted = await webAction('100:1', base, true)
+  assert.equal(submitted.status, 200)
+  assert.equal((await submitted.json()).id, actionId)
+  assert.match(liveHtml, /Jugar en web/)
+  assert.match(liveHtml, /name="ball" value="master"/)
   const [queued] = await pollWeb()
   assert.equal(queued.command, '!catch normal')
   assert.equal(queued.encounterId, '100:1')

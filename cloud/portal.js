@@ -59,28 +59,68 @@ const status = root.querySelector('[role=status]');
 const capture = root.querySelector('[data-capture-form]');
 const endpoint = new URL('/live/status', location.origin);
 endpoint.search = location.search;
-let busy = false;
-root.addEventListener('submit', event => {
-  if (busy) { event.preventDefault(); return; }
-  busy = true;
+let submitting = false;
+let timer;
+let version = 0;
+function schedule(delay) {
+  clearTimeout(timer);
+  timer = setTimeout(refresh, delay);
+}
+root.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (submitting || endpoint.searchParams.has('game')) return;
+  const form = event.target;
+  const data = new URLSearchParams(new FormData(form));
+  submitting = true;
+  version++;
+  clearTimeout(timer);
   status.textContent = root.dataset.waiting;
   for (const button of root.querySelectorAll('button')) button.disabled = true;
+  try {
+    const response = await fetch(form.getAttribute('action'), {method: 'POST', body: data, headers: {Accept: 'application/json'}});
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const result = await response.json();
+    status.textContent = result.message || root.dataset.waiting;
+    if (result.id) endpoint.searchParams.set('game', result.id);
+    form.elements.namedItem('id').value = crypto.randomUUID();
+  } catch {
+    status.textContent = root.dataset.failed;
+  } finally {
+    submitting = false;
+    schedule(0);
+  }
 });
 async function refresh() {
+  const current = version;
   try {
     const response = await fetch(endpoint, {cache: 'no-store'});
-    if (response.status === 401 || response.status === 404) return;
+    if (current !== version) return;
+    if (response.status === 401 || response.status === 404) {
+      status.textContent = root.dataset.failed;
+      return;
+    }
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const state = await response.json();
+    if (current !== version) return;
     capture.elements.encounter.value = state.encounter || '';
-    root.querySelector('[data-capture-difficulty]').textContent = state.difficulty || '';
-    capture.querySelector('button').disabled = busy || state.pending || !state.encounter;
-    for (const button of root.querySelectorAll('form:not([data-capture-form]) button')) button.disabled = busy || state.pending || !state.online;
+    root.querySelector('[data-capture-difficulty]').textContent = state.difficulty || root.dataset.noEncounter;
+    for (const input of capture.querySelectorAll('input[name="ball"]')) {
+      const amount = state.balls?.[input.value] ?? 0;
+      input.disabled = amount < 1;
+      input.parentElement.querySelector('[data-ball-count]').textContent = '×' + amount;
+    }
+    if (!capture.querySelector('input[name="ball"]:checked:not(:disabled)')) {
+      const available = capture.querySelector('input[name="ball"]:not(:disabled)');
+      if (available) available.checked = true;
+    }
+    capture.querySelector('button').disabled = submitting || state.pending || !state.encounter ||
+      !capture.querySelector('input[name="ball"]:checked:not(:disabled)');
+    for (const button of root.querySelectorAll('form:not([data-capture-form]) button')) button.disabled = submitting || state.pending || !state.online;
     if (state.message) status.textContent = state.message;
     if (!state.pending) endpoint.searchParams.delete('game');
-    setTimeout(refresh, state.pending ? 500 : 2500);
+    schedule(state.pending ? 500 : 2500);
   } catch {
-    setTimeout(refresh, 2500);
+    if (current === version) schedule(2500);
   }
 }
 refresh();
@@ -124,8 +164,8 @@ async function renderLiveGame(request, db, url, language) {
   const platform = url.searchParams.get('platform')
   const { identity } = await viewerSession(request, db)
   const viewer = identity && await webGameViewer(db, identity.account_id, community, platform)
-  if (!viewer) return '<p>' + (en ? 'Sign in and link your channel account to play.' : 'Inicia sesión y vincula tu cuenta del canal para jugar.') + ' <a href="/">' +
-    (en ? 'Viewer portal' : 'Portal de viewers') + '</a></p>'
+  if (!viewer) return '<section class="sheet" id="play-web"><h2>' + (en ? 'Play on the web' : 'Jugar en web') + '</h2><p>' + (en ? 'Sign in and link your channel account to play.' : 'Inicia sesión y vincula tu cuenta del canal para jugar.') + ' <a href="/">' +
+    (en ? 'Viewer portal' : 'Portal de viewers') + '</a></p></section>'
   const { collection, balls } = JSON.parse(viewer.payload)
   const runtime = await db.prepare('SELECT * FROM web_game_runtime WHERE community_id = ?').bind(community).first()
   const id = url.searchParams.get('game')
@@ -135,20 +175,34 @@ async function renderLiveGame(request, db, url, language) {
   const open = (action, extra = '') => '<form method="post" action="' + destination + '"' + extra + '>' +
     '<input type="hidden" name="id" value="' + crypto.randomUUID() + '"><input type="hidden" name="action" value="' + action + '">'
   const disabled = !state.online || state.pending ? ' disabled' : ''
-  const names = [['normal', 'Poké Ball'], ['great', 'Super Ball'], ['ultra', 'Ultra Ball'], ['master', 'Master Ball']]
-  const ballOptions = names.map(([type, name]) => '<option value="' + type + '">' + name + ' ×' + escape(balls[type] ?? 0) + '</option>').join('')
+  const names = [['normal', 'Poké Ball', 'poke-ball'], ['great', en ? 'Great Ball' : 'Super Ball', 'great-ball'],
+    ['ultra', 'Ultra Ball', 'ultra-ball'], ['master', 'Master Ball', 'master-ball']]
+  const firstAvailable = names.find(([type]) => balls[type] > 0)?.[0]
+  const options = names.map(([type, name, icon]) =>
+    '<label class="live-ball"><input type="radio" name="ball" value="' + type + '" required' +
+    (type === firstAvailable ? ' checked' : '') + (balls[type] > 0 ? '' : ' disabled') + '>' +
+    itemIcon(icon) + '<span>' + name + '</span><strong data-ball-count>×' + escape(balls[type] ?? 0) + '</strong></label>').join('')
   const creatures = Object.keys(collection).sort().map(name => '<option>' + escape(name) + '</option>').join('')
-  return '<section class="sheet" data-web-game data-waiting="' + (en ? 'Sending action…' : 'Enviando acción…') + '"><h2>' +
-    (en ? 'Play live' : 'Jugar en directo') + '</h2><p role="status">' + escape(state.message) + '</p>' +
-    '<p data-capture-difficulty>' + escape(state.difficulty ?? '') + '</p>' +
+  const noEncounter = en ? 'No Pokémon available to catch.' : 'No hay un Pokémon disponible para capturar.'
+  return '<section class="sheet" id="play-web" data-web-game data-waiting="' + (en ? 'Sending action…' : 'Enviando acción…') +
+    '" data-failed="' + (en ? 'Could not send the action. Try again.' : 'No se pudo enviar la acción. Intenta de nuevo.') +
+    '" data-no-encounter="' + noEncounter + '"><h2>' + (en ? 'Play on the web' : 'Jugar en web') +
+    '</h2><p class="live-game-status" role="status">' + escape(state.message) + '</p><div class="live-game-grid">' +
+    '<section class="live-game-card"><h3>' + (en ? 'Catch' : 'Captura') + '</h3><p class="meta" data-capture-difficulty>' +
+    escape(state.difficulty ?? noEncounter) + '</p>' +
     open('catch', ' data-capture-form') + '<input type="hidden" name="encounter" value="' + escape(state.encounter ?? '') + '">' +
-    '<label>Poké Ball <select name="ball">' + ballOptions + '</select></label><button' + (state.encounter ? disabled : ' disabled') + '>' +
-    (en ? 'Catch' : 'Capturar') + '</button></form>' +
+    '<fieldset class="live-balls"><legend>' + (en ? 'Choose a Poké Ball' : 'Elige una Poké Ball') + '</legend>' + options +
+    '</fieldset><button' + (state.encounter && firstAvailable ? disabled : ' disabled') + '>' +
+    (en ? 'Catch' : 'Capturar') + '</button></form></section>' +
+    '<section class="live-game-card"><h3>' + (en ? 'Companion' : 'Compañero') + '</h3><div class="live-companion">' +
     (creatures ? open('summon') + '<label>Pokémon <select name="pokemon">' + creatures + '</select></label><button' +
       disabled + '>' + (en ? 'Summon' : 'Invocar') + '</button></form>' : '') +
-    open('withdraw') + '<button' + disabled + '>' + (en ? 'Withdraw' : 'Retirar') + '</button></form>' +
-    open('candy') + '<label>' + (en ? 'Quantity' : 'Cantidad') + ' <input type="number" name="quantity" min="1" max="50" value="1" required></label><button' +
-    disabled + '>' + (en ? 'Use Rare Candy' : 'Usar Caramelo Raro') + '</button></form></section><script src="/assets/web-game.js" defer></script>'
+    open('withdraw') + '<button class="live-secondary"' + disabled + '>' + (en ? 'Withdraw' : 'Retirar') + '</button></form></div>' +
+    open('candy', ' class="live-candy"') + '<label>' + (en ? 'Rare Candy quantity' : 'Cantidad de Caramelos Raros') +
+    ' <input type="number" name="quantity" min="1" max="50" value="1" required></label><button' +
+    disabled + '>' + (en ? 'Use Rare Candy' : 'Usar Caramelo Raro') + '</button></form></section>' +
+    '</div></section><script src="/assets/web-game.js" defer></script>'
+
 }
 
 const families = new Map()
@@ -417,36 +471,35 @@ export async function portal(request, url, env) {
     const player = stream && url.protocol === 'https:' && (platform === 'twitch'
       ? 'https://player.twitch.tv/?' + new URLSearchParams({ channel: stream.login, parent: url.hostname, autoplay: 'false' })
       : 'https://player.kick.com/' + encodeURIComponent(stream.login) + '?autoplay=false')
-    let activeStreams = 0
-    const cards = results.map(({ community_id, seen_at, platforms }) => {
-      const channels = JSON.parse(platforms)
-      const live = seen_at > Date.now() - 90_000
-      const links = channels.map(channel => {
-        if (!['twitch', 'kick'].includes(channel.provider) || !/^[a-z0-9_-]{1,30}$/i.test(channel.login)) return ''
-        const name = channel.provider === 'twitch' ? 'Twitch' : 'Kick'
-        const href = (channel.provider === 'twitch' ? 'https://www.twitch.tv/' : 'https://kick.com/') + channel.login
-        let thumbnail = ''
-        if (live && channel.live) try {
-          const url = new URL(channel.thumbnail.replace('{width}', '320').replace('{height}', '180'))
-          if (url.protocol === 'https:' && (url.hostname === 'static-cdn.jtvnw.net' || url.hostname.endsWith('.kick.com'))) {
-            thumbnail = '<img width="160" height="90" loading="lazy" alt="" src="' + escape(url.href) + '">'
-          }
-        } catch { /* platform did not supply a usable thumbnail */ }
-        if (live && channel.live) activeStreams++
-        const play = live && channel.live && url.protocol === 'https:'
-          ? '/?' + new URLSearchParams({ tab: 'live', community: community_id, platform: channel.provider }) : href
-        return '<a href="' + escape(play) + '">' + thumbnail + escape(name + ' · ' + (live && channel.live ? (language === 'en' ? 'Live' : 'En directo') : 'Offline')) + '</a>'
-      }).join(' ')
-      return '<li><strong>' + escape(channels[0]?.login ?? community_id) + '</strong><div>' + links + '</div></li>'
-    }).join('')
-    return page('<section class="sheet"><h1>' + title + '</h1>' + (player ? '<div style="overflow:auto"><iframe title="' + escape(stream.login) +
-      '" src="' + escape(player) + '" width="800" height="450" style="width:100%;min-width:400px;min-height:300px;border:0" allowfullscreen></iframe></div>' : '') +
-      (!player ? '<p class="meta">' + (activeStreams
-        ? (language === 'en' ? 'Choose a live channel to watch and play here.' : 'Elige un canal en directo para ver el stream y jugar aquí.')
-        : (language === 'en' ? 'No channels are live right now.' : 'No hay canales en directo en este momento.')) + '</p>' : '') +
-      '<ul class="community-list">' + cards + '</ul></section>' +
-      (selectedStream ? renderAnnouncements(selectedStream.community_id, language) : '') +
-      (stream ? await renderLiveGame(request, env.DB, url, language) : ''))
+    const en = language === 'en'
+    const liveUrl = (community, provider) => '/?' + new URLSearchParams({ tab: 'live', community, platform: provider })
+    const validChannel = channel => ['twitch', 'kick'].includes(channel.provider) && /^[a-z0-9_-]{1,30}$/i.test(channel.login)
+    const liveChannels = row => row.seen_at > Date.now() - 90_000
+      ? JSON.parse(row.platforms).filter(channel => channel.live && validChannel(channel)) : []
+    const communities = results.map(row => ({ row, channels: liveChannels(row) })).filter(({ channels }) => channels.length)
+    const channelTabs = selectedStream ? '<nav class="tabs live-platforms" aria-label="' + (en ? 'Streaming platform' : 'Plataforma de streaming') + '">' +
+      ['twitch', 'kick'].map(provider => {
+        const name = provider === 'twitch' ? 'Twitch' : 'Kick'
+        const channel = liveChannels(selectedStream).find(item => item.provider === provider)
+        return channel ? '<a href="' + escape(liveUrl(selectedStream.community_id, provider)) + '"' +
+          (provider === platform ? ' aria-current="page"' : '') + '>' + name + '</a>' :
+          '<span aria-disabled="true">' + name + '</span>'
+      }).join('') + '</nav>' : ''
+    const cards = communities.map(({ row, channels }) =>
+      '<li><a class="button" href="' + escape(liveUrl(row.community_id, channels[0].provider)) + '">' +
+      escape(channels[0].login) + '</a></li>').join('')
+    const mainTabs = stream ? '<nav class="tabs live-sections" aria-label="' + (en ? 'Live sections' : 'Secciones del directo') +
+      '"><a href="#watch-live">' + (en ? 'Watch stream' : 'Ver directo') + '</a><a href="#play-web">' +
+      (en ? 'Play on the web' : 'Jugar en web') + '</a></nav>' : ''
+    return page('<section class="sheet live-watch" id="watch-live"><h1>' + title + '</h1>' + mainTabs + channelTabs +
+      (player ? '<div class="live-player"><iframe title="' + escape(stream.login) + '" src="' + escape(player) +
+        '" width="960" height="540" allowfullscreen></iframe></div>' :
+        '<p class="meta">' + (communities.length
+          ? (en ? 'Choose a live channel to watch and play here.' : 'Elige un canal en directo para ver el stream y jugar aquí.')
+          : (en ? 'No channels are live right now.' : 'No hay canales en directo en este momento.')) + '</p>') +
+      '<ul class="community-list live-communities">' + cards + '</ul></section>' +
+      (stream ? await renderLiveGame(request, env.DB, url, language) : '') +
+      (selectedStream ? renderAnnouncements(selectedStream.community_id, language) : ''))
   }
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'about') {
     const about = aboutCopy[language]
@@ -513,14 +566,19 @@ export async function portal(request, url, env) {
       } catch { return new Response(null, { status: 400 }) }
       const result = await enqueueWebGame(env.DB, identity.account_id, community, platform, form)
       if (!result) return new Response(null, { status: 400 })
-      return redirect('/?' + new URLSearchParams({ tab: 'live', community, platform, game: result }), [])
+      if (request.headers.get('Accept') === 'application/json') {
+        const id = /^[a-f0-9-]{36}$/.test(result) ? result : null
+        const state = webGameState(null, id ? { created_at: Date.now() } : { result }, language)
+        return Response.json({ id, message: state.message }, { headers: { 'Cache-Control': 'private, no-store' } })
+      }
+      return redirect('/?' + new URLSearchParams({ tab: 'live', community, platform, game: result }) + '#play-web', [])
     }
     if (request.method !== 'GET' || url.pathname !== '/live/status') return new Response(null, { status: 405 })
     const viewer = await webGameViewer(env.DB, identity.account_id, community, platform)
     if (!viewer) return new Response(null, { status: 404 })
     const runtime = await env.DB.prepare('SELECT * FROM web_game_runtime WHERE community_id = ?').bind(community).first()
     const row = await webGameStatus(env.DB, identity.account_id, community, url.searchParams.get('game'))
-    return Response.json(webGameState(runtime, row, language), { headers: { 'Cache-Control': 'private, no-store' } })
+    return Response.json({ ...webGameState(runtime, row, language), balls: JSON.parse(viewer.payload).balls ?? {} }, { headers: { 'Cache-Control': 'private, no-store' } })
   }
 
   if (route) {
