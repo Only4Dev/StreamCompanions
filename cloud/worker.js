@@ -7,9 +7,10 @@ import { portal } from './portal.js'
 import { readMovesets } from './movesets.js'
 import { completeKickLink, kickDevice, kickWebhook, seal, startKickLink } from './kick.js'
 import { arenaShopItems, heldItems } from '../ui/held-items.js'
+import { isFirstStage } from '../ui/evolution.js'
 import { battleSpecies } from '../dev/battle.js'
 import { eggRarity, specialEncounterTag } from '../ui/capture-rates.js'
-import { eggRarities, featuredShopItems, normalizeShopPrices } from '../ui/shop.js'
+import { featuredShopItems, normalizeShopPrices } from '../ui/shop.js'
 
 const json = (data, status = 200) => Response.json(data, {
   status, headers: { 'Cache-Control': 'no-store' }
@@ -255,9 +256,12 @@ async function deviceShop(request, db) {
     const hatch = receipt.hatch
     if (order.item === 'poke-egg' && receipt.result === 'purchased' || hatch !== undefined) {
       const row = battleSpecies(hatch?.id)
-      if (order.item !== 'poke-egg' || !row || row[0] !== hatch.id || specialEncounterTag(hatch.id, Boolean(row[5])) ||
+      const special = row && specialEncounterTag(hatch.id, Boolean(row[5]))
+      const expected = special === 'legendary' ? 'legendary' : !special && row ? eggRarity(hatch.id) : null
+      if (order.item !== 'poke-egg' || !row || row[0] !== hatch.id || !expected ||
+          ((hatch.rules === 2 || special === 'legendary') && !isFirstStage(hatch.id)) ||
           typeof hatch.name !== 'string' || !Object.hasOwn(receipt.viewer?.collection ?? {}, hatch.name) ||
-          !eggRarities.includes(hatch.rarity) || hatch.rarity !== eggRarity(hatch.id) ||
+          hatch.rarity !== expected ||
           typeof hatch.duplicate !== 'boolean' || !Number.isFinite(hatch.xp) || hatch.xp < 0 || hatch.xp > Number.MAX_SAFE_INTEGER) {
         reject(receipt, 'hatch')
         continue
@@ -269,7 +273,7 @@ async function deviceShop(request, db) {
     await db.batch([...writes, db.prepare(
       "UPDATE shop_orders SET result = ?, hatch = ? WHERE community_id = ? AND id = ? AND (result IS NULL OR result = 'review') AND " +
       'EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
-    ).bind(result, hatch ? JSON.stringify({ ...hatch, xp: Math.floor(hatch.xp) }) : null, community, id, device.key_hash)])
+    ).bind(result, hatch ? JSON.stringify({ id: hatch.id, name: hatch.name, rarity: hatch.rarity, duplicate: hatch.duplicate, xp: Math.floor(hatch.xp) }) : null, community, id, device.key_hash)])
     received.push(id)
   }
   return received.length ? json({ received }) : json({ error: 'no valid shop receipts' }, 400)

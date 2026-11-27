@@ -1,6 +1,6 @@
 import { dexEntries, speciesName } from './movesets.js'
 import { battleSpecies } from '../dev/battle.js'
-import { evolutionParent } from '../ui/evolution.js'
+import { isFirstStage } from '../ui/evolution.js'
 import { level } from '../ui/levels.js'
 import { heldItems } from '../ui/held-items.js'
 import { specialEncounterTag } from '../ui/capture-rates.js'
@@ -13,7 +13,7 @@ const ttl = 120_000
 const pokemon = new Map(dexEntries.map(([id]) => [speciesName(id), id]))
 const wild = name => {
   const id = pokemon.get(name)
-  return id && (specialEncounterTag(id, battleSpecies(id)?.[5]) || !evolutionParent(id))
+  return id && (specialEncounterTag(id, battleSpecies(id)?.[5]) || isFirstStage(id))
 }
 const option = (value, label, escape) => '<option value="' + escape(value) + '">' + escape(label) + '</option>'
 

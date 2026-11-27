@@ -82,9 +82,9 @@ export async function enqueueWebGame(db, account, community, platform, form) {
   await db.batch([
     db.prepare('DELETE FROM web_game_actions WHERE community_id = ? AND created_at < ?').bind(community, Date.now() - 3600000),
     db.prepare('INSERT OR IGNORE INTO web_game_actions (id, community_id, viewer_id, platform, command, encounter_id, created_at) ' +
-      'SELECT ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM web_game_actions WHERE community_id = ? AND viewer_id = ? ' +
-      'AND platform = ? AND result IS NULL AND created_at > ?)')
-      .bind(id, community, viewer.viewer_id, platform, command, encounter, Date.now(), community, viewer.viewer_id, platform, Date.now() - 15000)
+      'SELECT ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM web_game_actions a JOIN account_identities i ON i.viewer_id = a.viewer_id ' +
+      'WHERE a.community_id = ? AND i.account_id = ? AND a.result IS NULL AND a.created_at > ?)')
+      .bind(id, community, viewer.viewer_id, platform, command, encounter, Date.now(), community, account, Date.now() - 15000)
   ])
   const order = await webGameStatus(db, account, community, id)
   console.info(JSON.stringify({ event: 'web_game_queue', requestId: id, platform, action, result: order?.id ? 'accepted' : 'pending' }))

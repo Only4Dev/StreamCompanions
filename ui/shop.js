@@ -6,6 +6,7 @@ export const shopIconUrl = item => 'https://raw.githubusercontent.com/PokeAPI/sp
 
 export const featuredShopItems = ['poke-egg', 'legendary-tracker']
 export const eggRarities = ['common', 'uncommon', 'rare', 'epic']
+export const legendaryEggChance = 0.00001
 
 export const shopItems = {
   'poke-egg': { price: 5_000, names: ['Poké Egg', 'Poké Egg'], section: 'eggs' },

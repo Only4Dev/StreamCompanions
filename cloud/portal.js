@@ -242,7 +242,7 @@ function webGameState(runtime, row, language) {
     expired: en ? 'The encounter or request expired.' : 'El encuentro o la solicitud caducó.',
     pending: en ? 'An action is already pending.' : 'Ya hay una acción pendiente.',
     offline: en ? 'The streamer’s app is offline.' : 'La app del streamer está desconectada.',
-    cooldown: en ? 'Wait five seconds between commands in this channel.' : 'Espera cinco segundos entre comandos en este canal.',
+    cooldown: en ? 'Wait five seconds between game commands.' : 'Espera cinco segundos entre comandos de juego.',
     noBalls: en ? 'You have none of the selected Poké Ball.' : 'No te quedan Poké Balls del tipo elegido.',
     escaped: en ? 'The Pokémon escaped.' : 'El Pokémon escapó.'
   }
@@ -440,7 +440,8 @@ function submittingPurchase(en) {
 function hatchDialog(en) {
   return '<dialog class="egg-dialog" data-hatch aria-labelledby="egg-title" data-opening="' + (en ? 'The egg is hatching…' : '¡El huevo está eclosionando!') +
     '" data-reveal="' + (en ? 'Your egg hatched!' : '¡Tu huevo eclosionó!') + '"><h2 id="egg-title"></h2>' +
-    '<div class="egg-stage" aria-hidden="true"><div class="egg-rays"></div><div class="egg-shell"><i></i><i></i></div><img width="104" height="104" alt=""></div>' +
+    '<p class="egg-rarity" data-hatch-rarity hidden></p><div class="egg-stage" aria-hidden="true"><div class="egg-aura"></div><div class="egg-rays"></div>' +
+    '<div class="egg-waves"><i></i><i></i></div><div class="egg-particles"></div><div class="egg-shell"><i></i><i></i><b></b></div><img width="112" height="112" alt=""></div>' +
     '<p data-hatch-result aria-live="polite"></p><form method="dialog"><button>' + (en ? 'Close' : 'Cerrar') + '</button></form></dialog>'
 }
 
@@ -491,7 +492,32 @@ export async function portal(request, url, env) {
         const title = dialog.querySelector('h2');
         const result = dialog.querySelector('[data-hatch-result]');
         const sprite = dialog.querySelector('.egg-stage img');
-        dialog.dataset.rarity = hatch.rarity;
+        const tiers = {
+          common: { duration: 1450, particles: 7, names: ['Común', 'Common'] },
+          uncommon: { duration: 1680, particles: 11, names: ['Poco común', 'Uncommon'] },
+          rare: { duration: 1950, particles: 17, names: ['Raro', 'Rare'] },
+          epic: { duration: 2320, particles: 25, names: ['Épico', 'Epic'] },
+          legendary: { duration: 2900, particles: 38, names: ['Legendario', 'Legendary'] }
+        };
+        const rarity = Object.hasOwn(tiers, hatch.rarity) ? hatch.rarity : 'common';
+        const tier = tiers[rarity];
+        const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        dialog.dataset.rarity = rarity;
+        dialog.style.setProperty('--hatch-time', tier.duration + 'ms');
+        const badge = dialog.querySelector('[data-hatch-rarity]');
+        badge.textContent = tier.names[Number(document.documentElement.lang === 'en')];
+        badge.hidden = false;
+        const particles = dialog.querySelector('.egg-particles');
+        if (!reducedMotion) for (let index = 0; index < tier.particles; index++) {
+          const mote = document.createElement('i');
+          const angle = index * Math.PI * (3 - Math.sqrt(5));
+          const distance = 42 + index % 7 * 11 + (rarity === 'legendary' ? 27 : 0);
+          mote.style.setProperty('--x', Math.round(Math.cos(angle) * distance) + 'px');
+          mote.style.setProperty('--y', Math.round(Math.sin(angle) * distance * .78) + 'px');
+          mote.style.setProperty('--delay', index % 6 * 35 + 'ms');
+          mote.style.setProperty('--size', (3 + index % 4) + 'px');
+          particles.append(mote);
+        }
         sprite.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' + hatch.id + '.png';
         title.textContent = dialog.dataset.opening;
         dialog.showModal();
@@ -499,7 +525,7 @@ export async function portal(request, url, env) {
           dialog.classList.add('hatched');
           title.textContent = dialog.dataset.reveal;
           result.textContent = hatch.name + (hatch.xp > 0 ? ' · +' + hatch.xp + ' XP' : '');
-        }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1450);
+        }, reducedMotion ? 0 : tier.duration);
       }
       const receipt = document.querySelector('[data-order-pending], [data-order-receipt]');
       const wallet = document.querySelector('[data-shop-wallet]');
@@ -1154,7 +1180,8 @@ export async function portal(request, url, env) {
       maxed: en ? 'That Pokémon is at the DNA limit' : 'Ese Pokémon ya alcanzó el máximo de DNA' }
     const pending = order && !order.result
     const eggDialog = section === 'eggs' ? hatchDialog(en) : ''
-    shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong> <span data-shop-delta aria-live="polite"></span></p>' + shopTabs +
+    const eggOdds = section === 'eggs' ? '<p class="meta">' + (en ? 'First-stage Pokémon only. Legendary hatch chance: 0.001% per egg.' : 'Solo Pokémon en primera etapa. Probabilidad legendaria: 0,001% por huevo.') + '</p>' : ''
+    shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong> <span data-shop-delta aria-live="polite"></span></p>' + shopTabs + eggOdds +
       (url.searchParams.has('repriced') ? '<p role="status">' + (en ? 'The price changed. Check it before buying again.' : 'El precio cambió. Revísalo antes de volver a comprar.') + '</p>' : '') +
       (purchaseWarning ? '<p role="status" class="empty">' + escape(purchaseWarning) + '</p>' : '') +
       '<p role="status" class="empty" data-shop-availability data-offline="' + escape(offlineText) + '" data-upgrade="' +
@@ -1179,7 +1206,7 @@ export async function portal(request, url, env) {
           (product.ball ? ' data-shop-ball="' + product.ball + '"' : '') + (featured ? ' data-shop-feature' : '') + '>' +
           (product.ball ? '<span class="shop-count">' + (en ? 'In bag' : 'En la bolsa') + ' <strong data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</strong></span>' : '') + quantityInput + button + '</form>' + (featured ? '<small data-feature-upgrade' + (needsUpdate ? '' : ' hidden') + '>' + reasons.feature + '</small>' : '') + (id === 'master-ball' ? '<small data-shop-master-upgrade' + (available && needsUpdate ? '' : ' hidden') + '>' + escape(reasons.master) + '</small>' : '') +
           (available && !needsUpdate && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
-      }).join('') + '</ul>' + eggDialog + '</section><script src="/assets/shop-status.js?v=2" defer></script>'
+      }).join('') + '</ul>' + eggDialog + '</section><script src="/assets/shop-status.js?v=3" defer></script>'
   }
   const logDescription = entry => {
     const outcome = Object.hasOwn(outcomes, entry.result) ? outcomes[entry.result] : ''

@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.2.1
+
+- Add five hatch presentations and a 0.001% chance of a first-stage Legendary Pokémon per egg. Restrict ordinary eggs and wild encounters to first stages.
+- Unlock regional evolutions from their normal predecessor when it lacks a regional form, with independent post-unlock progression.
+- Share the active companion, candy use, game cooldown and encounter catches across linked Twitch and Kick identities and the web portal.
 
 - Add 57 regional Pokédex entries across Alola, Galar, Hisui and Paldea, with independent collection keys, move pools and battle stats.
 - Add a web administration console restricted to verified Twitch and Kick community owners.

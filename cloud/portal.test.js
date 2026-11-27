@@ -120,7 +120,7 @@ test('the portal uses the authenticated viewer and escapes synced display names'
   assert.match(html, /&lt;Viewer&gt;/)
   assert.match(html, /Weedle.*Lv\. 2/)
   assert.equal((html.match(/class="slot /g) ?? []).length, 151)
-  assert.ok(html.indexOf('#001') < html.indexOf('#151'))
+  assert.ok(html.indexOf('class="dex-number">#001') < html.indexOf('class="dex-number">#151'))
   assert.match(html, /class="slot locked"/)
   assert.match(html, /class="slot owned"/)
   assert.doesNotMatch(html, /twitch:999|<Viewer>/)

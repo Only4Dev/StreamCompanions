@@ -168,6 +168,11 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const submitted = await webAction('100:1', base, true)
   assert.equal(submitted.status, 200)
   assert.equal((await submitted.json()).id, actionId)
+  const parallel = await worker.fetch(new Request(base + '/live/action?community=stream&platform=kick', {
+    method: 'POST', headers: { Origin: base, Cookie: 'sc_session=' + session },
+    body: new URLSearchParams({ id: crypto.randomUUID(), action: 'withdraw' })
+  }), { DB: D1 })
+  assert.match(parallel.headers.get('Location'), /game=pending/)
   assert.match(liveHtml, /<div class="live-layout">[\s\S]*<iframe[\s\S]*id="play-web"/)
   assert.match(liveHtml, /Jugar en web/)
   assert.match(liveHtml, /name="ball" value="master"/)
@@ -240,6 +245,15 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.doesNotMatch(await readDex(), /data-dex-new="19"/)
   assert.match((await order(ticket, 100000, 1, 'legendary-tracker')).headers.get('Location'), new RegExp('section=keys&purchase=' + ticket))
   assert.equal((await device('POST', { viewers: [{ id: ticket, result: 'purchased', viewer: { ...orderViewer, revision: 5, pokeDollars: 15000, legendaryTrackers: 1 } }] })).status, 200)
+  const legendaryEgg = crypto.randomUUID()
+  db.prepare("INSERT INTO shop_orders (id, community_id, viewer_id, item, created_at) VALUES (?, 'stream', 'twitch:1', 'poke-egg', ?)").run(legendaryEgg, Date.now())
+  const hatchedLegend = { id: 150, name: 'Mewtwo', rarity: 'legendary', duplicate: false, xp: 0, rules: 2 }
+  const legendaryViewer = { ...orderViewer, revision: 6, pokeDollars: 10000, legendaryTrackers: 1,
+    collection: { Rattata: 0, Mewtwo: 0, Raticate: 0 } }
+  const finishEgg = hatch => device('POST', { viewers: [{ id: legendaryEgg, result: 'purchased', viewer: legendaryViewer, hatch }] })
+  assert.equal((await finishEgg({ id: 20, name: 'Raticate', rarity: 'uncommon', duplicate: false, xp: 0, rules: 2 })).status, 400)
+  assert.equal((await finishEgg(hatchedLegend)).status, 200)
+  assert.equal(JSON.parse(db.prepare('SELECT hatch FROM shop_orders WHERE id = ?').get(legendaryEgg).hatch).rarity, 'legendary')
   assert.match((await order(egg, 5000, 1, 'poke-egg')).headers.get('Location'), new RegExp('purchase=' + egg))
   const consumables = await worker.fetch(new Request(base + '/?community=stream&tab=inventory&pocket=key', { headers: cookie }), { DB: D1 })
   const bag = await consumables.text()

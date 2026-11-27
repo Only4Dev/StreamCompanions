@@ -18,7 +18,7 @@ import { specialEncounterTag } from '../ui/capture-rates.js'
 import { projectLinks } from '../ui/about.js'
 import { hasAppArchive, stageUpdate } from './install-update.js'
 import { checkForUpdate } from './update-check.js'
-import { evolutionParent } from '../ui/evolution.js'
+import { evolutionParent, isFirstStage } from '../ui/evolution.js'
 
 if (!app.requestSingleInstanceLock()) app.exit(0)
 let mainWindow
@@ -65,7 +65,7 @@ function logDiagnostic(event, fields = {}) {
   } catch (error) { console.warn('Could not write game diagnostics:', error.code ?? error.name) }
 }
 const localChat = []
-const commandTimes = new Map([['twitch', new Map()], ['kick', new Map()]])
+const commandTimes = new Map()
 let lastWild = null
 const remember = (list, entry) => { list.push({ ...entry, at: Date.now() }); if (list.length > 100) list.shift() }
 const rememberChat = (platform, name, message) => remember(localChat, { platform, name, message: message.slice(0, 500) })
@@ -86,10 +86,9 @@ function chatAction(viewer, displayName, text, platform, save = true, sharedSumm
   if (action.startsWith('!') && action !== '!balls') {
     if (!['!poke', '!catch', '!summon', '!summonshiny', '!evolve', '!candy', '!balls', '!legendaryticket'].includes(action)) return ''
     const now = Date.now()
-    const channelTimes = commandTimes.get(platform)
-    for (const [id, at] of channelTimes) if (now - at >= 5000) channelTimes.delete(id)
-    if (channelTimes.has(viewer)) return ''
-    channelTimes.set(viewer, now)
+    for (const [id, at] of commandTimes) if (now - at >= 5000) commandTimes.delete(id)
+    if (commandTimes.has(viewer)) return ''
+    commandTimes.set(viewer, now)
   }
   const balls = game.ballInventory(viewer)
   const en = bot.language === 'en'
@@ -102,7 +101,7 @@ function chatAction(viewer, displayName, text, platform, save = true, sharedSumm
       .map(([key, name]) => name + ' ×' + balls[key]).join(' · ')
     return { code: 'ballInventory', viewer: displayName, inventory: inventory || (en ? 'No Poké Balls' : 'Sin Poké Balls') }
   }
-  const result = game.chat(viewer, text, displayName, platform, { sharedSummon })
+  const result = game.chat(viewer, text, displayName, platform)
   if (action.startsWith('!')) logDiagnostic('game_command', { source: sharedSummon ? 'web' : 'chat', platform, command: action, result,
     ...(result === 'missingCreature' ? { viewerId: viewer, requested: normalizeCommand(text).slice(0, 100) } : {}) })
   const balance = { ball: names[ball], remaining: balls?.[ball] }
@@ -360,10 +359,9 @@ async function pollShop() {
 
 function mergeLinkedViewers(kickId, twitchId) {
   const changed = game.linkKickViewer(kickId, twitchId)
-  for (const times of commandTimes.values()) {
-    if (!times.has(kickId)) continue
-    times.set(twitchId, Math.max(times.get(twitchId) ?? 0, times.get(kickId)))
-    times.delete(kickId)
+  if (commandTimes.has(kickId)) {
+    commandTimes.set(twitchId, Math.max(commandTimes.get(twitchId) ?? 0, commandTimes.get(kickId)))
+    commandTimes.delete(kickId)
   }
   return changed
 }
@@ -1150,7 +1148,7 @@ const server = createServer(async (req, res) => {
         const id = Number(item.id)
         const legendary = Boolean(battleStats(id)?.[5])
         const specialTag = specialEncounterTag(id, legendary)
-        return { ...item, legendary, specialTag, wildEligible: Boolean(specialTag) || !evolutionParent(id) }
+        return { ...item, legendary, specialTag, wildEligible: Boolean(specialTag) || isFirstStage(id) }
       }) }))
       return
     }
