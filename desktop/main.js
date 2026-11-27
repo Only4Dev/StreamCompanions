@@ -325,9 +325,9 @@ async function pollShop() {
     if (!acknowledgement.ok || kickAbort.signal.aborted) return
     const { received } = await acknowledgement.json()
     if (kickAbort.signal.aborted) return
-    if (Array.isArray(received) && receipts.every(receipt => received.includes(receipt.id))) {
+    if (Array.isArray(received) && received.some(id => receipts.some(receipt => receipt.id === id))) {
       logDiagnostic('shop_ack', { requestIds: received })
-      game.acknowledgeOrders(receipts.map(({ id }) => id))
+      game.acknowledgeOrders(receipts.filter(receipt => received.includes(receipt.id)).map(({ id }) => id))
       persistGame()
     }
   } catch (error) {
@@ -894,6 +894,14 @@ const server = createServer(async (req, res) => {
           writeFileSync(shinyCueFile(), shinyCue.bytes)
         }
         void syncShinyCue().catch(() => {})
+        res.writeHead(204).end()
+        return
+      }
+      if (action.adminGrant) {
+        if (!game.grantAdmin(action.adminGrant)) { res.writeHead(422).end(); return }
+        persistGame()
+        const { viewerId, kind, item, amount } = action.adminGrant
+        logDiagnostic('admin_grant', { viewerId, kind, item, amount })
         res.writeHead(204).end()
         return
       }

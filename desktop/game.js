@@ -383,6 +383,35 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       shopReceipts.set(id, hatch ? { result, hatch } : result)
       return result
     },
+    grantAdmin({ viewerId, kind, item, amount }) {
+      const viewer = viewers.get(viewerId)
+      if (!viewer || erasedViewers.has(viewerId) || !Number.isSafeInteger(amount) || amount < 1) return false
+      if (kind === 'pokemon') {
+        const entry = byName.get(typeof item === 'string' ? item.replace(/ ✦$/, '') : '')
+        if (amount !== 1 || !entry || item.endsWith(' ✦') && !entry.shiny || Object.hasOwn(viewer.collection, item)) return false
+        viewer.collection[item] = familyXp(viewer, item)
+        shareFamily(viewer, item, viewer.collection[item])
+        return true
+      }
+      if (kind === 'held') {
+        if (amount !== 1 || !Object.hasOwn(heldItems, item) || viewer.heldItems?.includes(item)) return false
+        ;(viewer.heldItems ??= []).push(item)
+        return true
+      }
+      if (kind === 'balls') {
+        if (amount > 999 || !['normal', 'great', 'ultra', 'master'].includes(item)) return false
+        viewer.balls ??= { normal: 0, great: 0, ultra: 0, master: 0 }
+        viewer.balls[item] = (viewer.balls[item] ?? 0) + amount
+        return true
+      }
+      const counter = { money: 'pokeDollars', candy: 'rareCandies', tracker: 'legendaryTrackers' }
+      if (!Object.hasOwn(counter, kind) || amount > (kind === 'money' ? 1_000_000 : 999)) return false
+      const key = counter[kind]
+      const total = (viewer[key] ?? 0) + amount
+      if (!Number.isSafeInteger(total)) return false
+      viewer[key] = total
+      return true
+    },
     shopHatch: id => shopReceipts.get(id)?.hatch,
     dnaCount: (viewer, key) => familyDnaCount(viewer.dnaBoosters, dnaKeys(viewer, key)),
     acknowledgeOrders(ids) {

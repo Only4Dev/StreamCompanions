@@ -4,6 +4,17 @@ import { runInNewContext } from 'node:vm'
 import { sessionKey } from './auth.js'
 import { portal } from './portal.js'
 
+test('two Twitch sign-in attempts each retain their own flow cookie', async () => {
+  const env = { TWITCH_WEB_CLIENT_ID: 'fixture-client', TWITCH_WEB_CLIENT_SECRET: 'fixture-value' }
+  const start = new URL('https://example.test/auth/twitch')
+  const results = await Promise.all([portal(new Request(start), start, env), portal(new Request(start), start, env)])
+  const states = results.map(result => new URL(result.headers.get('Location')).searchParams.get('state'))
+  assert.notEqual(states[0], states[1])
+  for (const [index, result] of results.entries()) {
+    assert.ok(result.headers.getSetCookie()[0].startsWith('sc_flow_twitch_' + states[index] + '='))
+  }
+})
+
 test('a signed-in viewer can save unlocked moves for an owned variant only', async () => {
   let saved
   const env = { DB: { prepare(sql) {

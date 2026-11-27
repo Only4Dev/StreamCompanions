@@ -1,3 +1,4 @@
+import { expireShopOrders } from './shop-queue.js'
 import { enqueueWebGame, webGameStatus, webGameViewer } from './web-game.js'
 import { botCopy } from '../ui/bot-copy.js'
 import { helpPage } from './help.js'
@@ -674,18 +675,26 @@ export async function portal(request, url, env) {
     if (!identity) return json({ error: 'authentication required' }, 401)
     const community = url.searchParams.get('community')
     const viewer = await env.DB.prepare(
-      'SELECT p.payload, s.seen_at, s.supports_quantity, s.supports_dna, s.prices, o.id AS order_id, o.result, o.hatch FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
+      'SELECT p.payload, s.seen_at, s.supports_quantity, s.supports_dna, s.prices, o.id AS order_id, o.result, o.hatch, o.created_at, o.dispatched_at FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
       'LEFT JOIN shop_online s ON s.community_id = p.community_id ' +
       'LEFT JOIN shop_orders o ON o.community_id = p.community_id AND o.viewer_id = p.viewer_id AND o.id = ? ' +
       'WHERE i.account_id = ? AND p.community_id = ? ORDER BY o.id IS NOT NULL DESC, p.updated_at DESC, p.viewer_id LIMIT 1'
     ).bind(url.searchParams.get('purchase'), identity.account_id, community).first()
     if (!viewer) return json({ error: 'community not found' }, 404)
+    if (viewer.order_id && viewer.result === null && viewer.created_at <= Date.now() - 120_000 &&
+        (!viewer.dispatched_at || viewer.dispatched_at <= Date.now() - 600_000)) {
+      await expireShopOrders(env.DB, community, Date.now()).run()
+      const row = await env.DB.prepare('SELECT result, hatch FROM shop_orders WHERE id = ? AND community_id = ?').bind(viewer.order_id, community).first()
+      if (row) Object.assign(viewer, row)
+    }
     const pending = Boolean(viewer.order_id && viewer.result === null)
     const online = viewer.seen_at > Date.now() - 70_000
     const { pokeDollars: balance = 0, balls = {}, heldItems = [], dnaBoosters = {}, collection = {} } = JSON.parse(viewer.payload)
     const species = url.searchParams.get('pokemon')
     const dnaCount = species && Object.hasOwn(collection, species) ? sharedDna(dnaBoosters, species) : undefined
     const messages = {
+      expired: language === 'en' ? 'The order expired before processing. You can retry.' : 'El pedido caducó antes de procesarse. Puedes volver a comprar.',
+      review: language === 'en' ? 'The app did not confirm the order. Check your inventory and balance.' : 'La app no confirmó el pedido. Revisa tu inventario y saldo.',
       purchased: language === 'en' ? 'Purchase complete.' : 'Compra realizada.',
       owned: language === 'en' ? 'Already owned.' : 'Ya tienes ese objeto.',
       funds: language === 'en' ? 'Not enough Pokédollars.' : 'No tienes suficientes Pokédólares.',
@@ -754,11 +763,14 @@ export async function portal(request, url, env) {
     const callback = url.origin + '/auth/' + provider + '/callback'
     const cookieName = 'sc_flow_' + provider
     if (action === 'callback' && request.method === 'GET') {
-      const [state, verifier, linkSession] = (getCookie(request, cookieName) || '').split('.')
+      const returnedState = url.searchParams.get('state') ?? ''
+      const flowCookie = /^[a-f0-9]{64}$/.test(returnedState) ? cookieName + '_' + returnedState : cookieName
+      const [state, verifier, linkSession] = (getCookie(request, flowCookie) || getCookie(request, cookieName) || '').split('.')
       const code = url.searchParams.get('code')
       if (!code || !state || state !== url.searchParams.get('state') ||
           (linkSession && (!identity || linkSession !== session))) {
-        return page('<p>' + t("La autorización venció o fue cancelada.") + ' <a href="/">' + t("Volver") + '</a></p>', 400)
+        console.warn(JSON.stringify({ event: 'viewer_oauth_failure', provider, stage: !code ? 'cancelled_or_missing_code' : 'flow_cookie' }))
+        return page('<p>' + t("La autorización venció o fue cancelada.") + ' <a href="/auth/' + provider + '">' + (language === 'en' ? 'Try sign-in again' : 'Volver a iniciar sesión') + '</a></p>', 400)
       }
       const verified = await platformIdentity(provider, config, code, callback, verifier)
       if (!verified) return page('<p>' + t("No se pudo verificar la cuenta.") + ' <a href="/">' + t("Volver") + '</a></p>', 502)
@@ -772,7 +784,7 @@ export async function portal(request, url, env) {
         : 'Esta identidad ya está vinculada a otra cuenta o tu cuenta ya tiene otra identidad de esta plataforma.') +
         ' <a href="/">' + t("Volver") + '</a></p>', 409)
       return redirect(linkSession ? '/?account=1' : '/', [
-        cookie(cookieName, '', 0), cookie('sc_session', newSession, 86_400)
+        cookie(flowCookie, '', 0), cookie('sc_session', newSession, 86_400)
       ])
     }
     const linking = action === 'link'
@@ -781,7 +793,7 @@ export async function portal(request, url, env) {
       const state = randomId()
       const verifier = randomId()
       const destination = await authorizeUrl(provider, config, callback, state, verifier)
-      return redirect(destination, [cookie(cookieName, [state, verifier, linking ? session : ''].join('.'), 600)])
+      return redirect(destination, [cookie(cookieName + '_' + state, [state, verifier, linking ? session : ''].join('.'), 600)])
     }
     return page('<p>' + t("Solicitud inválida.") + '</p>', 403)
   }
@@ -897,13 +909,28 @@ export async function portal(request, url, env) {
     feature: en ? 'The streamer’s app must be updated for this item.' : 'La app del streamer debe actualizarse para vender este objeto.',
     quantity: en ? 'The streamer’s app does not support buying multiple items yet.' : 'La app del streamer aún no permite comprar varias unidades.' }
   const reason = url.searchParams.get('reason')
-  const purchaseWarning = Object.hasOwn(reasons, reason ?? '') ? reasons[reason] : ''
+  const purchaseWarning = Object.hasOwn(reasons, reason ?? '') ? reasons[reason] : url.searchParams.has('retry') ?
+    (en ? 'A purchase is pending or you have reached the purchase limit. Wait a moment and try again.' : 'Hay una compra pendiente o alcanzaste el límite. Espera un momento y vuelve a intentar.') : ''
   if (buying) {
     const item = url.searchParams.get('item')
     const orderId = url.searchParams.get('order')
     if (!Object.hasOwn(shopItems, item ?? '') || !/^[a-f0-9-]{36}$/.test(orderId ?? '')) return new Response(null, { status: 400 })
     const product = shopItems[item]
-    const form = request.headers.get('Content-Type')?.startsWith('application/x-www-form-urlencoded') ? await request.formData() : null
+    let form
+    if (request.headers.get('Content-Type')?.startsWith('application/x-www-form-urlencoded')) {
+      const reader = request.body?.getReader()
+      let size = 0
+      let text = ''
+      const decoder = new TextDecoder()
+      if (reader) while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        size += value.byteLength
+        if (size > 1024) { await reader.cancel(); return new Response(null, { status: 413 }) }
+        text += decoder.decode(value, { stream: true })
+      }
+      form = new URLSearchParams(text + decoder.decode())
+    }
     const quantity = Number(form?.get('quantity') ?? 1)
     if (!validShopQuantity(product, quantity)) return new Response(null, { status: 400 })
     const target = product.dna ? url.searchParams.get('pokemon') : null
@@ -928,11 +955,13 @@ export async function portal(request, url, env) {
     const findExistingOrder = () => env.DB.prepare('SELECT id FROM shop_orders WHERE id = ? AND community_id = ? AND viewer_id = ?')
       .bind(orderId, selected.community_id, selected.viewer_id).first()
     const now = Date.now()
-    const queued = await env.DB.prepare('INSERT OR IGNORE INTO shop_orders (id, community_id, viewer_id, item, created_at, price, species_key, quantity) ' +
+    const [, queued] = await env.DB.batch([expireShopOrders(env.DB, selected.community_id, now), env.DB.prepare('INSERT OR IGNORE INTO shop_orders (id, community_id, viewer_id, item, created_at, price, species_key, quantity) ' +
       'SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM shop_online WHERE community_id = ? AND seen_at > ? AND prices IS ? AND (? IS NULL OR supports_dna >= 3) AND (? = 1 OR supports_quantity = 1)) ' +
-      'AND EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ? AND account_id = ?) AND EXISTS (SELECT 1 FROM web_sessions WHERE id IN (?, ?) AND expires_at > ?)')
+      'AND EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ? AND account_id = ?) AND EXISTS (SELECT 1 FROM web_sessions WHERE id IN (?, ?) AND expires_at > ?) ' +
+      'AND NOT EXISTS (SELECT 1 FROM shop_orders o JOIN account_identities i ON i.viewer_id = o.viewer_id WHERE o.community_id = ? AND i.account_id = ? AND o.result IS NULL) ' +
+      'AND (SELECT COUNT(*) FROM shop_orders o JOIN account_identities i ON i.viewer_id = o.viewer_id WHERE o.community_id = ? AND i.account_id = ? AND o.created_at > ?) < 8')
       .bind(orderId, selected.community_id, selected.viewer_id, item, now, published ? price : null, target, quantity,
-        selected.community_id, now - 70_000, online?.prices ?? null, target, quantity, selected.viewer_id, identity.account_id, session, key, Date.now()).run()
+        selected.community_id, now - 70_000, online?.prices ?? null, target, quantity, selected.viewer_id, identity.account_id, session, key, now, selected.community_id, identity.account_id, selected.community_id, identity.account_id, now - 30_000)])
     return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, ...(queued.meta.changes || await findExistingOrder() ? { purchase: orderId } : { retry: '1' }) }), [])
   }
   const availableItems = [...new Set(ownedItems)].filter(item => Object.hasOwn(heldItems, item))
@@ -1080,7 +1109,7 @@ export async function portal(request, url, env) {
     const purchase = url.searchParams.get('purchase')
     const order = purchase && await env.DB.prepare('SELECT item, result FROM shop_orders WHERE community_id = ? AND viewer_id = ? AND id = ?')
       .bind(selected.community_id, selected.viewer_id, purchase).first()
-    const status = { purchased: en ? 'Purchase complete' : 'Compra realizada', owned: en ? 'Already owned' : 'Ya tienes ese objeto',
+    const status = { expired: en ? 'Order expired.' : 'El pedido caducó.', review: en ? 'Order unconfirmed. Check your balance.' : 'Pedido sin confirmar. Revisa tu saldo.', purchased: en ? 'Purchase complete' : 'Compra realizada', owned: en ? 'Already owned' : 'Ya tienes ese objeto',
       funds: fundsText, repriced: en ? 'The price changed.' : 'El precio cambió.', unavailable: en ? 'Purchase could not be completed' : 'No se pudo completar la compra',
       battleLocked: botCopy[language].battleLocked,
       maxed: en ? 'That Pokémon is at the DNA limit' : 'Ese Pokémon ya alcanzó el máximo de DNA' }

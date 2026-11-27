@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Recover purchases with fractional egg XP, isolate invalid receipts, expire stalled orders, and limit repeated purchases.
+- Keep concurrent OAuth sign-in attempts separate and log the stage of provider failures.
+- Add a local streamer administration tab for grants, wild encounters, and battles.
+
 ## 1.2.0
 
 - Add configurable Poké Eggs with four hatch effects and the Legendary Tracker, usable from the web or with `!legendaryticket`.

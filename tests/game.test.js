@@ -4,6 +4,24 @@ import { catchChance, createGame } from '../desktop/game.js'
 import { captureCategories } from '../ui/capture-rates.js'
 import { xpAtLevel } from '../ui/levels.js'
 
+test('streamer grants persist with inventory and reject invalid changes', () => {
+  const catalog = [{ id: 19, name: 'Rattata', shiny: true }]
+  const game = createGame({ catalog, progress: { viewers: { A: { collection: {} } } } })
+  const grant = (kind, item, amount, viewerId = 'A') => game.grantAdmin({ viewerId, kind, item, amount })
+  assert.equal(grant('money', '', 5000, 'missing'), false)
+  assert.equal(grant('money', '', -5000), false)
+  assert.equal(grant('money', '', 5000), true)
+  assert.equal(grant('pokemon', 'Rattata ✦', 1), true)
+  assert.equal(grant('pokemon', 'Rattata ✦', 1), false)
+  assert.equal(grant('held', 'sitrus-berry', 1), true)
+  assert.equal(grant('tracker', '', 2), true)
+  const viewer = createGame({ catalog, progress: game.progress() }).progress().viewers.A
+  assert.equal(viewer.pokeDollars, 5000)
+  assert.deepEqual(viewer.collection, { 'Rattata ✦': 0 })
+  assert.deepEqual(viewer.heldItems, ['sitrus-berry'])
+  assert.equal(viewer.legendaryTrackers, 2)
+})
+
 test('a Poké Egg hatches only a regular base species and keeps its receipt across restart', () => {
   const catalog = [{ id: 150, name: 'Mewtwo', legendary: true }, { id: 151, name: 'Mew' },
     { id: 793, name: 'Nihilego' }, { id: 984, name: 'Great Tusk' },

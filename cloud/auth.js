@@ -13,11 +13,16 @@ export function providerConfig(env, provider) {
   return id && secret ? { id, secret } : null
 }
 
-async function oauthJson(url, options) {
+async function oauthJson(url, options, provider, stage) {
   try {
     const response = await fetch(url, { ...options, redirect: 'manual', signal: AbortSignal.timeout(8000) })
-    return response.ok ? await response.json() : null
-  } catch { return null }
+    if (response.ok) return await response.json()
+    console.warn(JSON.stringify({ event: 'viewer_oauth_failure', provider, stage, status: response.status }))
+    return null
+  } catch {
+    console.warn(JSON.stringify({ event: 'viewer_oauth_failure', provider, stage, status: 'network_or_json' }))
+    return null
+  }
 }
 
 export async function platformIdentity(provider, config, code, redirect, verifier, includeToken = false) {
@@ -28,13 +33,16 @@ export async function platformIdentity(provider, config, code, redirect, verifie
       client_id: config.id, client_secret: config.secret, code, grant_type: 'authorization_code',
       redirect_uri: redirect, ...(isKick ? { code_verifier: verifier } : {})
     })
-  })
+  }, provider, 'token')
   if (typeof token?.access_token !== 'string' || !token.access_token) return null
   const data = await oauthJson(isKick ? 'https://api.kick.com/public/v1/users' : 'https://id.twitch.tv/oauth2/validate', {
     headers: { Authorization: (isKick ? 'Bearer ' : 'OAuth ') + token.access_token }
-  })
+  }, provider, 'identity')
   if (!data) return null
-  if (!isKick && data.client_id !== config.id) return null
+  if (!isKick && data.client_id !== config.id) {
+    console.warn(JSON.stringify({ event: 'viewer_oauth_failure', provider, stage: 'client_id' }))
+    return null
+  }
   const user = isKick ? data.data?.[0] : data
   const id = String(user?.user_id ?? '')
   return /^\d{1,24}$/.test(id) ? { viewerId: provider + ':' + id, login: String(user.name ?? user.login ?? ''),
