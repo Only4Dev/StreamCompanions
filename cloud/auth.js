@@ -56,6 +56,16 @@ export async function signIn(db, identity, linkedAccountId) {
   const now = Date.now()
   const session = randomId()
   const statements = []
+  if (linkedAccountId) {
+    // A verified OAuth identity may bring a standalone account or a detached login.
+    statements.push(db.prepare('UPDATE account_identities SET account_id = ?, detached_at = NULL WHERE viewer_id = ? AND account_id != ? ' +
+      'AND EXISTS (SELECT 1 FROM accounts WHERE id = ?) ' +
+      'AND NOT EXISTS (SELECT 1 FROM account_identities target WHERE target.account_id = ? AND substr(target.viewer_id, 1, ?) = ?) ' +
+      'AND (detached_at IS NOT NULL OR NOT EXISTS (SELECT 1 FROM account_identities sibling ' +
+      'WHERE sibling.account_id = account_identities.account_id AND sibling.viewer_id != account_identities.viewer_id))')
+      .bind(accountId, viewerId, accountId, accountId, accountId, providerPrefix.length, providerPrefix))
+    statements.push(db.prepare('DELETE FROM web_sessions WHERE viewer_id = ? AND changes() = 1').bind(viewerId))
+  }
   if (!linkedAccountId) {
     statements.push(db.prepare(
       'INSERT INTO accounts SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ?)'
@@ -99,6 +109,7 @@ export async function eraseAccount(db, accountId) {
     db.prepare('INSERT INTO erased_viewers (viewer_id) ' + identities +
       ' ON CONFLICT(viewer_id) DO UPDATE SET generation = generation + 1').bind(accountId),
     db.prepare('INSERT OR IGNORE INTO erasure_devices SELECT community_id, viewer_id FROM viewer_progress WHERE viewer_id IN (' + identities + ')').bind(accountId),
+    db.prepare('DELETE FROM dex_seen WHERE account_id = ?').bind(accountId),
     ...['viewer_progress', 'viewer_movesets', 'viewer_held_items', 'shop_orders', 'web_game_actions', 'web_sessions', 'kick_messages']
       .map(table => db.prepare('DELETE FROM ' + table + ' WHERE viewer_id IN (' + identities + ')').bind(accountId)),
     db.prepare('DELETE FROM account_identities WHERE account_id = ?').bind(accountId),

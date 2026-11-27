@@ -10,7 +10,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
   for (const migration of ['0001_sync', '0002_portal', '0003_viewer_login', '0004_accounts', '0005_movesets', '0006_kick',
-    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity', '0019_web_game', '0020_portal_announcements', '0021_shiny_cue', '0022_shop_hatch', '0023_shop_expiry']) {
+    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity', '0019_web_game', '0020_portal_announcements', '0021_shiny_cue', '0022_shop_hatch', '0023_shop_expiry', '0024_dex_seen']) {
     db.exec(await readFile(new URL('./migrations/' + migration + '.sql', import.meta.url), 'utf8'))
   }
   const D1 = {
@@ -229,6 +229,15 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.equal(newReceipt.status, 200, await newReceipt.text())
   status.searchParams.set('purchase', egg)
   assert.deepEqual((await readStatus()).hatch, { ...hatch, xp: 15 })
+  assert.match((await order(crypto.randomUUID(), 5000, 1, 'poke-egg')).headers.get('Location'), /retry=1/)
+  const acquired = Date.now()
+  db.prepare("UPDATE viewer_progress SET payload = json_set(payload, '$.dexAcquired.Rattata', ?) WHERE viewer_id = 'twitch:1'").run(acquired)
+  const dexUrl = base + '/?community=stream&tab=dex'
+  const readDex = async () => (await worker.fetch(new Request(dexUrl, { headers: cookie }), { DB: D1 })).text()
+  assert.match(await readDex(), /data-dex-new="19"/)
+  const markSeen = await worker.fetch(new Request(base + '/dex/seen?community=stream&species=19&at=' + acquired, { method: 'POST', headers: { ...cookie, Origin: base } }), { DB: D1 })
+  assert.equal(markSeen.status, 204)
+  assert.doesNotMatch(await readDex(), /data-dex-new="19"/)
   assert.match((await order(ticket, 100000, 1, 'legendary-tracker')).headers.get('Location'), new RegExp('section=keys&purchase=' + ticket))
   assert.equal((await device('POST', { viewers: [{ id: ticket, result: 'purchased', viewer: { ...orderViewer, revision: 5, pokeDollars: 15000, legendaryTrackers: 1 } }] })).status, 200)
   assert.match((await order(egg, 5000, 1, 'poke-egg')).headers.get('Location'), new RegExp('purchase=' + egg))

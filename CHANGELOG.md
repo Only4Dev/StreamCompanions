@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Deduplicate shop submissions and retries, show unseen Pokédex additions, and reconcile verified Twitch/Kick identities without deleting their albums.
+
 - Recover purchases with fractional egg XP, isolate invalid receipts, expire stalled orders, and limit repeated purchases.
 - Keep concurrent OAuth sign-in attempts separate and log the stage of provider failures.
 - Add a local streamer administration tab for grants, wild encounters, and battles.

@@ -103,7 +103,8 @@ function chatAction(viewer, displayName, text, platform, save = true, sharedSumm
     return { code: 'ballInventory', viewer: displayName, inventory: inventory || (en ? 'No Poké Balls' : 'Sin Poké Balls') }
   }
   const result = game.chat(viewer, text, displayName, platform, { sharedSummon })
-  if (action.startsWith('!')) logDiagnostic('game_command', { source: sharedSummon ? 'web' : 'chat', platform, command: action, result })
+  if (action.startsWith('!')) logDiagnostic('game_command', { source: sharedSummon ? 'web' : 'chat', platform, command: action, result,
+    ...(result === 'missingCreature' ? { viewerId: viewer, requested: normalizeCommand(text).slice(0, 100) } : {}) })
   const balance = { ball: names[ball], remaining: balls?.[ball] }
   if (action.startsWith('!')) {
     remember(activityLog, { platform, name: displayName, message: text.slice(0, 120), result })
@@ -177,6 +178,7 @@ let checkpoint
 let stopSync
 let shopTimer
 let nextShopMaintenance = 0
+let nextIdentitySync = 0
 let syncStatus = ''
 let disconnectTwitch
 let twitchStatus = ''
@@ -299,27 +301,40 @@ async function pollShop() {
     const encounter = game.currentEncounter()
     const webGame = encounter ? { id: encounter.id, shiny: Boolean(encounter.shiny), en: game.encounterDifficulty(encounter.name, 'en'), es: game.encounterDifficulty(encounter.name, 'es') } : {}
     const endpoint = new URL('/api/shop', syncDevice.url)
+    const fetchLinks = Date.now() >= nextIdentitySync
     const request = body => fetch(endpoint, {
       method: body ? 'POST' : 'GET', redirect: 'error',
       headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json',
-        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '2', 'X-Shop-Quantity': '1', 'X-Web-Game': JSON.stringify(webGame) } : {}) },
+        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '2', 'X-Shop-Quantity': '1', 'X-Web-Game': JSON.stringify(webGame), 'X-Identity-Orders': '1', ...(fetchLinks ? { 'X-Identity-Links': '1' } : {}) } : {}) },
       body: body && JSON.stringify({ viewers: body }),
       signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(8000)])
     })
     const response = await request()
     if (!response.ok || pendingReset || kickAbort.signal.aborted || game.config.running === false) return
-    const { orders, webActions } = await response.json()
+    const { orders, webActions, links } = await response.json()
     if (pendingReset || kickAbort.signal.aborted || game.config.running === false) return
+    const linkedKickAccounts = new Map()
+    if (Array.isArray(links)) {
+      for (const link of links.filter(link => /^kick:\d{1,24}$/.test(link?.kickId ?? '') && /^twitch:\d{1,24}$/.test(link?.twitchId ?? ''))) linkedKickAccounts.set(link.kickId, link.twitchId)
+      nextIdentitySync = Date.now() + 10_000
+      let changed = false
+      for (const [kickId, twitchId] of linkedKickAccounts) changed = mergeLinkedViewers(kickId, twitchId) || changed
+      if (changed) persistGame()
+    }
     if (Array.isArray(webActions) && webActions.length) await processWebGame(webActions)
     if (!Array.isArray(orders) || !orders.length || orders.length > 10 || orders.some(order =>
       !/^[a-f0-9-]{36}$/.test(order?.id ?? '') || !/^(twitch|kick):\d{1,24}$/.test(order?.viewerId ?? ''))) return
-    const receipts = orders.map(order => ({ id: order.id, result: game.fulfillOrder(order), hatch: game.shopHatch(order.id) }))
+    const uniqueOrders = [...new Set(orders.map(order => order.id))].map(id => {
+      const order = orders.find(candidate => candidate.id === id)
+      return { ...order, viewerId: linkedKickAccounts.get(order.viewerId) ?? order.viewerId }
+    })
+    const receipts = uniqueOrders.map(order => ({ id: order.id, result: game.fulfillOrder(order), hatch: game.shopHatch(order.id) }))
     receipts.forEach(({ id, result }, index) => logDiagnostic('shop_order_result', {
-      requestId: id, result, item: orders[index].item, quantity: orders[index].quantity ?? 1
+      requestId: id, result, item: uniqueOrders[index].item, quantity: uniqueOrders[index].quantity ?? 1
     }))
     persistGame()
     const acknowledgement = await request(receipts.map((receipt, index) => ({ ...receipt,
-      ...(receipt.result === 'purchased' ? { viewer: progress.viewer(orders[index].viewerId) } : {})
+      ...(receipt.result === 'purchased' ? { viewer: progress.viewer(uniqueOrders[index].viewerId) } : {})
     })))
     if (!acknowledgement.ok) logDiagnostic('shop_ack_error', { status: acknowledgement.status, count: receipts.length })
     if (!acknowledgement.ok || kickAbort.signal.aborted) return
@@ -338,12 +353,13 @@ async function pollShop() {
 }
 
 function mergeLinkedViewers(kickId, twitchId) {
-  game.linkKickViewer(kickId, twitchId)
+  const changed = game.linkKickViewer(kickId, twitchId)
   for (const times of commandTimes.values()) {
     if (!times.has(kickId)) continue
     times.set(twitchId, Math.max(times.get(twitchId) ?? 0, times.get(kickId)))
     times.delete(kickId)
   }
+  return changed
 }
 
 async function processWebGame(actions) {
@@ -1255,8 +1271,20 @@ app.whenReady().then(() => {
         twitchAuthorizationUrl = undefined
         if (syncDevice && status === 'Twitch: conectado como ' + syncDevice.community) ensureCloudSync()
       },
-      command(viewer, displayName, message) {
+      async command(viewer, displayName, message) {
         if (!twitchAllowed()) return
+        if (syncDevice && normalizeCommand(message) === '!poke join' && isLive('twitch')) {
+          const url = new URL('/api/identity-link', syncDevice.url)
+          url.searchParams.set('viewer', viewer)
+          try {
+            const response = await fetch(url, { headers: { Authorization: 'Bearer ' + syncDevice.token }, redirect: 'error',
+              signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(1500)]) })
+            if (response.ok) {
+              const { kickId } = await response.json()
+              if (/^kick:\d{1,24}$/.test(kickId ?? '')) mergeLinkedViewers(kickId, viewer)
+            }
+          } catch { /* The local Twitch profile remains available during a sync outage. */ }
+        }
         return chatAction(viewer, displayName, message, 'twitch')
       }
     })

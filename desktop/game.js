@@ -112,7 +112,10 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     for (const member of members) {
       if (!unlocked.has(member.id)) continue
       const form = member.name + suffix
-      if (!Object.hasOwn(viewer.collection, form)) newForms.push(form)
+      if (!Object.hasOwn(viewer.collection, form)) {
+        newForms.push(form)
+        if (announce) (viewer.dexAcquired ??= {})[form] = now()
+      }
       viewer.collection[form] = xp
     }
     if (!announce || !newForms.length) return
@@ -272,6 +275,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         pokemon: key, at: now() })
       if (recentCaptures.length > 40) recentCaptures.shift()
       if (!owned) {
+        ;(viewer.dexAcquired ??= {})[key] = now()
         viewer.collection[key] = familyXp(viewer, key)
         shareFamily(viewer, key, viewer.collection[key])
         return 'caught'
@@ -373,7 +377,10 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
               ? xpAtLevel(rank + 1) - xp
               : duplicate && rank < maxLevel ? Math.max(1, Math.round((xpAtLevel(rank + 1) - xpAtLevel(rank)) * config.duplicateXpPercent / 100)) : 0
             const earned = Math.min(bonus, maxXp - xp)
-            if (!duplicate) viewer.collection[pokemon.name] = xp
+            if (!duplicate) {
+              viewer.collection[pokemon.name] = xp
+              ;(viewer.dexAcquired ??= {})[pokemon.name] = now()
+            }
             shareFamily(viewer, pokemon.name, xp + earned)
             hatch = { id: pokemon.id, name: pokemon.name, rarity, duplicate, xp: earned }
           } else (viewer.heldItems ??= []).push(item)
@@ -389,6 +396,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       if (kind === 'pokemon') {
         const entry = byName.get(typeof item === 'string' ? item.replace(/ ✦$/, '') : '')
         if (amount !== 1 || !entry || item.endsWith(' ✦') && !entry.shiny || Object.hasOwn(viewer.collection, item)) return false
+        ;(viewer.dexAcquired ??= {})[item] = now()
         viewer.collection[item] = familyXp(viewer, item)
         shareFamily(viewer, item, viewer.collection[item])
         return true
@@ -415,7 +423,17 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     shopHatch: id => shopReceipts.get(id)?.hatch,
     dnaCount: (viewer, key) => familyDnaCount(viewer.dnaBoosters, dnaKeys(viewer, key)),
     acknowledgeOrders(ids) {
-      for (const id of ids) shopReceipts.delete(id)
+      const time = now()
+      for (const id of ids) {
+        const receipt = shopReceipts.get(id)
+        if (id.startsWith('web:')) shopReceipts.delete(id)
+        else if (receipt && receipt.completedAt === undefined) {
+          shopReceipts.set(id, { ...(typeof receipt === 'string' ? { result: receipt } : receipt), completedAt: time })
+        }
+      }
+      for (const [id, receipt] of shopReceipts) {
+        if (receipt?.completedAt !== undefined && time - receipt.completedAt > 86_400_000) shopReceipts.delete(id)
+      }
     },
     encounterCount: () => encounterCount,
     clearStatistics() {
@@ -508,6 +526,10 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         target.balls ??= { normal: 0, great: 0, ultra: 0, master: 0 }
         for (const key of Object.keys(target.balls)) target.balls[key] = Math.max(target.balls[key], source.balls?.[key] ?? 0)
         for (const key of Object.keys(target.metrics)) target.metrics[key] = Math.max(target.metrics[key], source.metrics[key] ?? 0)
+        for (const [name, at] of Object.entries(source.dexAcquired ?? {})) {
+          const acquired = target.dexAcquired ??= {}
+          acquired[name] = Math.max(acquired[name] ?? 0, at)
+        }
         target.heldItems = [...new Set([...(target.heldItems ?? []), ...(source.heldItems ?? [])])]
         target.legendaryTrackers = Math.max(target.legendaryTrackers ?? 0, source.legendaryTrackers ?? 0)
         target.rareCandies = Math.max(target.rareCandies ?? 0, source.rareCandies ?? 0)
@@ -530,6 +552,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         if (!target.active || source.active && source.active.layer < target.active.layer) target.active = source.active
       }
       viewers.delete(kickId)
+      return true
     },
     snapshot() {
       tick()
@@ -561,8 +584,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         erasedViewers: [...erasedViewers],
         viewerGenerations: Object.fromEntries(viewerGenerations),
         shopReceipts: Object.fromEntries(shopReceipts),
-        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, pokeDollars, dnaBoosters, log }]) =>
-          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, pokeDollars, dnaBoosters, log }]))
+        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, pokeDollars, dnaBoosters, log, dexAcquired }]) =>
+          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, pokeDollars, dnaBoosters, log, dexAcquired }]))
       }
     },
     recordBattle(participants, winner, speciesKey) {
