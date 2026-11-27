@@ -171,6 +171,7 @@ if (!manifest && app.isPackaged) {
   manifest = await readSpriteManifest(spriteFolder)
 }
 manifest ??= { species: creatures.map(name => ({ name, normal: null, shiny: null })) }
+const catalogVersion = createHash('sha256').update(JSON.stringify(manifest.species)).digest('hex').slice(0, 16)
 let game
 let progress
 let checkpoint
@@ -879,7 +880,7 @@ const server = createServer(async (req, res) => {
       if (!['encounter', 'companions'].includes(overlay) && !hasLocalControl(req)) { res.writeHead(403).end(); return }
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
       const state = ['encounter', 'companions'].includes(overlay)
-        ? { ...game.overlay(overlay), bot: { language: bot.language } }
+        ? { ...game.overlay(overlay), catalogVersion, bot: { language: bot.language } }
         : { ...game.snapshot(), twitchStatus, kickStatus, syncStatus, setup, bot, setupComplete, version: app.getVersion(), updateStatus,
           twitchConnected: twitchAllowed() && Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, canInstallUpdate: app.isPackaged && process.platform === 'win32', activityLog, localChat, botTestStatus, canReset: syncDevice?.url === publicPortal, resettingCommunity: Boolean(pendingReset), live: setup.platform !== 'demo' }
       if (overlay === 'encounter' && state.encounter) state.encounter = { ...state.encounter,
@@ -1143,8 +1144,8 @@ const server = createServer(async (req, res) => {
       return
     }
     if (req.method === 'GET' && pathname === '/catalog') {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ...manifest, species: manifest.species.map(item => {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      res.end(JSON.stringify({ ...manifest, catalogVersion, species: manifest.species.map(item => {
         const id = Number(item.id)
         const legendary = Boolean(battleStats(id)?.[5])
         const specialTag = specialEncounterTag(id, legendary)

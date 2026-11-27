@@ -221,7 +221,7 @@ function playShinyCue() {
 let settingsLoaded = false
 let setupLoaded = false
 let translateLab
-const catalog = (await (await fetch('/catalog')).json()).species
+const { species: catalog, catalogVersion } = await (await fetch('/catalog', { cache: 'no-store' })).json()
 if (panel) {
   const cueStatus = $('shiny-cue-status')
   const reportCueError = () => cueStatus.textContent = $('language').value === 'en' ?
@@ -319,6 +319,10 @@ async function refresh() {
   const previewMode = new URLSearchParams(location.search).get('preview')
   const response = await fetch(panel ? '/state' : '/state?overlay=' + location.pathname.slice(1) + (previewMode ? '&preview=' + encodeURIComponent(previewMode) : ''))
   state = await response.json()
+  if (!panel && state.catalogVersion && state.catalogVersion !== catalogVersion) {
+    location.reload()
+    return
+  }
   if (panel || location.pathname === '/encounter') {
     const encounter = state.encounter
     const id = encounter?.id ?? encounter?.endsAt ?? null
