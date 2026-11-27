@@ -1,20 +1,26 @@
 import { evolutionParents } from './evolution-data.js'
 
+import { regionalEvolutionParents, regionalSpecies } from './regional-species.js'
+
+const regionalParents = new Map(regionalSpecies.map(form => [form.id, form.parent]))
+export const evolutionParent = id => regionalParents.get(id) ?? regionalEvolutionParents[id] ?? (evolutionParents[id - 1] || undefined)
+
 const children = new Map()
-evolutionParents.forEach((parent, index) => {
-  if (!parent) return
+for (const child of [...evolutionParents.keys()].map(index => index + 1).concat(regionalSpecies.map(form => form.id))) {
+  const parent = evolutionParent(child)
+  if (!parent) continue
   if (!children.has(parent)) children.set(parent, [])
-  children.get(parent).push(index + 1)
-})
+  children.get(parent).push(child)
+}
 
 export function familyRoot(id) {
   let root = id
-  while (evolutionParents[root - 1]) root = evolutionParents[root - 1]
+  while (evolutionParent(root)) root = evolutionParent(root)
   return root
 }
 
 export const evolutionChildren = id => children.get(id) ?? []
-export const evolutionParent = id => evolutionParents[id - 1] || undefined
+
 
 export const maxDnaBoosters = 10
 export const familyDnaCount = (boosters, keys) => Math.min(maxDnaBoosters,

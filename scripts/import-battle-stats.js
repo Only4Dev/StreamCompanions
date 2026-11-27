@@ -7,8 +7,8 @@ async function rows(file) {
   if (!response.ok) throw Error(file + ': ' + response.status)
   return (await response.text()).trim().split(/\r?\n/).slice(1).map(row => row.split(','))
 }
-const [stats, typing, species, types, efficacy, sourceMoves, sourceLearnsets] = await Promise.all(
-  ['pokemon_stats', 'pokemon_types', 'pokemon_species', 'types', 'type_efficacy', 'moves', 'pokemon_moves'].map(rows))
+const [stats, typing, species, types, efficacy, sourceMoves, sourceLearnsets, pokemon] = await Promise.all(
+  ['pokemon_stats', 'pokemon_types', 'pokemon_species', 'types', 'type_efficacy', 'moves', 'pokemon_moves', 'pokemon'].map(rows))
 const names = Object.fromEntries(types.map(([id, name]) => [id, name]))
 const evolves = new Set(species.map(([, , , parent]) => Number(parent)))
 const parents = new Map(species.map(([id, , , parent]) => [Number(id), Number(parent)]))
@@ -49,6 +49,45 @@ for (const [speciesId, , moveId, method, sourceLevel] of sourceLearnsets) {
   const at = method === '1' ? Math.max(1, Math.min(20, Math.ceil(Number(sourceLevel) / 2))) : 15
   if (!source.has(key) || at < source.get(key)) source.set(key, at)
 }
+const trackerSource = 'https://raw.githubusercontent.com/PMDCollab/SpriteCollab/ef13b72c6cd3de0c0cb5a99c50c22c9c4ace4729/tracker.json'
+const tracker = await fetch(trackerSource).then(response => {
+  if (!response.ok) throw Error('SpriteCollab: ' + response.status)
+  return response.json()
+})
+const regions = { alola: 'Alolan', galar: 'Galarian', hisui: 'Hisuian', paldea: 'Paldean' }
+const regionalForms = pokemon.flatMap(([id, slug, baseId]) => {
+  const match = /^(.*)-(alola|galar|hisui|paldea)(?:-(standard|combat-breed|blaze-breed|aqua-breed))?$/.exec(slug)
+  if (!match || match[1].endsWith('-totem') || Number(id) < 10000) return []
+  const [, speciesSlug, region, breed] = match
+  const name = ({ 'mr-mime': 'Mr. Mime', farfetchd: "Farfetch’d" }[speciesSlug] ?? speciesSlug[0].toUpperCase() + speciesSlug.slice(1))
+  const subtype = region === 'paldea' && breed ? ' (' + breed[0].toUpperCase() + breed.split('-')[0].slice(1) + ')' : ''
+  const group = region + ({ 'blaze-breed': '_blaze', 'aqua-breed': '_aqua' }[breed] ?? '')
+  const pmdForm = Object.entries(tracker[String(baseId).padStart(4, '0')]?.subgroups ?? {}).find(([, entry]) => entry.name.toLowerCase() === group)?.[0]
+  return [{ id: Number(id), baseId: Number(baseId), region, name: regions[region] + ' ' + name + subtype, pmdForm }]
+})
+const regionalById = new Map(regionalForms.map(form => [form.id, new Map()]))
+for (const [id, , moveId, method, sourceLevel] of sourceLearnsets) {
+  const found = regionalById.get(Number(id))
+  const key = moveIds.get(Number(moveId))
+  if (!found || !key) continue
+  const at = method === '1' ? Math.max(1, Math.min(20, Math.ceil(Number(sourceLevel) / 2))) : 15
+  if (!found.has(key) || found.get(key) > at) found.set(key, at)
+}
+const regionalEvolutionParents = { 862: 10175, 863: 10161, 864: 10173, 865: 10166, 866: 10168, 867: 10179, 903: 10235, 904: 10234, 980: 10253 }
+for (const form of regionalForms) {
+  const predecessor = parents.get(form.baseId)
+  form.parent = regionalForms.find(other => other.baseId === predecessor && other.region === form.region)?.id
+  form.stats = stats.filter(([id, stat]) => Number(id) === form.id && Number(stat) <= 6)
+    .sort((a, b) => Number(a[1]) - Number(b[1])).map(row => Number(row[2]))
+  form.types = typing.filter(([id]) => Number(id) === form.id).map(([, type]) => names[type])
+  form.legendary = specialSpecies.has(form.baseId)
+  form.learnset = [...regionalById.get(form.id)].sort(([a], [b]) => a.localeCompare(b))
+  if (form.stats.length !== 6 || !form.types.length) throw Error('Incomplete regional data: ' + form.name)
+}
+await writeFile('ui/regional-species.js', '// PokéAPI CSV revision ' + revision + '\nexport const regionalSpecies = [\n' +
+  regionalForms.map(form => '  ' + JSON.stringify(form)).join(',\n') + '\n]\n' +
+  'export const regionalEvolutionParents = ' + JSON.stringify(regionalEvolutionParents) + '\n')
+
 await writeFile('dev/national-stats.js', '// PokéAPI CSV revision ' + revision + '\nexport const nationalStats = [\n' +
   roster.map(row => '  ' + JSON.stringify(row)).join(',\n') + '\n]\nexport const typeChart = ' + JSON.stringify(matchups, null, 2) +
   '\nexport const nationalLearnsets = [\n' + learned.map(map => '  ' +

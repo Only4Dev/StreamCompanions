@@ -33,7 +33,7 @@ app.on('second-instance', () => {
 })
 
 const battleRules = await import('../dev/battle.js')
-const battleStats = (await import('../dev/national-stats.js')).nationalStats
+const battleStats = battleRules.battleSpecies
 let communityBattle
 let previewBattle
 let battleTimer
@@ -179,6 +179,7 @@ let stopSync
 let shopTimer
 let nextShopMaintenance = 0
 let nextIdentitySync = 0
+let nextAdminPoll = 0
 let syncStatus = ''
 let disconnectTwitch
 let twitchStatus = ''
@@ -302,16 +303,17 @@ async function pollShop() {
     const webGame = encounter ? { id: encounter.id, shiny: Boolean(encounter.shiny), en: game.encounterDifficulty(encounter.name, 'en'), es: game.encounterDifficulty(encounter.name, 'es') } : {}
     const endpoint = new URL('/api/shop', syncDevice.url)
     const fetchLinks = Date.now() >= nextIdentitySync
+    const fetchAdmin = Date.now() >= nextAdminPoll
     const request = body => fetch(endpoint, {
       method: body ? 'POST' : 'GET', redirect: 'error',
       headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json',
-        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '2', 'X-Shop-Quantity': '1', 'X-Web-Game': JSON.stringify(webGame), 'X-Identity-Orders': '1', ...(fetchLinks ? { 'X-Identity-Links': '1' } : {}) } : {}) },
+        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '2', 'X-Shop-Quantity': '1', 'X-Web-Game': JSON.stringify(webGame), 'X-Identity-Orders': '1', ...(fetchAdmin ? { 'X-Admin-Actions': '1' } : {}), ...(fetchLinks ? { 'X-Identity-Links': '1' } : {}) } : {}) },
       body: body && JSON.stringify({ viewers: body }),
       signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(8000)])
     })
     const response = await request()
     if (!response.ok || pendingReset || kickAbort.signal.aborted || game.config.running === false) return
-    const { orders, webActions, links } = await response.json()
+    const { orders, webActions, links, adminActions } = await response.json()
     if (pendingReset || kickAbort.signal.aborted || game.config.running === false) return
     const linkedKickAccounts = new Map()
     if (Array.isArray(links)) {
@@ -320,6 +322,10 @@ async function pollShop() {
       let changed = false
       for (const [kickId, twitchId] of linkedKickAccounts) changed = mergeLinkedViewers(kickId, twitchId) || changed
       if (changed) persistGame()
+    }
+    if (Array.isArray(adminActions)) {
+      nextAdminPoll = Date.now() + 3000
+      if (adminActions.length) await processAdminActions(adminActions)
     }
     if (Array.isArray(webActions) && webActions.length) await processWebGame(webActions)
     if (!Array.isArray(orders) || !orders.length || orders.length > 10 || orders.some(order =>
@@ -360,6 +366,51 @@ function mergeLinkedViewers(kickId, twitchId) {
     times.delete(kickId)
   }
   return changed
+}
+
+function queueManualBattle() {
+  if (!game.config.battleEnabled || game.config.running === false || battleDueAt || battleStarting ||
+      (communityBattle && !communityBattle.battle.over)) return 409
+  const active = Object.keys(game.overlay('companions').viewers).filter(id => /^(twitch|kick):\d+$/.test(id))
+  if (active.length < 2) return 422
+  battleDueAt = Date.now() + 60_000
+  game.setWildPaused(true)
+  const message = botSignature(bot, bot.language === 'en' ? 'Battle royale starts in 1 minute!' : '¡La batalla campal empieza en 1 minuto!')
+  void announceInLiveChats(message)
+  return 204
+}
+
+async function processAdminActions(actions) {
+  const receipts = []
+  for (const action of actions.slice(0, 5)) {
+    const id = action?.id
+    if (!/^[a-f0-9-]{36}$/.test(id ?? '')) continue
+    const key = 'admin:' + id
+    let result = game.webReceipt(key)
+    if (!result) {
+      let done = false
+      try {
+        if (action.type === 'grant') done = game.grantAdmin(action)
+        if (action.type === 'spawn' && game.config.running !== false && !game.trackerPending()) {
+          game.spawn(action.pokemon)
+          done = true
+        }
+        if (action.type === 'battle') done = queueManualBattle() === 204
+      } catch { /* Tournament and encounter rules can reject an action. */ }
+      result = done ? 'done' : 'rejected'
+      game.rememberWebReceipt(key, result)
+      persistGame()
+      logDiagnostic('web_admin_action', { id, type: action.type, result })
+    }
+    receipts.push({ id, result })
+  }
+  if (!receipts.length) return
+  const response = await deviceRequest('/api/admin-actions', { viewers: receipts }).catch(() => null)
+  if (!response?.ok) return
+  const { received } = await response.json()
+  if (!Array.isArray(received)) return
+  game.acknowledgeOrders(receipts.filter(receipt => received.includes(receipt.id)).map(receipt => 'web:admin:' + receipt.id))
+  persistGame()
 }
 
 async function processWebGame(actions) {
@@ -697,7 +748,7 @@ async function runCommunityBattle(waitForBanner) {
     if (!species) continue
     const rank = level(viewer.collection[viewer.active.key])
     const id = Number(species.id)
-    const row = battleStats[id - 1]
+    const row = battleStats(id)
     if (!row) continue
     const [, stats, types, final] = row
     const form = manifest.species.find(item => Number(item.id) === id) ?? species
@@ -800,6 +851,7 @@ const routes = new Map([
   ['/ui/abilities.js', ['abilities.js', 'text/javascript']],
   ['/ui/about.js', ['about.js', 'text/javascript']],
   ['/ui/evolution.js', ['evolution.js', 'text/javascript']],
+  ['/ui/regional-species.js', ['regional-species.js', 'text/javascript']],
   ['/ui/evolution-data.js', ['evolution-data.js', 'text/javascript']],
   ['/ui.js', ['ui.js', 'text/javascript']],
   ['/style.css', ['style.css', 'text/css']],
@@ -847,7 +899,7 @@ const server = createServer(async (req, res) => {
           const now = Date.now()
           if (!previewBattle || now - previewBattle.last > 5000 || previewBattle.finished && now - previewBattle.finished > 4000) {
             const entries = samples.map(({name, id}, index) => {
-              const [, stats, types, final] = battleStats[Number(id) - 1]
+              const [, stats, types, final] = battleStats(Number(id))
               return { id: Number(id), name, stats, types, final, level: 16, ownerName: 'Preview ' + (index + 1) }
             })
             previewBattle = { battle: battleRules.createBattle(entries), last: now }
@@ -960,18 +1012,7 @@ const server = createServer(async (req, res) => {
         } finally { installingUpdate = false }
         return
       }
-      if (action.startCommunityBattle === true) {
-        if (!game.config.battleEnabled || game.config.running === false || battleDueAt || battleStarting ||
-            (communityBattle && !communityBattle.battle.over)) return res.writeHead(409).end()
-        const active = Object.keys(game.overlay('companions').viewers).filter(id => /^(twitch|kick):\d+$/.test(id))
-        if (active.length < 2) return res.writeHead(422).end()
-        battleDueAt = Date.now() + 60_000
-        game.setWildPaused(true)
-        const message = botSignature(bot, bot.language === 'en' ? 'Battle royale starts in 1 minute!' : '¡La batalla campal empieza en 1 minuto!')
-        announceInLiveChats(message)
-        res.writeHead(204).end()
-        return
-      }
+      if (action.startCommunityBattle === true) return res.writeHead(queueManualBattle()).end()
       if (action.bot || Object.hasOwn(action, 'language')) {
         const edited = validateBot(action.bot
           ? { ...action.bot, language: bot.language }
@@ -1107,7 +1148,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ ...manifest, species: manifest.species.map(item => {
         const id = Number(item.id)
-        const legendary = Boolean(battleStats[id - 1]?.[5])
+        const legendary = Boolean(battleStats(id)?.[5])
         const specialTag = specialEncounterTag(id, legendary)
         return { ...item, legendary, specialTag, wildEligible: Boolean(specialTag) || !evolutionParent(id) }
       }) }))
@@ -1167,7 +1208,7 @@ app.whenReady().then(() => {
   twitchClientId = setup.platform === 'twitch' ? setup.clientId : undefined
   progress = openProgress(join(profile, setup.platform === 'demo' ? 'demo-progress.sqlite' : 'twitch-progress.sqlite'))
   const catalog = manifest.species.map(item => ({ id: Number(item.id), name: item.name, shiny: !item.normal || Boolean(item.shiny),
-    legendary: Boolean(battleStats[Number(item.id) - 1]?.[5]) }))
+    legendary: Boolean(battleStats(Number(item.id))?.[5]) }))
   const savedProgress = progress.load()
   activityLog.push(...(savedProgress?.activityLog ?? []).slice(-100))
   kickCursor = savedProgress?.kickCursor ?? 0

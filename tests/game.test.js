@@ -4,6 +4,22 @@ import { catchChance, createGame } from '../desktop/game.js'
 import { captureCategories } from '../ui/capture-rates.js'
 import { xpAtLevel } from '../ui/levels.js'
 
+test('regional forms evolve within their own line and do not unlock from the original', () => {
+  const catalog = [{ id: 19, name: 'Rattata' }, { id: 20, name: 'Raticate' },
+    { id: 10091, name: 'Alolan Rattata' }, { id: 10092, name: 'Alolan Raticate' }]
+  const game = createGame({ catalog, progress: { viewers: { A: { collection: {} } } } })
+  assert.equal(game.grantAdmin({ viewerId: 'A', kind: 'pokemon', item: 'Rattata', amount: 1 }), true)
+  assert.equal(game.chat('A', '!summon alolan rattata'), 'missingCreature')
+  assert.equal(game.grantAdmin({ viewerId: 'A', kind: 'pokemon', item: 'Alolan Rattata', amount: 1 }), true)
+  assert.equal(game.chat('A', '!summon alolan rattata'), 'summoned')
+  assert.equal(game.grantAdmin({ viewerId: 'A', kind: 'candy', amount: 30 }), true)
+  assert.equal(game.chat('A', '!candy 30'), 'candyUsed')
+  const { collection } = game.progress().viewers.A
+  assert.equal(collection['Alolan Raticate'], xpAtLevel(31))
+  assert.equal(collection.Rattata, 0)
+  assert.equal(collection.Raticate, undefined)
+})
+
 test('streamer grants persist with inventory and reject invalid changes', () => {
   const catalog = [{ id: 19, name: 'Rattata', shiny: true }]
   const game = createGame({ catalog, progress: { viewers: { A: { collection: {} } } } })

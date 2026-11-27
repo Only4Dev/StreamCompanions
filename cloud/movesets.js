@@ -1,17 +1,19 @@
-import { battleStatsAtLevel, equippedMoves, moveOptions, moves, ultimateOptions } from '../dev/battle.js'
-import { nationalStats } from '../dev/national-stats.js'
+import { battleSpecies, battleStatsAtLevel, equippedMoves, moveOptions, moves, ultimateOptions } from '../dev/battle.js'
+import { regionalSpecies } from '../ui/regional-species.js'
 import { level, maxLevel } from '../ui/levels.js'
 import { kanto } from './kanto.js'
 import { nationalDex } from './national-dex.js'
 
-export const speciesName = id => kanto[id - 1] ?? nationalDex[id - 1]?.[2]
-const idsByName = new Map(nationalDex.map(([id]) => [speciesName(id), id]))
+export const dexEntries = [...nationalDex, ...regionalSpecies.map(form => [form.id, form.region, form.name])]
+const entriesById = new Map(dexEntries.map(entry => [entry[0], entry]))
+export const speciesName = id => kanto[id - 1] ?? entriesById.get(id)?.[2]
+const idsByName = new Map(dexEntries.map(([id]) => [speciesName(id), id]))
 
 export function creatureMoves(speciesKey, xp, dna = 0) {
   const id = idsByName.get(speciesKey.replace(/ ✦$/, ''))
   if (!id) return null
   const rank = level(xp)
-  const [form, stats, types, final] = nationalStats[id - 1]
+  const [form, stats, types, final] = battleSpecies(id)
   const unlockedAt = new Map()
   for (let rank = 1; rank <= maxLevel; rank++) {
     for (const key of moveOptions(form, types, final, rank)) {

@@ -1,3 +1,4 @@
+import { adminCommunities, adminPortal } from './admin.js'
 import { expireShopOrders } from './shop-queue.js'
 import { enqueueWebGame, webGameStatus, webGameViewer } from './web-game.js'
 import { botCopy } from '../ui/bot-copy.js'
@@ -10,7 +11,8 @@ import { nationalDex } from './national-dex.js'
 import { kanto } from './kanto.js'
 import { equippedMoves, moveCooldown, movePp, moves } from '../dev/battle.js'
 import { familyDnaCount, familyRoot, maxDnaBoosters } from '../ui/evolution.js'
-import { creatureMoves, parseLoadout, speciesName, validMoveset } from './movesets.js'
+import { regionalSpecies } from '../ui/regional-species.js'
+import { creatureMoves, dexEntries, parseLoadout, speciesName, validMoveset } from './movesets.js'
 import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles, mobileStyles, liveReactionStyles } from './portal-style.js'
 import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
 import { arenaShopItems, heldItems } from '../ui/held-items.js'
@@ -313,13 +315,13 @@ async function renderLiveGame(request, db, url, language) {
 }
 
 const families = new Map()
-for (const entry of nationalDex) {
+for (const entry of dexEntries) {
   const root = familyRoot(entry[0])
   if (!families.has(root)) families.set(root, [])
   families.get(root).push(entry)
 }
 const familyLinks = id => families.get(familyRoot(id)) ?? []
-const dexByName = new Map(nationalDex.map(([id]) => [speciesName(id), id]))
+const dexByName = new Map(dexEntries.map(([id]) => [speciesName(id), id]))
 function sharedDna(boosters, key) {
   const name = key.replace(/ ✦$/, '')
   const id = dexByName.get(name)
@@ -682,13 +684,14 @@ export async function portal(request, url, env) {
   }
   const route = url.pathname.match(/^\/auth\/(twitch|kick)(?:\/(callback|link))?$/)
   const { session, key, identity } = await viewerSession(request, env.DB)
+  if (url.pathname === '/admin') return adminPortal(request, url, env.DB, identity, language === 'en', escape, page)
 
   if (request.method === 'POST' && url.pathname === '/dex/seen') {
     if (!identity || request.headers.get('Origin') !== url.origin) return new Response(null, { status: 403 })
     const community = url.searchParams.get('community') ?? ''
     const dex = Number(url.searchParams.get('species'))
     const at = Number(url.searchParams.get('at'))
-    if (!/^[a-z0-9_-]{1,64}$/.test(community) || !Number.isInteger(dex) || !nationalDex[dex - 1] ||
+    if (!/^[a-z0-9_-]{1,64}$/.test(community) || !Number.isInteger(dex) || !speciesName(dex) ||
         !Number.isSafeInteger(at) || at < 1 || at > Date.now() + 60_000) return new Response(null, { status: 400 })
     const name = speciesName(dex)
     const { results } = await env.DB.prepare('SELECT p.payload FROM viewer_progress p JOIN account_identities i ON i.viewer_id = p.viewer_id WHERE p.community_id = ? AND i.account_id = ?')
@@ -911,8 +914,9 @@ export async function portal(request, url, env) {
     }).join('')
     const message = url.searchParams.has('unlinked') ? (language === 'en' ? 'Sign-in unlinked. The shared album stays with your remaining login.' : 'Acceso desvinculado. El álbum compartido se conserva con el acceso restante.') :
       url.searchParams.has('unlinkError') ? (language === 'en' ? 'Keep at least one sign-in method active.' : 'Mantén al menos una forma de iniciar sesión.') : ''
+    const admin = (await adminCommunities(env.DB, identity.account_id)).length ? '<p><a class="button" href="/admin">' + (language === 'en' ? 'Streamer administration' : 'Administración del streamer') + '</a></p>' : ''
     return page('<section class="sheet"><h1>' + t("Cuentas vinculadas") + '</h1>' + (message ? '<p role="status">' + message + '</p>' : '') + '<ul class="community-list">' + rows +
-      '</ul><p><a href="/">' + t("Volver a comunidades") + '</a></p><hr><p><a class="danger-action" href="/auth/delete">' + deleteLabel + '</a></p></section>')
+      '</ul>' + admin + '<p><a href="/">' + t("Volver a comunidades") + '</a></p><hr><p><a class="danger-action" href="/auth/delete">' + deleteLabel + '</a></p></section>')
   }
   const selected = results.find(row => row.community_id === url.searchParams.get('community'))
   if (editing && !selected) return new Response(null, { status: 404 })
@@ -1240,7 +1244,9 @@ export async function portal(request, url, env) {
     for (const row of seenRows.results) seen.set(row.species_id, row.seen_at)
     for (const row of eggs.results) eggAcquired.set(row.dex, row.acquired)
   }
-  const regionSpecies = nationalDex.slice(region[2] - 1, region[3])
+  const regionalNumbers = new Map(regionalSpecies.map(form => [form.id, form.baseId]))
+  const regionSpecies = [...nationalDex.slice(region[2] - 1, region[3]), ...dexEntries.slice(nationalDex.length)
+    .filter(([, formRegion]) => region[0] === 'all' || formRegion === region[0])]
   const borders = tab === 'dex' ? '<style>' + [...new Set(regionSpecies.map(([dex]) => familyRoot(dex)))].map(root =>
     '.dex-grid:has([data-family="' + root + '"]:is(:hover,:focus-within)) [data-family="' + root + '"]{outline:2px solid #6664ac;outline-offset:1px}'
   ).join('') + '</style>' : ''
@@ -1267,7 +1273,7 @@ export async function portal(request, url, env) {
     const isNew = owned && acquired > (seen.get(dex) ?? 0)
     return '<li class="slot ' + (owned ? 'owned' : 'locked') + '" data-family="' + familyRoot(dex) + '"' +
       (isNew ? ' data-dex-new="' + dex + '" data-acquired="' + acquired + '"><span class="dex-new">' + (en ? 'NEW' : 'NUEVO') + '</span>' : '>') + '<span class="dex-number">#' +
-      String(dex).padStart(3, '0') + '</span>' +
+      String(regionalNumbers.get(dex) ?? dex).padStart(3, '0') + '</span>' +
       (member ? summaryLink(member, profile, 'dex-entry') : profile) +
       '<div class="variants">' + (details || '<span>' + t("Sin capturar") + '</span>') + '</div></li>'
   }).join('') : ''

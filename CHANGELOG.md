@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add 57 regional Pokédex entries across Alola, Galar, Hisui and Paldea, with independent collection keys, move pools and battle stats.
+- Add a web administration console restricted to verified Twitch and Kick community owners.
+
 - Deduplicate shop submissions and retries, show unseen Pokédex additions, and reconcile verified Twitch/Kick identities without deleting their albums.
 
 - Recover purchases with fractional egg XP, isolate invalid receipts, expire stalled orders, and limit repeated purchases.

@@ -1,5 +1,6 @@
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { battleFormAssets, battleFormFallbacks } from '../ui/abilities.js'
+import { regionalSpecies } from '../ui/regional-species.js'
 import { nationalDex } from '../cloud/national-dex.js'
 
 const revision = 'ef13b72c6cd3de0c0cb5a99c50c22c9c4ace4729'
@@ -165,10 +166,24 @@ await Promise.all(available.filter(item => battleFormAssets[Number(item.id)]).ma
   }))
   item.battleForms = Object.fromEntries(forms.filter(Boolean))
 }))
+await Promise.all(regionalSpecies.map(async (form, index) => {
+  const id = String(form.id)
+  const sourceId = String(form.baseId).padStart(4, '0')
+  const path = form.pmdForm ? '/' + form.pmdForm : null
+  const old = cached.get(id)
+  const normal = await cachedVariant(old?.normal) ?? (path ? await importVariant(sourceId, false, [], path) : null) ??
+    await importStill(id, form.id, false, true)
+  if (!normal) return
+  const required = Object.keys(normal.animations)
+  const shiny = await cachedVariant(old?.shiny) ?? (path ? await importVariant(sourceId, true, required, path) : null) ??
+    await importStill(id + '-shiny', form.id, true, true)
+  available[species.length + index] = { id, name: form.name, baseId: sourceId, pmdForm: form.pmdForm, region: form.region, normal, shiny }
+}))
+const catalog = available.filter(Boolean)
 const temporary = new URL('manifest.json.tmp', root)
-await writeFile(temporary, JSON.stringify({ revision, species: available,
-  missing: available.filter(item => item.normal.source === 'pokeapi').map(item => item.id), strictShiny: true }))
+await writeFile(temporary, JSON.stringify({ revision, species: catalog,
+  missing: catalog.filter(item => item.normal.source === 'pokeapi').map(item => item.id), strictShiny: true }))
 await rename(temporary, manifestPath)
 console.log('Imported %d normal species, %d complete shiny variants and %d fallback stills.',
-  available.length, available.filter(item => item.shiny).length, available.filter(item => item.normal.source === 'pokeapi').length)
+  catalog.length, catalog.filter(item => item.shiny).length, catalog.filter(item => item.normal.source === 'pokeapi').length)
 

@@ -124,7 +124,7 @@ export const darkStyles = `
 [data-theme=dark] .bag-slot,[data-theme=dark] .move-options label,[data-theme=dark] .help-steps li:nth-child(even){background:#443748;border-color:var(--line)}
 [data-theme=dark] .move-options .move-card:has(input:checked){background:#24483e;border-color:#63b58d}
 [data-theme=dark] .variants a.shiny-tag{color:#2d1e08;background:#ffe590}
-.live-item-count{display:flex;align-items:center;gap:.45rem}
+.live-item-count{display:flex;align-items:center;gap:.45rem}.admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:1rem;margin:1rem 0}.admin-command,.admin-command label{display:grid;gap:.4rem}.admin-command{margin:0 0 1rem}.admin-command input,.admin-command select{font:inherit;min-width:0;max-width:100%;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:.45rem;padding:.4rem}.admin-command button{justify-self:start}
 .egg-dialog{--glow:#fff8d8;--radius:6px;--ray-opacity:0;text-align:center;width:min(420px,calc(100vw - 26px));max-height:calc(100dvh - 26px);padding:clamp(16px,5vw,30px);border:2px solid var(--line);border-radius:24px;background:var(--paper);color:var(--ink);box-shadow:var(--shadow);overflow:auto}
 .egg-dialog::backdrop{background:#161027c9}
 .egg-dialog[data-rarity=uncommon]{--glow:#8df2af;--radius:18px}

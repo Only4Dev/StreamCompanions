@@ -2,11 +2,12 @@ import { completeProjectBot, projectBotAuthorization, twitchProjectReply } from 
 import { cueType, maxCueBytes } from '../ui/shiny-cue.js'
 import { deviceWebGame, finishWebGame } from './web-game.js'
 import { expireShopOrders } from './shop-queue.js'
+import { finishAdminActions, pendingAdminActions } from './admin.js'
 import { portal } from './portal.js'
 import { readMovesets } from './movesets.js'
 import { completeKickLink, kickDevice, kickWebhook, seal, startKickLink } from './kick.js'
 import { arenaShopItems, heldItems } from '../ui/held-items.js'
-import { nationalStats } from '../dev/national-stats.js'
+import { battleSpecies } from '../dev/battle.js'
 import { eggRarity, specialEncounterTag } from '../ui/capture-rates.js'
 import { eggRarities, featuredShopItems, normalizeShopPrices } from '../ui/shop.js'
 
@@ -224,7 +225,8 @@ async function deviceShop(request, db) {
     const linksRequested = request.headers.get('X-Identity-Links') === '1' ||
       request.headers.get('X-Identity-Orders') === '1' && pending.results.some(order => order.viewerId.startsWith('kick:'))
     const links = linksRequested ? (await db.prepare('SELECT k.viewer_id AS kickId, t.viewer_id AS twitchId ' + activeIdentityPairs).bind(community).all()).results : undefined
-    return json({ webActions, links, orders: pending.results.map(({ price, speciesKey, quantity, ...order }) => ({ ...order,
+    const adminActions = request.headers.get('X-Admin-Actions') === '1' ? await pendingAdminActions(db, device) : undefined
+    return json({ webActions, links, adminActions, orders: pending.results.map(({ price, speciesKey, quantity, ...order }) => ({ ...order,
       ...(quantity === 1 ? {} : { quantity }), ...(price === null ? {} : { price }), ...(speciesKey === null ? {} : { speciesKey }) })) })
   }
   if (request.method !== 'POST') return json({ error: 'invalid method' }, 405)
@@ -252,7 +254,7 @@ async function deviceShop(request, db) {
     if (order.result !== null && order.result !== 'review') { received.push(receipt.id); continue }
     const hatch = receipt.hatch
     if (order.item === 'poke-egg' && receipt.result === 'purchased' || hatch !== undefined) {
-      const row = nationalStats[hatch?.id - 1]
+      const row = battleSpecies(hatch?.id)
       if (order.item !== 'poke-egg' || !row || row[0] !== hatch.id || specialEncounterTag(hatch.id, Boolean(row[5])) ||
           typeof hatch.name !== 'string' || !Object.hasOwn(receipt.viewer?.collection ?? {}, hatch.name) ||
           !eggRarities.includes(hatch.rarity) || hatch.rarity !== eggRarity(hatch.id) ||
@@ -401,6 +403,14 @@ export default {
       const linked = await env.DB.prepare('SELECT k.viewer_id ' + activeIdentityPairs + ' AND t.viewer_id = ? LIMIT 1')
         .bind(device.community_id, viewer).first()
       return json({ kickId: linked?.viewer_id ?? null })
+    }
+    if (path === '/api/admin-actions' && request.method === 'POST') {
+      const device = await authorizedDevice(request, env.DB)
+      if (!device) return json({ error: 'unauthorized' }, 401)
+      let receipts
+      try { receipts = await readBatch(request) } catch { return json({ error: 'invalid admin receipts' }, 400) }
+      const received = await finishAdminActions(env.DB, device, receipts)
+      return received ? json({ received }) : json({ error: 'invalid admin receipts' }, 400)
     }
     if (path === '/api/shop') return deviceShop(request, env.DB)
     if (request.method === 'GET' && path === '/api/privacy') return deviceErasure(request, env.DB)

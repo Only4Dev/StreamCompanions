@@ -10,7 +10,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
   for (const migration of ['0001_sync', '0002_portal', '0003_viewer_login', '0004_accounts', '0005_movesets', '0006_kick',
-    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity', '0019_web_game', '0020_portal_announcements', '0021_shiny_cue', '0022_shop_hatch', '0023_shop_expiry', '0024_dex_seen']) {
+    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity', '0019_web_game', '0020_portal_announcements', '0021_shiny_cue', '0022_shop_hatch', '0023_shop_expiry', '0024_dex_seen', '0025_admin']) {
     db.exec(await readFile(new URL('./migrations/' + migration + '.sql', import.meta.url), 'utf8'))
   }
   const D1 = {
@@ -276,6 +276,30 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const burst = db.prepare("INSERT INTO shop_orders (id, community_id, viewer_id, item, created_at, result) VALUES (?, 'stream', 'twitch:1', 'poke-ball', ?, 'funds')")
   for (let index = 0; index < 8; index++) burst.run(crypto.randomUUID(), Date.now())
   assert.match((await order(crypto.randomUUID(), 100, 1)).headers.get('Location'), /retry=1/)
+  const adminUrl = base + '/admin?community=stream'
+  const authAdmin = (url, headers = cookie) => worker.fetch(new Request(url, { headers }), { DB: D1 })
+  assert.equal((await authAdmin(adminUrl, {})).status, 401)
+  assert.equal((await authAdmin(adminUrl)).status, 403)
+  db.prepare('INSERT INTO community_owners VALUES (?, ?, ?)').run('1', 'stream', hash)
+  assert.equal((await authAdmin(base + '/admin?community=another')).status, 403)
+  assert.equal((await authAdmin(adminUrl)).status, 200)
+  const pollAdmin = async () => (await (await worker.fetch(new Request(base + '/api/shop', {
+    headers: { Authorization: 'Bearer ' + token, 'X-Admin-Actions': '1' }
+  }), { DB: D1 })).json()).adminActions
+  assert.deepEqual(await pollAdmin(), [])
+  const adminId = crypto.randomUUID()
+  const adminPost = origin => worker.fetch(new Request(adminUrl, { method: 'POST',
+    headers: { ...cookie, Origin: origin }, body: new URLSearchParams({ id: adminId, type: 'grant', viewer: 'twitch:1', kind: 'money', amount: '5000' })
+  }), { DB: D1 })
+  assert.equal((await adminPost('https://other.test')).status, 403)
+  assert.match((await adminPost(base)).headers.get('Location'), /status=queued/)
+  assert.deepEqual(await pollAdmin(), [{ id: adminId, type: 'grant', viewerId: 'twitch:1', kind: 'money', item: '', amount: 5000 }])
+  const ackAdmin = await worker.fetch(new Request(base + '/api/admin-actions', { method: 'POST',
+    headers: { Authorization: 'Bearer ' + token }, body: JSON.stringify({ viewers: [{ id: adminId, result: 'done' }] })
+  }), { DB: D1 })
+  assert.deepEqual(await ackAdmin.json(), { received: [adminId] })
+  assert.deepEqual(await pollAdmin(), [])
+  db.prepare('DELETE FROM community_owners WHERE community_id = ?').run('stream')
   const confirmPage = await worker.fetch(new Request(base + '/auth/delete', { headers: { Cookie: 'sc_session=' + session } }), { DB: D1 })
   const confirmationCookie = confirmPage.headers.getSetCookie().find(item => item.startsWith('sc_delete=')).split(';')[0]
   const nonce = confirmationCookie.slice('sc_delete='.length).split('.')[0]
