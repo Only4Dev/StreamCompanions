@@ -22,13 +22,22 @@ export function battleClip(animations, motion, kind) {
 }
 
 function loadImage(animation) {
-  if (!images.has(animation.url)) {
+  let cached = images.get(animation.url)
+  if (!cached || cached.retryAt <= Date.now()) {
+    const attempt = (cached?.attempt ?? -1) + 1
     const image = new Image()
-    image.src = animation.url
-    images.set(animation.url, image)
+    cached = { image, attempt, retryAt: Infinity }
+    image.onerror = () => { cached.retryAt = Date.now() + Math.min(30_000, 3000 * 2 ** attempt) }
+    images.set(animation.url, cached)
+    const separator = animation.url.includes('?') ? '&' : '?'
+    image.src = attempt ? animation.url + separator + 'retry=' + Date.now() : animation.url
   }
-  const image = images.get(animation.url)
+  const { image } = cached
   return image.complete && image.naturalWidth ? image : null
+}
+
+function readyClip(clip, animations) {
+  return [clip, animations?.Idle, animations?.Walk].find(candidate => candidate && loadImage(candidate))
 }
 
 function companionScale(reference) {
@@ -162,12 +171,13 @@ function encounterCard(ctx, wild, entry, captures, width, height, fade, time, fo
   box(-77, 3, 154, 170, 10, accent)
   box(-74, 6, 148, 164, 8, '#233339')
   box(-55, 12, 110, 110, 5, '#16272b')
-  const cropped = (wild.shiny ? entry?.shinyPortrait : entry?.portrait)
+  const cropped = wild.shiny ? entry?.shinyPortrait ?? entry?.portrait : entry?.portrait
   const image = cropped ? loadImage({ url: cropped }) : null
   if (image) ctx.drawImage(image, -53, 14, 106, 106)
   else {
-    const animations = (wild.shiny ? entry?.shiny : entry?.normal)?.animations
-    if (!sprite(ctx, animations?.Idle || animations?.Walk, 0, 66, 0, 0, true, 1.6)) label(ctx, wild.name[0], 0, 74, 34)
+    const animations = (wild.shiny ? entry?.shiny ?? entry?.normal : entry?.normal)?.animations
+    sprite(ctx, readyClip(null, animations), 0, 66, 0, 0, true, 1.6)
+    if (!cropped && !animations?.Idle && !animations?.Walk) label(ctx, wild.name[0], 0, 74, 34)
   }
   if (wild.shiny) sparkles(ctx, 0, 68, time, 0, 2)
   label(ctx, wild.name + (wild.shiny ? ' ✦' : '') + ' · Lv. ' + (wild.level ?? 1), 0, 140, wild.name.length > 13 ? 13 : 15)
@@ -354,7 +364,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         const appearance = fighter.appearance ?? fighter
         const entry = species.get(appearance.name)
         const form = entry?.battleForms?.[appearance.form]
-        const variant = appearance.shiny ? form?.shiny ?? entry?.shiny : form?.normal ?? entry?.normal
+        const variant = appearance.shiny ? form?.shiny ?? entry?.shiny ?? form?.normal ?? entry?.normal : form?.normal ?? entry?.normal
         const clip = battleClip(variant?.animations, fighter.motion)
         const start = battlePositions.get(index) ?? fighter.x
         const x = start + (fighter.x - start) * Math.min(1, elapsed * 13)
@@ -363,7 +373,10 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         const y = fighter.maneuver?.kind === 'fly' ? baseY - Math.sin(Math.PI * fighter.maneuver.phase) * 130 : baseY
         const top = y - Math.max(50, (clip?.height ?? 0) * spriteScale(clip, 3 * zoom) / 2)
         if (fighter.maneuver?.kind === 'dig') drawDigMound(context, x, y, battle.time)
-        else if (!sprite(context, clip, x, y, fighter.direction, time, false, 3 * zoom)) label(context, fighter.name[0], x, y, 25)
+        else {
+          sprite(context, readyClip(clip, variant?.animations), x, y, fighter.direction, time, false, 3 * zoom)
+          if (!clip) label(context, fighter.name[0], x, y, 25)
+        }
         if (fighter.ongoing) drawOngoing(context, fighter.ongoing, x, y, battle.time)
         if (fighter.status) drawStatus(context, fighter.status, x, top - 55, battle.time, 26, 24)
         if (fighter.evasion || fighter.flinched) label(context, fighter.flinched ? '✦ ✦' : '≋', x + 32, top - 49, 20)
@@ -391,7 +404,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       const { key, layer } = data.active
       const name = key.replace(/ ✦$/, '')
       const entry = species.get(name)
-      const animations = (key.endsWith(' ✦') ? entry?.shiny : entry?.normal)?.animations ?? {}
+      const animations = (key.endsWith(' ✦') ? entry?.shiny ?? entry?.normal : entry?.normal)?.animations ?? {}
       if (!actors.has(layer)) actors.set(layer, { x: width * (.15 + Math.random() * .7),
         direction: Math.random() < .5 ? -1 : 1, until: time + 640, since: time, arrived: time,
         behavior: 'Idle', turnAt: null, speed: 0 })
@@ -432,9 +445,9 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       if (summonAge < 230) continue
       context.save()
       context.globalAlpha = Math.min(1, (summonAge - 230) / 230)
-      if (!sprite(context, animation, actor.x, y, actor.direction, time - actor.since, false, scale, once)) {
-        label(context, name[0], actor.x, y, 22)
-      }
+      const clip = readyClip(animation, animations)
+      sprite(context, clip, actor.x, y, actor.direction, time - actor.since, false, scale, once && clip === animation)
+      if (!animation) label(context, name[0], actor.x, y, 22)
       if (key.endsWith(' ✦')) sparkles(context, actor.x, y, time, layer * .13, scale)
       const pickup = data.active.pickup
       const pickupAge = pickup && (Date.now() - pickup.at) / 2100

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.3
+
+- Refresh stale overlay catalogs, retry failed sprite requests and use a loaded idle or walking sprite while other animations load.
+
 ## 1.2.2
 
 - Fix a desktop startup error in the administration form that left the window blank.

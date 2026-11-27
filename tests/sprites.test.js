@@ -1,6 +1,38 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { battleClip, chooseBehavior, createCaptureQueue, showScene, spriteScale } from '../ui/sprites.js'
+import { battleClip, chooseBehavior, createCaptureQueue, showScene, sprite, spriteScale } from '../ui/sprites.js'
+
+test('sprite loads retry after a temporary image failure', () => {
+  const originalImage = globalThis.Image
+  const originalNow = Date.now
+  let now = 0
+  const requests = []
+  globalThis.Image = class {
+    set src(url) {
+      requests.push(url)
+      this.complete = true
+      this.naturalWidth = requests.length > 1 ? 96 : 0
+      if (!this.naturalWidth) this.onerror()
+    }
+  }
+  Date.now = () => now
+  const clip = { url: '/pmd/fixture-retry/Idle-Anim.png', width: 32, height: 32, durations: [60], rows: 1 }
+  let draws = 0
+  const context = { drawImage() { draws++ } }
+  try {
+    assert.equal(sprite(context, clip, 0, 0, 1, 0), false)
+    now = 2999
+    assert.equal(sprite(context, clip, 0, 0, 1, 0), false)
+    assert.equal(requests.length, 1)
+    now = 3000
+    assert.equal(sprite(context, clip, 0, 0, 1, 0), true)
+    assert.equal(requests[1], clip.url + '?retry=3000')
+    assert.equal(draws, 1)
+  } finally {
+    globalThis.Image = originalImage
+    Date.now = originalNow
+  }
+})
 
 test('overlay capture feed reveals simultaneous catches in order and frees space as each fades', () => {
   const queue = createCaptureQueue()
