@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2
+
+- Fix a desktop startup error in the administration form that left the window blank.
+
 ## 1.2.1
 
 - Add five hatch presentations and a 0.001% chance of a first-stage Legendary Pokémon per egg. Restrict ordinary eggs and wild encounters to first stages.
