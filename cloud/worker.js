@@ -1,18 +1,22 @@
 import { completeProjectBot, projectBotAuthorization, twitchProjectReply } from './project-bots.js'
 import { cueType, maxCueBytes } from '../ui/shiny-cue.js'
 import { deviceWebGame, finishWebGame } from './web-game.js'
+import { expireShopOrders } from './shop-queue.js'
+import { finishAdminActions, pendingAdminActions } from './admin.js'
 import { portal } from './portal.js'
 import { readMovesets } from './movesets.js'
 import { completeKickLink, kickDevice, kickWebhook, seal, startKickLink } from './kick.js'
 import { arenaShopItems, heldItems } from '../ui/held-items.js'
-import { nationalStats } from '../dev/national-stats.js'
+import { isFirstStage } from '../ui/evolution.js'
+import { battleSpecies } from '../dev/battle.js'
 import { eggRarity, specialEncounterTag } from '../ui/capture-rates.js'
-import { eggRarities, featuredShopItems, normalizeShopPrices } from '../ui/shop.js'
+import { featuredShopItems, normalizeShopPrices } from '../ui/shop.js'
 
 const json = (data, status = 200) => Response.json(data, {
   status, headers: { 'Cache-Control': 'no-store' }
 })
 const types = ['normal', 'great', 'ultra', 'master']
+const activeIdentityPairs = "FROM account_identities t JOIN account_identities k USING (account_id) WHERE t.viewer_id LIKE 'twitch:%' AND t.detached_at IS NULL AND k.detached_at IS NULL AND k.viewer_id LIKE 'kick:%' AND EXISTS (SELECT 1 FROM viewer_progress p WHERE p.community_id = ? AND p.viewer_id IN (t.viewer_id, k.viewer_id))"
 
 async function registerDevice(request, db) {
   const token = request.headers.get('Authorization')?.match(/^OAuth ([a-zA-Z0-9]{20,128})$/)?.[1]
@@ -113,6 +117,9 @@ function viewerWrites(db, device, viewers) {
     const legendaryTrackers = viewer.legendaryTrackers ?? 0
     const pokeDollars = viewer.pokeDollars ?? 0
     const dnaBoosters = viewer.dnaBoosters ?? {}
+    const dexAcquired = viewer.dexAcquired ?? {}
+    if (!dexAcquired || typeof dexAcquired !== 'object' || Array.isArray(dexAcquired) || Object.entries(dexAcquired).some(([name, at]) =>
+      !Object.hasOwn(viewer.collection, name) || !Number.isSafeInteger(at) || at < 0)) return json({ error: 'invalid dex acquisitions' }, 400)
     if (typeof dnaBoosters !== 'object' || Array.isArray(dnaBoosters) || Object.entries(dnaBoosters).some(([key, count]) =>
       !Object.hasOwn(viewer.collection, key) || !Number.isInteger(count) || count < 0 || count > 10)) return json({ error: 'invalid DNA boosters' }, 400)
     if (![rareCandies, legendaryTrackers, pokeDollars].every(value => Number.isSafeInteger(value) && value >= 0)) return json({ error: 'invalid rewards' }, 400)
@@ -142,7 +149,7 @@ function viewerWrites(db, device, viewers) {
       'WHERE excluded.revision > viewer_progress.revision'
     ).bind(device.community_id, viewer.id, viewer.revision,
         JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters, ...(legendaryTrackers ? { legendaryTrackers } : {}),
-          log: log.map(({ at, platform, action, result, capture }) => ({
+          ...(Object.keys(dexAcquired).length ? { dexAcquired } : {}), log: log.map(({ at, platform, action, result, capture }) => ({
             at, platform, action, result, ...(capture ? { capture: { ball: capture.ball, remaining: capture.remaining, pokemon: capture.pokemon } } : {})
           })), metrics: { wins: metrics.wins, losses: metrics.losses, summonMinutes: metrics.summonMinutes } }), Date.now(), viewer.id, generation, generation, viewer.id, device.key_hash))
     writes.push(db.prepare('INSERT OR IGNORE INTO erasure_devices SELECT ?, viewer_id FROM erased_viewers WHERE viewer_id = ?')
@@ -198,56 +205,78 @@ async function deviceShop(request, db) {
     const familyDna = request.headers.get('X-Shop-Family-Dna')
     const supportsQuantity = Number(request.headers.get('X-Shop-Quantity') === '1')
     const dnaLevel = dna ? (familyDna === '2' ? 3 : familyDna === '1' ? 2 : 1) : 0
-    const [, pending] = await db.batch([
+    const now = Date.now()
+    const eligible = 'FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
+      'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) AND (? = 1 OR quantity = 1) ' +
+      "AND (item NOT IN (SELECT value FROM json_each(?)) OR item IN (SELECT key FROM json_each(?))) " +
+      'ORDER BY created_at, id LIMIT 10'
+    const queue = [community, packed, dnaLevel, supportsQuantity, JSON.stringify(['master-ball', ...arenaShopItems, ...featuredShopItems]), packed]
+    const [, , , pending] = await db.batch([
+      expireShopOrders(db, community, now),
+      db.prepare('UPDATE shop_orders SET dispatched_at = COALESCE(dispatched_at, ?) WHERE id IN (SELECT id ' + eligible + ') AND dispatched_at IS NULL').bind(now, ...queue),
       db.prepare('INSERT INTO shop_online (community_id, seen_at, prices, supports_dna, supports_quantity) VALUES (?, ?, ?, ?, ?) ' +
         'ON CONFLICT (community_id) DO UPDATE SET seen_at = excluded.seen_at, prices = excluded.prices, supports_dna = excluded.supports_dna, supports_quantity = excluded.supports_quantity ' +
         'WHERE (excluded.prices IS NOT NULL OR shop_online.prices IS NULL) AND ' +
         '(shop_online.seen_at <= excluded.seen_at - 15000 OR shop_online.prices IS NOT excluded.prices OR ' +
         'shop_online.supports_dna != excluded.supports_dna OR shop_online.supports_quantity != excluded.supports_quantity)').bind(community, Date.now(), packed, dnaLevel, supportsQuantity),
-      db.prepare('SELECT id, viewer_id AS viewerId, item, price, species_key AS speciesKey, quantity FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
-        'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) AND (? = 1 OR quantity = 1) ' +
-        "AND (item NOT IN (SELECT value FROM json_each(?)) OR item IN (SELECT key FROM json_each(?))) " +
-        'ORDER BY created_at, id LIMIT 10').bind(community, packed, dnaLevel, supportsQuantity, JSON.stringify(['master-ball', ...arenaShopItems, ...featuredShopItems]), packed)
+      db.prepare('SELECT id, viewer_id AS viewerId, item, price, species_key AS speciesKey, quantity ' + eligible).bind(...queue)
     ])
     const state = request.headers.get('X-Web-Game')
     const webActions = state === null ? undefined : await deviceWebGame(db, device, state)
-    return json({ webActions, orders: pending.results.map(({ price, speciesKey, quantity, ...order }) => ({ ...order,
+    const linksRequested = request.headers.get('X-Identity-Links') === '1' ||
+      request.headers.get('X-Identity-Orders') === '1' && pending.results.some(order => order.viewerId.startsWith('kick:'))
+    const links = linksRequested ? (await db.prepare('SELECT k.viewer_id AS kickId, t.viewer_id AS twitchId ' + activeIdentityPairs).bind(community).all()).results : undefined
+    const adminActions = request.headers.get('X-Admin-Actions') === '1' ? await pendingAdminActions(db, device) : undefined
+    return json({ webActions, links, adminActions, orders: pending.results.map(({ price, speciesKey, quantity, ...order }) => ({ ...order,
       ...(quantity === 1 ? {} : { quantity }), ...(price === null ? {} : { price }), ...(speciesKey === null ? {} : { speciesKey }) })) })
   }
   if (request.method !== 'POST') return json({ error: 'invalid method' }, 405)
   let receipts
   try { receipts = (await readBatch(request)) } catch { return json({ error: 'invalid receipts' }, 400) }
-  if (!Array.isArray(receipts) || receipts.length < 1 || receipts.length > 10 || receipts.some(row =>
-    !/^[a-f0-9-]{36}$/.test(row?.id ?? '') || !['unavailable', 'owned', 'funds', 'purchased', 'maxed', 'repriced', 'battleLocked'].includes(row?.result))) {
+  if (!Array.isArray(receipts) || receipts.length < 1 || receipts.length > 10) {
     return json({ error: 'invalid receipts' }, 400)
   }
-  const viewers = []
+  const received = []
+  const reject = (receipt, reason) => console.warn(JSON.stringify({ event: 'shop_receipt_rejected', receipt: receipt.id, reason }))
+  const seenReceipts = new Set()
   for (const receipt of receipts) {
-    if (receipt.viewer === undefined && receipt.hatch === undefined) continue
+    if (seenReceipts.has(receipt?.id) || !/^[a-f0-9-]{36}$/.test(receipt?.id ?? '') ||
+        !['unavailable', 'owned', 'funds', 'purchased', 'maxed', 'repriced', 'battleLocked'].includes(receipt?.result)) continue
+    seenReceipts.add(receipt.id)
     const order = await db.prepare('SELECT viewer_id, result, item FROM shop_orders WHERE community_id = ? AND id = ?')
       .bind(community, receipt.id).first()
-    if (!order || receipt.result !== 'purchased' || receipt.viewer?.id !== order.viewer_id) {
-      return json({ error: 'invalid purchase viewer' }, 400)
+    const submittedViewer = receipt.viewer?.id
+    const linkedOwner = order && submittedViewer && submittedViewer !== order.viewer_id &&
+      await db.prepare('SELECT 1 AS linked ' + activeIdentityPairs + ' AND k.viewer_id = ? AND t.viewer_id = ?').bind(community, order.viewer_id, submittedViewer).first()
+    if (!order || (receipt.viewer !== undefined && (receipt.result !== 'purchased' || (submittedViewer !== order.viewer_id && !linkedOwner)))) {
+      reject(receipt, 'viewer')
+      continue
     }
+    if (order.result !== null && order.result !== 'review') { received.push(receipt.id); continue }
     const hatch = receipt.hatch
-    if (order.item === 'poke-egg' || hatch !== undefined) {
-      const row = nationalStats[hatch?.id - 1]
-      if (order.item !== 'poke-egg' || !row || row[0] !== hatch.id || specialEncounterTag(hatch.id, Boolean(row[5])) ||
-          typeof hatch.name !== 'string' || !Object.hasOwn(receipt.viewer.collection ?? {}, hatch.name) ||
-          !eggRarities.includes(hatch.rarity) || hatch.rarity !== eggRarity(hatch.id) ||
-          typeof hatch.duplicate !== 'boolean' || !Number.isSafeInteger(hatch.xp) || hatch.xp < 0) {
-        return json({ error: 'invalid egg hatch' }, 400)
+    if (order.item === 'poke-egg' && receipt.result === 'purchased' || hatch !== undefined) {
+      const row = battleSpecies(hatch?.id)
+      const special = row && specialEncounterTag(hatch.id, Boolean(row[5]))
+      const expected = special === 'legendary' ? 'legendary' : !special && row ? eggRarity(hatch.id) : null
+      if (order.item !== 'poke-egg' || !row || row[0] !== hatch.id || !expected ||
+          ((hatch.rules === 2 || special === 'legendary') && !isFirstStage(hatch.id)) ||
+          typeof hatch.name !== 'string' || !Object.hasOwn(receipt.viewer?.collection ?? {}, hatch.name) ||
+          hatch.rarity !== expected ||
+          typeof hatch.duplicate !== 'boolean' || !Number.isFinite(hatch.xp) || hatch.xp < 0 || hatch.xp > Number.MAX_SAFE_INTEGER) {
+        reject(receipt, 'hatch')
+        continue
       }
     }
-    if (order.result === null) viewers.push(receipt.viewer)
+    const writes = viewerWrites(db, device, receipt.viewer ? [receipt.viewer] : [])
+    if (writes instanceof Response) { reject(receipt, 'progress'); continue }
+    const { id, result } = receipt
+    await db.batch([...writes, db.prepare(
+      "UPDATE shop_orders SET result = ?, hatch = ? WHERE community_id = ? AND id = ? AND (result IS NULL OR result = 'review') AND " +
+      'EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
+    ).bind(result, hatch ? JSON.stringify({ id: hatch.id, name: hatch.name, rarity: hatch.rarity, duplicate: hatch.duplicate, xp: Math.floor(hatch.xp) }) : null, community, id, device.key_hash)])
+    received.push(id)
   }
-  const writes = viewerWrites(db, device, viewers)
-  if (writes instanceof Response) return writes
-  await db.batch([...writes, ...receipts.map(({ id, result, hatch }) => db.prepare(
-    'UPDATE shop_orders SET result = ?, hatch = ? WHERE community_id = ? AND id = ? AND result IS NULL AND ' +
-    'EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
-  ).bind(result, hatch ? JSON.stringify(hatch) : null, community, id, device.key_hash))])
-  return json({ received: receipts.map(({ id }) => id) })
+  return received.length ? json({ received }) : json({ error: 'no valid shop receipts' }, 400)
 }
 
 export default {
@@ -370,6 +399,23 @@ export default {
     if (request.method === 'POST' && path === '/api/sync') return synchronize(request, env.DB)
     if (request.method === 'POST' && path === '/api/devices/register') return registerDevice(request, env.DB)
     if (request.method === 'POST' && path === '/api/movesets') return movesets(request, env.DB)
+    if (path === '/api/identity-link' && request.method === 'GET') {
+      const device = await authorizedDevice(request, env.DB)
+      if (!device) return json({ error: 'unauthorized' }, 401)
+      const viewer = url.searchParams.get('viewer') ?? ''
+      if (!/^twitch:\d{1,24}$/.test(viewer)) return json({ error: 'invalid viewer' }, 400)
+      const linked = await env.DB.prepare('SELECT k.viewer_id ' + activeIdentityPairs + ' AND t.viewer_id = ? LIMIT 1')
+        .bind(device.community_id, viewer).first()
+      return json({ kickId: linked?.viewer_id ?? null })
+    }
+    if (path === '/api/admin-actions' && request.method === 'POST') {
+      const device = await authorizedDevice(request, env.DB)
+      if (!device) return json({ error: 'unauthorized' }, 401)
+      let receipts
+      try { receipts = await readBatch(request) } catch { return json({ error: 'invalid admin receipts' }, 400) }
+      const received = await finishAdminActions(env.DB, device, receipts)
+      return received ? json({ received }) : json({ error: 'invalid admin receipts' }, 400)
+    }
     if (path === '/api/shop') return deviceShop(request, env.DB)
     if (request.method === 'GET' && path === '/api/privacy') return deviceErasure(request, env.DB)
     return await portal(request, new URL(request.url), env) ?? json({ error: 'not found' }, 404)

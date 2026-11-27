@@ -51,6 +51,15 @@ test('existing progress keeps its account and Kick can be linked without stealin
     assert.equal(await signIn(portable, { viewerId: 'kick:1', login: 'viewer' }), null)
     assert.equal(account('kick:1'), original)
     assert.ok(await signIn(portable, { viewerId: 'kick:1', login: 'viewer' }, original))
+    assert.ok(await signIn(portable, { viewerId: 'twitch:2', login: 'other twitch' }))
+    const second = account('twitch:2')
+    assert.ok(await signIn(portable, { viewerId: 'kick:2', login: 'other' }, second))
+    assert.equal(account('kick:2'), second)
+    assert.equal(await unlinkIdentity(portable, second, 'kick:2'), true)
+    assert.ok(await signIn(portable, { viewerId: 'twitch:3', login: 'third twitch' }))
+    const third = account('twitch:3')
+    assert.ok(await signIn(portable, { viewerId: 'kick:2', login: 'other' }, third))
+    assert.equal(account('kick:2'), third)
   } finally {
     db.close()
   }

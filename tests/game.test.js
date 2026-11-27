@@ -4,6 +4,70 @@ import { catchChance, createGame } from '../desktop/game.js'
 import { captureCategories } from '../ui/capture-rates.js'
 import { xpAtLevel } from '../ui/levels.js'
 
+test('regional forms evolve within their own line and do not unlock from the original', () => {
+  const catalog = [{ id: 19, name: 'Rattata' }, { id: 20, name: 'Raticate' },
+    { id: 10091, name: 'Alolan Rattata' }, { id: 10092, name: 'Alolan Raticate' }]
+  const game = createGame({ catalog, now: () => 0, progress: { viewers: { A: { collection: {} } } } })
+  assert.equal(game.grantAdmin({ viewerId: 'A', kind: 'pokemon', item: 'Rattata', amount: 1 }), true)
+  assert.equal(game.chat('A', '!summon alolan rattata'), 'missingCreature')
+  assert.equal(game.grantAdmin({ viewerId: 'A', kind: 'pokemon', item: 'Alolan Rattata', amount: 1 }), true)
+  assert.equal(game.chat('A', '!summon alolan rattata'), 'summoned')
+  assert.equal(game.grantAdmin({ viewerId: 'A', kind: 'candy', amount: 30 }), true)
+  assert.equal(game.chat('A', '!candy 30'), 'candyUsed')
+  const { collection } = game.progress().viewers.A
+  assert.equal(collection['Alolan Raticate'], xpAtLevel(31))
+  assert.equal(collection.Rattata, 0)
+  assert.equal(collection.Raticate, undefined)
+})
+
+test('streamer grants persist with inventory and reject invalid changes', () => {
+  const catalog = [{ id: 19, name: 'Rattata', shiny: true }]
+  const game = createGame({ catalog, progress: { viewers: { A: { collection: {} } } } })
+  const grant = (kind, item, amount, viewerId = 'A') => game.grantAdmin({ viewerId, kind, item, amount })
+  assert.equal(grant('money', '', 5000, 'missing'), false)
+  assert.equal(grant('money', '', -5000), false)
+  assert.equal(grant('money', '', 5000), true)
+  assert.equal(grant('pokemon', 'Rattata ✦', 1), true)
+  assert.equal(grant('pokemon', 'Rattata ✦', 1), false)
+  assert.equal(grant('held', 'sitrus-berry', 1), true)
+  assert.equal(grant('tracker', '', 2), true)
+  const viewer = createGame({ catalog, progress: game.progress() }).progress().viewers.A
+  assert.equal(viewer.pokeDollars, 5000)
+  assert.deepEqual(viewer.collection, { 'Rattata ✦': 0 })
+  assert.deepEqual(viewer.heldItems, ['sitrus-berry'])
+  assert.equal(viewer.legendaryTrackers, 2)
+})
+
+test('the legendary hatch threshold is 0.001% and eggs exclude evolved species', () => {
+  const catalog = [
+    { id: 19, name: 'Rattata' }, { id: 20, name: 'Raticate' }, { id: 10114, name: 'Alolan Exeggutor' },
+    { id: 150, name: 'Mewtwo', legendary: true }, { id: 790, name: 'Cosmoem', legendary: true }, { id: 151, name: 'Mew' }
+  ]
+  for (const [roll, expected] of [[.000009999, 'Mewtwo'], [.00001, 'Rattata']]) {
+    const draws = [roll, .9999]
+    const game = createGame({ catalog, now: () => 0, random: () => draws.shift() ?? .5,
+      progress: { viewers: { A: { collection: {}, pokeDollars: 5000 } } } })
+    assert.equal(game.fulfillOrder({ id: 'egg', viewerId: 'A', item: 'poke-egg' }), 'purchased')
+    assert.equal(game.shopHatch('egg').name, expected)
+    assert.equal(game.shopHatch('egg').rarity, expected === 'Mewtwo' ? 'legendary' : 'common')
+    assert.throws(() => game.spawn('Alolan Exeggutor'), /Invalid wild creature/)
+  }
+})
+
+test('Exeggcute unlocks both evolutions without sharing later XP with Alolan Exeggutor', () => {
+  const catalog = [{ id: 102, name: 'Exeggcute' }, { id: 103, name: 'Exeggutor' }, { id: 10114, name: 'Alolan Exeggutor' }]
+  const game = createGame({ catalog, now: () => 0, progress: { viewers: { A: { collection: { Exeggcute: xpAtLevel(30) }, rareCandies: 2 } } } })
+  assert.equal(game.chat('A', '!summon exeggcute', 'A', 'twitch'), 'summoned')
+  assert.equal(game.chat('A', '!candy', 'A', 'kick'), 'candyUsed')
+  const first = game.progress().viewers.A.collection
+  assert.equal(first.Exeggutor, xpAtLevel(31))
+  assert.equal(first['Alolan Exeggutor'], xpAtLevel(31))
+  assert.equal(game.chat('A', '!candy', 'A', 'kick'), 'candyUsed')
+  const second = game.progress().viewers.A.collection
+  assert.equal(second.Exeggutor, xpAtLevel(32))
+  assert.equal(second['Alolan Exeggutor'], xpAtLevel(31))
+})
+
 test('a Poké Egg hatches only a regular base species and keeps its receipt across restart', () => {
   const catalog = [{ id: 150, name: 'Mewtwo', legendary: true }, { id: 151, name: 'Mew' },
     { id: 793, name: 'Nihilego' }, { id: 984, name: 'Great Tusk' },
@@ -12,9 +76,12 @@ test('a Poké Egg hatches only a regular base species and keeps its receipt acro
   const game = createGame({ ...options, progress: { viewers: { A: { collection: {}, pokeDollars: 11000 } } } })
   const order = { id: 'egg', viewerId: 'A', item: 'poke-egg', price: 5000 }
   assert.equal(game.fulfillOrder(order), 'purchased')
-  assert.deepEqual(game.shopHatch('egg'), { id: 19, name: 'Rattata', rarity: 'common', duplicate: false, xp: 0 })
+  assert.deepEqual(game.shopHatch('egg'), { id: 19, name: 'Rattata', rarity: 'common', duplicate: false, xp: 0, rules: 2 })
   const restarted = createGame({ ...options, progress: game.progress() })
-  assert.equal(restarted.fulfillOrder(order), 'purchased')
+  restarted.acknowledgeOrders(['egg'])
+  const replay = createGame({ ...options, progress: restarted.progress() })
+  assert.equal(replay.fulfillOrder(order), 'purchased')
+  assert.equal(replay.progress().viewers.A.pokeDollars, 6000)
   assert.deepEqual(restarted.shopHatch('egg'), game.shopHatch('egg'))
   assert.deepEqual(restarted.progress().viewers.A.collection, { Rattata: 0 })
   assert.equal(restarted.progress().viewers.A.pokeDollars, 6000)
@@ -417,15 +484,18 @@ test('branching forms unlock together at 16 and single direct evolutions unlock 
   assert.equal(viewers.high.collection.Tangrowth, xpAtLevel(31))
 })
 
-test('one account can catch once per channel and can summon from only one channel', () => {
+test('a linked account shares its catch, summon and candy across chats', () => {
   const game = createGame({ random: () => .25 })
   game.chat('linked-account', '!poke join', 'Viewer', 'twitch')
   game.spawn('Brasa')
   assert.equal(game.chat('linked-account', '!catch', 'Viewer', 'twitch'), 'caught')
   assert.equal(game.chat('linked-account', '!catch', 'Viewer', 'twitch'), 'alreadyCaught')
-  assert.equal(game.chat('linked-account', '!catch', 'Viewer', 'kick'), 'duplicateReward')
-  assert.equal(game.snapshot().recentCaptures.length, 2)
+  assert.equal(game.chat('linked-account', '!catch', 'Viewer', 'kick'), 'alreadyCaught')
+  assert.equal(game.snapshot().recentCaptures.length, 1)
   assert.equal(game.chat('linked-account', '!summon brasa', 'Viewer', 'twitch'), 'summoned')
+  assert.equal(game.grantAdmin({ viewerId: 'linked-account', kind: 'candy', amount: 3 }), true)
+  assert.equal(game.chat('linked-account', '!candy 3', 'Viewer', 'kick'), 'candyUsed')
+  assert.equal(game.progress().viewers['linked-account'].collection.Brasa, xpAtLevel(4))
   assert.equal(game.chat('linked-account', '!summon brasa', 'Viewer', 'kick'), 'summoned')
   assert.equal(game.chat('linked-account', '!summon out', 'Viewer', 'twitch'), 'removed')
   assert.equal(game.chat('linked-account', '!summon brasa', 'Viewer', 'kick'), 'summoned')

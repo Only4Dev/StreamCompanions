@@ -1,3 +1,6 @@
+import { regionalSpecies } from './regional-species.js'
+const regionalDex = new Map(regionalSpecies.map(form => [form.id, form.baseId]))
+
 // PokéAPI pokemon_species.csv, ordered by National Dex ID.
 const captureRates = [
   45, 45, 45, 45, 45, 45, 45, 45, 45, 255, 120, 45, 255, 120, 45, 255, 120, 45, 255, 127, 255, 90, 255, 90, 190, 75, 255, 90, 235, 120, 45, 235,
@@ -56,7 +59,7 @@ export function specialEncounterTag(id, legendary = false) {
 }
 
 const bandFor = (id, legendary) => legendary || mythicalSpecies.has(id)
-  ? legendaryBand : bands.find(band => (captureRates[id - 1] ?? 255) >= band.minimum)
+  ? legendaryBand : bands.find(band => (captureRates[(regionalDex.get(id) ?? id) - 1] ?? 255) >= band.minimum)
 
 export function eggRarity(id) {
   return ({ superEasy: 'common', easy: 'common', normal: 'uncommon', hard: 'rare', ultraHard: 'epic' })[bandFor(id, false).id]

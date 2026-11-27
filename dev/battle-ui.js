@@ -1,6 +1,5 @@
 import { battleClip, sprite, spriteScale } from '/sprites.js'
-import { arena, battleManeuver, createBattle, formAtLevel, hpColor, moveOptions, moves, movesFor, ultimateOptions } from './battle.js'
-import { nationalStats } from './national-stats.js'
+import { arena, battleRoster, battleManeuver, createBattle, formAtLevel, hpColor, moveOptions, moves, movesFor, ultimateOptions } from './battle.js'
 import { maxLevel, ultimateLevel } from '/levels.js'
 import { drawArea, drawChannel, drawClash, drawDigMound, drawField, drawGraveyard, drawHeavyFireImpact, drawHyper, drawOngoing, drawPoisonHazard, drawProjectile, drawPunch, drawStatus, drawTarget, drawUltimate, drawWaterImpact } from './battle-vfx.js'
 
@@ -61,7 +60,7 @@ export function mountBattleLab({ catalog, mount, language, advanced = false }) {
   }
   const learnset = pane.querySelector('.lab-learnset')
   const art = new Map(catalog.map(species => [Number(species.id), species]))
-  const roster = nationalStats.filter(([id]) => art.has(id))
+  const roster = battleRoster.filter(([id]) => art.has(id))
   const rosterById = new Map(roster.map(row => [row[0], row]))
   const importHint = { es: 'Importa el catálogo PMD para ver todos los sprites.', en: 'Import the PMD catalog to see every sprite.' }
   for (const [id] of roster) form.elements.pokemon.add(new Option(art.get(id).name, id))

@@ -32,14 +32,16 @@ const summary = ['# Sprite and portrait credits', '',
 
 for (const entry of species) {
   const id = String(entry.id).padStart(4, '0')
-  const normal = tracker[id]
-  const shiny = normal?.subgroups?.['0000']?.subgroups?.['0001']
+  const sourceId = entry.baseId ?? id
+  const regionalPath = entry.pmdForm ? '/' + entry.pmdForm : ''
+  const normal = entry.pmdForm ? tracker[sourceId]?.subgroups?.[entry.pmdForm] : tracker[sourceId]
+  const shiny = entry.pmdForm ? normal?.subgroups?.['0001'] : normal?.subgroups?.['0000']?.subgroups?.['0001']
   const parts = []
   for (const [label, variant, portrait, credit, suffix] of [
-    ['Normal', entry.normal, entry.portrait, normal, ''], ['Shiny', entry.shiny, entry.shinyPortrait, shiny, '/0000/0001']
+    ['Normal', entry.normal, entry.portrait, normal, regionalPath], ['Shiny', entry.shiny, entry.shinyPortrait, shiny, regionalPath ? regionalPath + '/0001' : '/0000/0001']
   ]) {
     if (variant?.source === 'pokeapi') parts.push('- ' + label + ' sprite: [PokéAPI](' + variant.credits + ')')
-    else if (variant) parts.push('- ' + label + ' sprites: ' + contributors(credit?.sprite_credit) + ' · [artist history](' + source + 'sprite/' + id + suffix + '/credits.txt)')
+    else if (variant) parts.push('- ' + label + ' sprites: ' + contributors(credit?.sprite_credit) + ' · [artist history](' + source + 'sprite/' + sourceId + suffix + '/credits.txt)')
     if (portrait) parts.push('- ' + label + ' portrait: ' + contributors(credit?.portrait_credit) + ' · [artist history](' + source + 'portrait/' + id + suffix + '/credits.txt)')
   }
   for (const [form, assets] of Object.entries(entry.battleForms ?? {})) {

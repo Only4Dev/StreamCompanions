@@ -1,10 +1,10 @@
 import { hasPickup } from '../ui/abilities.js'
 import { normalizeCommand } from './commands.js'
-import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, maxDnaBoosters, nextEvolutionLevel } from '../ui/evolution.js'
+import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, isFirstStage, maxDnaBoosters, nextEvolutionLevel, regionalEvolutionsFrom } from '../ui/evolution.js'
 import { defaultSummonXpPerSecond, level, maxLevel, maxXp, xpAtLevel } from '../ui/levels.js'
 import { captureCategories, catchChance, catchDifficulty, eggRarity, normalizeCapturePercentages, specialEncounterTag } from '../ui/capture-rates.js'
 import { heldItems } from '../ui/held-items.js'
-import { eggRarities, normalizeShopPrices, shopItems, validShopPrice, validShopQuantity } from '../ui/shop.js'
+import { eggRarities, legendaryEggChance, normalizeShopPrices, shopItems, validShopPrice, validShopQuantity } from '../ui/shop.js'
 
 export const creatures = ['Brasa', 'Musgo', 'Gota']
 
@@ -18,16 +18,17 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   const byId = new Map(catalog.filter(item => item.id).map(item => [item.id, item]))
   const specialTags = new Map(catalog.map(item => [item.name, specialEncounterTag(item.id, item.legendary)]))
   const specialSpecies = catalog.filter(item => specialTags.get(item.name)).map(item => item.name)
-  const wildSpecies = catalog.filter(item => !specialTags.get(item.name) && !evolutionParent(item.id)).map(item => item.name)
+  const wildSpecies = catalog.filter(item => !specialTags.get(item.name) && isFirstStage(item.id)).map(item => item.name)
   const eggPools = new Map(eggRarities.map(rarity => [rarity, []]))
   for (const item of catalog) {
-    if (item.id && !specialTags.get(item.name) && !evolutionParent(item.id)) eggPools.get(eggRarity(item.id)).push(item)
+    if (item.id && !specialTags.get(item.name) && isFirstStage(item.id)) eggPools.get(eggRarity(item.id)).push(item)
   }
   const eggWeights = [65, 25, 8, 2]
   const eggChoices = eggRarities.map((rarity, index) => ({ rarity, weight: eggWeights[index], pool: eggPools.get(rarity) }))
     .filter(choice => choice.pool.length)
   const eggWeight = eggChoices.reduce((total, choice) => total + choice.weight, 0)
   const trackers = catalog.filter(item => specialTags.get(item.name) === 'legendary')
+  const legendaryEggPool = trackers.filter(item => item.id && isFirstStage(item.id))
   const recentCaptures = []
   let captureSequence = 0
   const initialMetrics = () => ({ wins: 0, losses: 0, summonSeconds: 0 })
@@ -112,10 +113,27 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     for (const member of members) {
       if (!unlocked.has(member.id)) continue
       const form = member.name + suffix
-      if (!Object.hasOwn(viewer.collection, form)) newForms.push(form)
+      if (!Object.hasOwn(viewer.collection, form)) {
+        newForms.push(form)
+        if (announce) (viewer.dexAcquired ??= {})[form] = now()
+      }
       viewer.collection[form] = xp
     }
-    if (!announce || !newForms.length) return
+    const regionalUnlocked = []
+    for (const id of unlocked) {
+      const requiredLevel = nextEvolutionLevel(id) ?? 31
+      if (rank < requiredLevel) continue
+      for (const regionalId of regionalEvolutionsFrom(id)) {
+        const variant = byId.get(regionalId)
+        if (!variant || (shiny && !variant.shiny)) continue
+        const name = variant.name + suffix
+        if (Object.hasOwn(viewer.collection, name)) continue
+        viewer.collection[name] = xpAtLevel(requiredLevel)
+        ;(viewer.dexAcquired ??= {})[name] = now()
+        regionalUnlocked.push(name)
+      }
+    }
+    if (!announce || (!newForms.length && !regionalUnlocked.length)) return
     if (newForms.length === 1 && viewer.active?.key === key) {
       const target = newForms[0]
       if (evolutionChildren(byName.get(key.replace(/ ✦$/, ''))?.id).includes(byName.get(target.replace(/ ✦$/, ''))?.id)) {
@@ -124,7 +142,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         onSummonChange({ event: 'evolved', from: key, species: target, layer: viewer.active.layer })
       }
     }
-    onEvolution(viewer.displayName, newForms)
+    onEvolution(viewer.displayName, [...newForms, ...regionalUnlocked])
   }
 
   function familyXp(viewer, key) {
@@ -150,7 +168,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     if (wildPaused) throw new Error("Wild encounters are paused for battle")
     const entry = byName.get(name)
     const specialTag = specialTags.get(name)
-    if (!entry || (!specialTag && evolutionParent(entry.id))) throw new Error('Invalid wild creature')
+    if (!entry || (!specialTag && !isFirstStage(entry.id))) throw new Error('Invalid wild creature')
     const time = now()
     const legendary = specialTag === 'legendary' || specialTag === 'mythical'
     const endsAt = time + (specialTag ? 5 : config.duration) * 60_000
@@ -158,7 +176,6 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     encounter = { id: time + ':' + ++encounterCount, name, level: 1, legendary, specialTag,
       shiny: shinySpecies.has(name) && random() < 1 / config.shiny, endsAt, catchUntil }
     nextAt = Math.max(trackerAt ?? time + config.interval * 60_000, catchUntil)
-    for (const viewer of viewers.values()) viewer.caughtChannels = new Set()
   }
 
   function tick() {
@@ -206,7 +223,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     }
   }
 
-  function chat(id, raw, displayName, channel, { sharedSummon = false } = {}) {
+  function chat(id, raw, displayName, channel) {
     if (erasedViewers.has(id)) return ''
     if (config.running === false) return ''
     const message = normalizeCommand(raw).toLowerCase()
@@ -245,7 +262,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     const argument = parts.join(' ')
     if (command === '!candy') {
       const key = viewer.active?.key
-      if (!key || (!sharedSummon && viewer.active.channel !== channel)) return 'candyNoSummon'
+      if (!key) return 'candyNoSummon'
       const quantity = argument ? Number(argument) : 1
       if (argument && (!/^\d+$/.test(argument) || !Number.isSafeInteger(quantity) || quantity < 1)) return 'candyQuantity'
       const rank = level(viewer.collection[key])
@@ -261,17 +278,17 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       if (!encounter) return 'noEncounter'
       const key = encounter.name + (encounter.shiny ? ' ✦' : '')
       const owned = Object.hasOwn(viewer.collection, key)
-      if (viewer.caughtChannels?.has(channel) || (owned && config.duplicateMode === 0)) return 'alreadyCaught'
+      if (viewer.caughtEncounter === encounter.id || (owned && config.duplicateMode === 0)) return 'alreadyCaught'
       if (!Object.hasOwn(viewer.balls, ball)) return 'invalidBall'
       if (!viewer.balls[ball]) return 'noBalls'
       viewer.balls[ball]--
       if (ball !== 'master' && random() >= catchChance(ball, byName.get(encounter.name)?.id, encounter.legendary, config.capturePercentages)) return 'escaped'
-      viewer.caughtChannels ??= new Set()
-      viewer.caughtChannels.add(channel)
+      viewer.caughtEncounter = encounter.id
       recentCaptures.push({ id: ++captureSequence, encounterId: encounter.id, viewer: viewer.displayName || id,
         pokemon: key, at: now() })
       if (recentCaptures.length > 40) recentCaptures.shift()
       if (!owned) {
+        ;(viewer.dexAcquired ??= {})[key] = now()
         viewer.collection[key] = familyXp(viewer, key)
         shareFamily(viewer, key, viewer.collection[key])
         return 'caught'
@@ -363,8 +380,11 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
           }
           else if (item === 'legendary-tracker') viewer.legendaryTrackers = (viewer.legendaryTrackers ?? 0) + 1
           else if (item === 'poke-egg') {
-            let roll = random() * eggWeight
-            const { rarity, pool } = eggChoices.find(choice => (roll -= choice.weight) < 0) ?? eggChoices.at(-1)
+            const roll = random()
+            let regularRoll = (legendaryEggPool.length ? Math.max(0, (roll - legendaryEggChance) / (1 - legendaryEggChance)) : roll) * eggWeight
+            const { rarity, pool } = legendaryEggPool.length && roll < legendaryEggChance
+              ? { rarity: 'legendary', pool: legendaryEggPool }
+              : eggChoices.find(choice => (regularRoll -= choice.weight) < 0) ?? eggChoices.at(-1)
             const pokemon = pool[Math.floor(random() * pool.length)]
             const duplicate = Object.hasOwn(viewer.collection, pokemon.name)
             const xp = familyXp(viewer, pokemon.name)
@@ -373,9 +393,12 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
               ? xpAtLevel(rank + 1) - xp
               : duplicate && rank < maxLevel ? Math.max(1, Math.round((xpAtLevel(rank + 1) - xpAtLevel(rank)) * config.duplicateXpPercent / 100)) : 0
             const earned = Math.min(bonus, maxXp - xp)
-            if (!duplicate) viewer.collection[pokemon.name] = xp
+            if (!duplicate) {
+              viewer.collection[pokemon.name] = xp
+              ;(viewer.dexAcquired ??= {})[pokemon.name] = now()
+            }
             shareFamily(viewer, pokemon.name, xp + earned)
-            hatch = { id: pokemon.id, name: pokemon.name, rarity, duplicate, xp: earned }
+            hatch = { id: pokemon.id, name: pokemon.name, rarity, duplicate, xp: earned, rules: 2 }
           } else (viewer.heldItems ??= []).push(item)
           result = 'purchased'
         }
@@ -383,10 +406,50 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       shopReceipts.set(id, hatch ? { result, hatch } : result)
       return result
     },
+    grantAdmin({ viewerId, kind, item, amount }) {
+      const viewer = viewers.get(viewerId)
+      if (!viewer || erasedViewers.has(viewerId) || !Number.isSafeInteger(amount) || amount < 1) return false
+      if (kind === 'pokemon') {
+        const entry = byName.get(typeof item === 'string' ? item.replace(/ ✦$/, '') : '')
+        if (amount !== 1 || !entry || item.endsWith(' ✦') && !entry.shiny || Object.hasOwn(viewer.collection, item)) return false
+        ;(viewer.dexAcquired ??= {})[item] = now()
+        viewer.collection[item] = familyXp(viewer, item)
+        shareFamily(viewer, item, viewer.collection[item])
+        return true
+      }
+      if (kind === 'held') {
+        if (amount !== 1 || !Object.hasOwn(heldItems, item) || viewer.heldItems?.includes(item)) return false
+        ;(viewer.heldItems ??= []).push(item)
+        return true
+      }
+      if (kind === 'balls') {
+        if (amount > 999 || !['normal', 'great', 'ultra', 'master'].includes(item)) return false
+        viewer.balls ??= { normal: 0, great: 0, ultra: 0, master: 0 }
+        viewer.balls[item] = (viewer.balls[item] ?? 0) + amount
+        return true
+      }
+      const counter = { money: 'pokeDollars', candy: 'rareCandies', tracker: 'legendaryTrackers' }
+      if (!Object.hasOwn(counter, kind) || amount > (kind === 'money' ? 1_000_000 : 999)) return false
+      const key = counter[kind]
+      const total = (viewer[key] ?? 0) + amount
+      if (!Number.isSafeInteger(total)) return false
+      viewer[key] = total
+      return true
+    },
     shopHatch: id => shopReceipts.get(id)?.hatch,
     dnaCount: (viewer, key) => familyDnaCount(viewer.dnaBoosters, dnaKeys(viewer, key)),
     acknowledgeOrders(ids) {
-      for (const id of ids) shopReceipts.delete(id)
+      const time = now()
+      for (const id of ids) {
+        const receipt = shopReceipts.get(id)
+        if (id.startsWith('web:')) shopReceipts.delete(id)
+        else if (receipt && receipt.completedAt === undefined) {
+          shopReceipts.set(id, { ...(typeof receipt === 'string' ? { result: receipt } : receipt), completedAt: time })
+        }
+      }
+      for (const [id, receipt] of shopReceipts) {
+        if (receipt?.completedAt !== undefined && time - receipt.completedAt > 86_400_000) shopReceipts.delete(id)
+      }
     },
     encounterCount: () => encounterCount,
     clearStatistics() {
@@ -442,8 +505,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       tick()
       return wildPaused ? null : nextAt
     },
-    chat(id, message, displayName, channel = 'local', options) {
-      const result = chat(id, message, displayName, channel, options)
+    chat(id, message, displayName, channel = 'local') {
+      const result = chat(id, message, displayName, channel)
       notice = result
       return result
     },
@@ -479,6 +542,10 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         target.balls ??= { normal: 0, great: 0, ultra: 0, master: 0 }
         for (const key of Object.keys(target.balls)) target.balls[key] = Math.max(target.balls[key], source.balls?.[key] ?? 0)
         for (const key of Object.keys(target.metrics)) target.metrics[key] = Math.max(target.metrics[key], source.metrics[key] ?? 0)
+        for (const [name, at] of Object.entries(source.dexAcquired ?? {})) {
+          const acquired = target.dexAcquired ??= {}
+          acquired[name] = Math.max(acquired[name] ?? 0, at)
+        }
         target.heldItems = [...new Set([...(target.heldItems ?? []), ...(source.heldItems ?? [])])]
         target.legendaryTrackers = Math.max(target.legendaryTrackers ?? 0, source.legendaryTrackers ?? 0)
         target.rareCandies = Math.max(target.rareCandies ?? 0, source.rareCandies ?? 0)
@@ -496,11 +563,12 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
             target.dnaBoosters[keys[0]] = count
           }
         }
-        target.caughtChannels = new Set([...(target.caughtChannels ?? []), ...(source.caughtChannels ?? [])])
+        if (source.caughtEncounter === encounter?.id) target.caughtEncounter = source.caughtEncounter
         if (source.active && target.active) onSummonChange({ event: 'linkedSummonsMerged', layers: [source.active.layer, target.active.layer] })
         if (!target.active || source.active && source.active.layer < target.active.layer) target.active = source.active
       }
       viewers.delete(kickId)
+      return true
     },
     snapshot() {
       tick()
@@ -532,8 +600,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         erasedViewers: [...erasedViewers],
         viewerGenerations: Object.fromEntries(viewerGenerations),
         shopReceipts: Object.fromEntries(shopReceipts),
-        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, pokeDollars, dnaBoosters, log }]) =>
-          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, pokeDollars, dnaBoosters, log }]))
+        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, pokeDollars, dnaBoosters, log, dexAcquired }]) =>
+          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, pokeDollars, dnaBoosters, log, dexAcquired }]))
       }
     },
     recordBattle(participants, winner, speciesKey) {

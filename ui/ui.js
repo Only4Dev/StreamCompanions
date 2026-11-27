@@ -209,6 +209,9 @@ let state
 Object.assign(labels.es, { shinyCue: 'Sonido shiny', chooseShinyCue: 'Elegir MP3 o WAV', resetShinyCue: 'Restablecer' })
 Object.assign(labels.en, { shinyCue: 'Shiny sound', chooseShinyCue: 'Choose MP3 or WAV', resetShinyCue: 'Reset' })
 
+Object.assign(labels.es, { adminTab: 'Administración', adminGrantType: 'Recompensa', adminCandy: 'Caramelo Raro', adminHeld: 'Objeto equipable', adminItem: 'Objeto o Pokémon', adminAmount: 'Cantidad', adminGrant: 'Entregar', adminGame: 'Controles del juego', adminGranted: 'Recompensa entregada.', adminRejected: 'No se pudo entregar. Revisa el jugador, la cantidad y su inventario.', adminSpawned: 'Encuentro iniciado.' })
+Object.assign(labels.en, { adminTab: 'Administration', adminGrantType: 'Reward', adminCandy: 'Rare Candy', adminHeld: 'Held item', adminItem: 'Item or Pokémon', adminAmount: 'Quantity', adminGrant: 'Grant reward', adminGame: 'Game controls', adminGranted: 'Reward granted.', adminRejected: 'Could not grant the reward. Check the viewer, quantity and inventory.', adminSpawned: 'Encounter started.' })
+
 let lastEncounter
 function playShinyCue() {
   const cue = new Audio('/sfx/shiny.wav?play=' + Date.now())
@@ -396,13 +399,78 @@ async function refresh() {
   renderUpdateStatus()
   $('start-battle').hidden = !state.config.battleEnabled || !running
   $('notice').textContent = copy[state.notice] || botCopy[$('language').value][state.notice]?.replace(/\{\w+\}/g, '…') || ''
+  updateAdminViewer()
   const data = state.viewers[viewer]
   $('inventory').textContent = data ? [
     Object.entries(data.balls).map(([name, count]) => name + ' ×' + count).join(' · '),
     ...Object.entries(data.collection).map(([name, xp]) => name + ' · Lv. ' + level(xp))
   ].join('\n') : ''
 }
+function updateAdminViewer() {
+  if (document.querySelector('[data-pane=admin]').hidden) return
+  const selector = $('admin-grant').elements.viewerId
+  const selected = selector.value
+  const en = $('language').value === 'en'
+  const people = Object.entries(state.viewers).sort(([, a], [, b]) => (a.displayName ?? '').localeCompare(b.displayName ?? ''))
+  const key = JSON.stringify(people.map(([id, data]) => [id, data.displayName]))
+  if (selector.dataset.key !== key) {
+    selector.dataset.key = key
+    selector.replaceChildren(...people.map(([id, data]) => new Option(data.displayName ? data.displayName + ' · ' + id.split(':')[0] : id, id)))
+    if (Object.hasOwn(state.viewers, selected)) selector.value = selected
+  }
+  const entry = state.viewers[selector.value]
+  $('admin-viewer-summary').textContent = entry ? [
+    '$' + (entry.pokeDollars ?? 0) + ' · ' + labels[$('language').value].adminCandy + ' ×' + (entry.rareCandies ?? 0) + ' · Legendary Tracker ×' + (entry.legendaryTrackers ?? 0),
+    Object.entries(entry.balls ?? {}).map(([ball, count]) => ball + ' ×' + count).join(' · '),
+    (entry.heldItems ?? []).map(id => shopItems[id]?.names[Number(en)] ?? id).join(' · '),
+    Object.entries(entry.collection).map(([name, xp]) => name + ' · Lv. ' + level(xp)).join(' / ')
+  ].filter(Boolean).join('\n') : ''
+}
+
 if (panel) {
+  const adminGrant = $('admin-grant')
+  const adminSpawn = $('admin-spawn')
+  const replaceChoices = () => {
+    const kind = adminGrant.elements.kind.value
+    const en = $('language').value === 'en'
+    const choices = kind === 'pokemon' ? catalog.flatMap(entry => entry.shiny ? [entry.name, entry.name + ' ✦'] : [entry.name]).map(name => [name, name]) :
+      kind === 'balls' ? [['normal', 'Poké Ball'], ['great', en ? 'Great Ball' : 'Super Ball'], ['ultra', 'Ultra Ball'], ['master', 'Master Ball']] :
+      kind === 'held' ? Object.entries(shopItems).filter(([, product]) => product.held).map(([id, product]) => [id, product.names[Number(en)]]) : []
+    adminGrant.elements.item.replaceChildren(...choices.map(([id, name]) => new Option(name, id)))
+    $('admin-item-label').hidden = !choices.length
+    const amount = adminGrant.elements.amount
+    amount.max = kind === 'money' ? '1000000' : kind === 'held' || kind === 'pokemon' ? '1' : '999'
+    if (Number(amount.value) > Number(amount.max)) amount.value = amount.max
+  }
+  adminGrant.elements.kind.addEventListener('change', replaceChoices)
+  adminGrant.elements.viewerId.addEventListener('change', updateAdminViewer)
+  adminSpawn.elements.creature.replaceChildren(...catalog.filter(entry => entry.wildEligible).map(entry => new Option(entry.name, entry.name)))
+  const adminPost = async (button, action, success, failure) => {
+    button.disabled = true
+    const copy = labels[$('language').value]
+    try {
+      const response = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(action) })
+      $('admin-status').textContent = copy[response.ok ? success : response.status === 422 && action.startCommunityBattle ? 'battleNeedsPlayers' : failure]
+      if (response.ok) await refresh()
+    } catch {
+      $('admin-status').textContent = copy.unavailable
+    } finally { button.disabled = false }
+  }
+  adminGrant.addEventListener('submit', event => {
+    event.preventDefault()
+    const values = Object.fromEntries(new FormData(adminGrant))
+    if (event.submitter.disabled) return
+    void adminPost(event.submitter, { adminGrant: { ...values, amount: Number(values.amount) } }, 'adminGranted', 'adminRejected')
+  })
+  adminSpawn.addEventListener('submit', event => {
+    event.preventDefault()
+    if (event.submitter.disabled) return
+    void adminPost(event.submitter, { spawn: adminSpawn.elements.creature.value }, 'adminSpawned', 'unavailable')
+  })
+  $('admin-start-battle').addEventListener('click', event => {
+    void adminPost(event.currentTarget, { startCommunityBattle: true }, 'battleStarted', 'battleUnavailable')
+  })
+  replaceChoices()
   $('panel').hidden = false
   $('start-battle').addEventListener('click', async event => {
     const button = event.currentTarget

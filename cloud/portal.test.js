@@ -2,7 +2,19 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { runInNewContext } from 'node:vm'
 import { sessionKey } from './auth.js'
+import { regionalSpecies } from '../ui/regional-species.js'
 import { portal } from './portal.js'
+
+test('two Twitch sign-in attempts each retain their own flow cookie', async () => {
+  const env = { TWITCH_WEB_CLIENT_ID: 'fixture-client', TWITCH_WEB_CLIENT_SECRET: 'fixture-value' }
+  const start = new URL('https://example.test/auth/twitch')
+  const results = await Promise.all([portal(new Request(start), start, env), portal(new Request(start), start, env)])
+  const states = results.map(result => new URL(result.headers.get('Location')).searchParams.get('state'))
+  assert.notEqual(states[0], states[1])
+  for (const [index, result] of results.entries()) {
+    assert.ok(result.headers.getSetCookie()[0].startsWith('sc_flow_twitch_' + states[index] + '='))
+  }
+})
 
 test('a signed-in viewer can save unlocked moves for an owned variant only', async () => {
   let saved
@@ -108,7 +120,7 @@ test('the portal uses the authenticated viewer and escapes synced display names'
   assert.match(html, /&lt;Viewer&gt;/)
   assert.match(html, /Weedle.*Lv\. 2/)
   assert.equal((html.match(/class="slot /g) ?? []).length, 151)
-  assert.ok(html.indexOf('#001') < html.indexOf('#151'))
+  assert.ok(html.indexOf('class="dex-number">#001') < html.indexOf('class="dex-number">#151'))
   assert.match(html, /class="slot locked"/)
   assert.match(html, /class="slot owned"/)
   assert.doesNotMatch(html, /twitch:999|<Viewer>/)
@@ -134,10 +146,13 @@ test('the portal uses the authenticated viewer and escapes synced display names'
     const regionPage = await portal(new Request(regionUrl, {
       headers: { Cookie: 'sc_session=' + 'a'.repeat(64) }
     }), regionUrl, { DB: db })
-    const numbers = [...(await regionPage.text()).matchAll(/class="dex-number">#(\d+)/g)].map(match => match[1])
+    const html = await regionPage.text()
+    const count = Number(last) - Number(first) + 1
+    const numbers = [...html.matchAll(/class="dex-number">#(\d+)/g)].map(match => match[1])
     assert.equal(numbers[0], first)
-    assert.equal(numbers.at(-1), last)
-    assert.equal(numbers.length, Number(last) - Number(first) + 1)
+    assert.equal(numbers[count - 1], last)
+    assert.equal(numbers.length, count + regionalSpecies.filter(form => form.region === region).length)
+    if (region === 'alola') assert.match(html, /Alolan Rattata/)
   }
   const chooserUrl = new URL('https://example.test/?community=another')
   const chooser = await portal(new Request(chooserUrl, {

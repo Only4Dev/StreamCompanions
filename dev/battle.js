@@ -1,6 +1,7 @@
 import { nationalLearnsets, nationalStats, typeChart } from './national-stats.js'
 import { ultimateLevel } from '../ui/levels.js'
-import { nextEvolutionLevel } from '../ui/evolution.js'
+import { regionalSpecies } from '../ui/regional-species.js'
+import { evolutionChildren, evolutionParent, nextEvolutionLevel } from '../ui/evolution.js'
 
 import { abilitiesFor, battleFormAssets, hasPoisonHeal } from '../ui/abilities.js'
 import { heldItems } from '../ui/held-items.js'
@@ -214,9 +215,13 @@ const typeKits = {
   bug: ['lunge', 'buzz'], dragon: ['dragon', 'claw'], steel: ['roll', 'meteor'],
   fairy: ['quick', 'fairy'], dark: ['bite', 'double']
 }
-const byId = new Map(nationalStats.map(row => [row[0], row]))
+export const battleRoster = [...nationalStats.map(([id, stats, types, final, , legendary]) => [id, stats, types, final, evolutionParent(id) || null, legendary]),
+  ...regionalSpecies.map(form => [form.id, form.stats, form.types, !evolutionChildren(form.id).length, form.parent ?? null, form.legendary])]
+const byId = new Map(battleRoster.map(row => [row[0], row]))
+export const battleSpecies = id => byId.get(id)
+const regionalLearnsets = new Map(regionalSpecies.map(form => [form.id, form.learnset]))
 const children = new Map()
-for (const [id, , , , parent] of nationalStats) {
+for (const [id, , , , parent] of battleRoster) {
   if (!children.has(parent)) children.set(parent, [])
   children.get(parent).push(id)
 }
@@ -233,7 +238,7 @@ for (const id of Object.keys(loadouts).map(Number)) {
   if (!legacyFamily.has(root)) legacyFamily.set(root, id)
 }
 const familyMembers = new Map()
-for (const [id] of nationalStats) {
+for (const [id] of battleRoster) {
   const root = lineage(id)[0]
   if (!familyMembers.has(root)) familyMembers.set(root, [])
   familyMembers.get(root).push(id)
@@ -263,13 +268,13 @@ function learnedFor(id) {
   const entries = new Map()
   const path = lineage(id)
   for (const member of path) {
-    for (const [key, level] of nationalLearnsets[member - 1] ?? []) {
+    for (const [key, level] of regionalLearnsets.get(member) ?? nationalLearnsets[member - 1] ?? []) {
       if (!entries.has(key) || entries.get(key) > level) entries.set(key, level)
     }
   }
   if (entries.size < 4) {
     for (const member of familyMembers.get(path[0]) ?? []) {
-      for (const [key, level] of nationalLearnsets[member - 1] ?? []) {
+      for (const [key, level] of regionalLearnsets.get(member) ?? nationalLearnsets[member - 1] ?? []) {
         if (!entries.has(key)) entries.set(key, Math.max(10, level))
       }
     }

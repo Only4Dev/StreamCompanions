@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict'
+import { regionalSpecies } from '../ui/regional-species.js'
+const catalogSize = 1025 + regionalSpecies.length
 const base = 'http://127.0.0.1:43127'
 for (let attempt = 0; attempt < 30; attempt++) {
   try { if ((await fetch(base)).ok) break } catch {}
   await new Promise(resolve => setTimeout(resolve, 500))
 }
 const catalog = await (await fetch(base + '/catalog')).json()
-assert.equal(catalog.species.length, 1025)
+assert.equal(catalog.species.length, catalogSize)
 assert.ok(catalog.species.some(item => item.shiny))
-assert.ok(catalog.species.every(item => !item.shiny ||
+assert.ok(catalog.species.every(item => !item.shiny || (item.region && item.shiny.source === 'pokeapi') ||
   Object.keys(item.normal.animations).every(clip => item.shiny.animations[clip])))
 const targets = await (await fetch('http://127.0.0.1:9227/json/list')).json()
 const socket = new WebSocket(targets.find(target => target.url === base + '/').webSocketDebuggerUrl)
@@ -28,16 +30,16 @@ function cdp(method, params) {
   })
 }
 async function run(fn) {
-  const result = await cdp('Runtime.evaluate', { expression: '(' + fn + ')()', awaitPromise: true, returnByValue: true })
+  const result = await cdp('Runtime.evaluate', { expression: '(' + fn + ')(' + catalogSize + ')', awaitPromise: true, returnByValue: true })
   if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails))
   return result.result.value
 }
 try {
-  const outcome = await run(async () => {
+  const outcome = await run(async catalogSize => {
     const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
     const state = async () => (await fetch('/state')).json()
     const send = action => fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(action) })
-    while (document.querySelector('#summon-preview select').options.length !== 1025) await wait(50)
+    while (document.querySelector('#summon-preview select').options.length !== catalogSize) await wait(50)
     await send({ running: true })
     await send({ config: { interval: 30, duration: 3, shiny: 1 } })
     await send({ spawn: 'Rattata' })

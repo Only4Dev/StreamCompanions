@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { arenaBaseStats, createBattle, formAtLevel, moveOptions, moves, movesFor, hpColor, ultimateOptions } from './battle.js'
+import { battleSpecies, arenaBaseStats, createBattle, formAtLevel, moveOptions, moves, movesFor, hpColor, ultimateOptions } from './battle.js'
 import { nationalStats } from './national-stats.js'
 
 const example = (id, level = 20) => {
@@ -32,6 +32,16 @@ test('Damp Rock keeps rain active five extra seconds', () => {
   assert.equal(battle.field.kind, 'rain')
   run(battle, 5)
   assert.equal(battle.field, null)
+})
+
+test('regional forms have independent types, stats and battle kits', () => {
+  const regional = battleSpecies(10091)
+  const base = battleSpecies(19)
+  assert.deepEqual(regional[2], ['dark', 'normal'])
+  assert.notDeepEqual(battleSpecies(10100)[1], battleSpecies(26)[1])
+  assert.notDeepEqual(moveOptions(regional[0], regional[2], regional[3], 20), moveOptions(base[0], base[2], base[3], 20))
+  assert.deepEqual(battleSpecies(10175)[2], ['dark', 'normal'])
+  assert.equal(battleSpecies(862)[4], 10175)
 })
 
 test('Ditto copies the nearest eligible rival in place with its own HP and five PP at most', () => {

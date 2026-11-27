@@ -13,11 +13,16 @@ export function providerConfig(env, provider) {
   return id && secret ? { id, secret } : null
 }
 
-async function oauthJson(url, options) {
+async function oauthJson(url, options, provider, stage) {
   try {
     const response = await fetch(url, { ...options, redirect: 'manual', signal: AbortSignal.timeout(8000) })
-    return response.ok ? await response.json() : null
-  } catch { return null }
+    if (response.ok) return await response.json()
+    console.warn(JSON.stringify({ event: 'viewer_oauth_failure', provider, stage, status: response.status }))
+    return null
+  } catch {
+    console.warn(JSON.stringify({ event: 'viewer_oauth_failure', provider, stage, status: 'network_or_json' }))
+    return null
+  }
 }
 
 export async function platformIdentity(provider, config, code, redirect, verifier, includeToken = false) {
@@ -28,13 +33,16 @@ export async function platformIdentity(provider, config, code, redirect, verifie
       client_id: config.id, client_secret: config.secret, code, grant_type: 'authorization_code',
       redirect_uri: redirect, ...(isKick ? { code_verifier: verifier } : {})
     })
-  })
+  }, provider, 'token')
   if (typeof token?.access_token !== 'string' || !token.access_token) return null
   const data = await oauthJson(isKick ? 'https://api.kick.com/public/v1/users' : 'https://id.twitch.tv/oauth2/validate', {
     headers: { Authorization: (isKick ? 'Bearer ' : 'OAuth ') + token.access_token }
-  })
+  }, provider, 'identity')
   if (!data) return null
-  if (!isKick && data.client_id !== config.id) return null
+  if (!isKick && data.client_id !== config.id) {
+    console.warn(JSON.stringify({ event: 'viewer_oauth_failure', provider, stage: 'client_id' }))
+    return null
+  }
   const user = isKick ? data.data?.[0] : data
   const id = String(user?.user_id ?? '')
   return /^\d{1,24}$/.test(id) ? { viewerId: provider + ':' + id, login: String(user.name ?? user.login ?? ''),
@@ -48,6 +56,16 @@ export async function signIn(db, identity, linkedAccountId) {
   const now = Date.now()
   const session = randomId()
   const statements = []
+  if (linkedAccountId) {
+    // A verified OAuth identity may bring a standalone account or a detached login.
+    statements.push(db.prepare('UPDATE account_identities SET account_id = ?, detached_at = NULL WHERE viewer_id = ? AND account_id != ? ' +
+      'AND EXISTS (SELECT 1 FROM accounts WHERE id = ?) ' +
+      'AND NOT EXISTS (SELECT 1 FROM account_identities target WHERE target.account_id = ? AND substr(target.viewer_id, 1, ?) = ?) ' +
+      'AND (detached_at IS NOT NULL OR NOT EXISTS (SELECT 1 FROM account_identities sibling ' +
+      'WHERE sibling.account_id = account_identities.account_id AND sibling.viewer_id != account_identities.viewer_id))')
+      .bind(accountId, viewerId, accountId, accountId, accountId, providerPrefix.length, providerPrefix))
+    statements.push(db.prepare('DELETE FROM web_sessions WHERE viewer_id = ? AND changes() = 1').bind(viewerId))
+  }
   if (!linkedAccountId) {
     statements.push(db.prepare(
       'INSERT INTO accounts SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ?)'
@@ -91,6 +109,7 @@ export async function eraseAccount(db, accountId) {
     db.prepare('INSERT INTO erased_viewers (viewer_id) ' + identities +
       ' ON CONFLICT(viewer_id) DO UPDATE SET generation = generation + 1').bind(accountId),
     db.prepare('INSERT OR IGNORE INTO erasure_devices SELECT community_id, viewer_id FROM viewer_progress WHERE viewer_id IN (' + identities + ')').bind(accountId),
+    db.prepare('DELETE FROM dex_seen WHERE account_id = ?').bind(accountId),
     ...['viewer_progress', 'viewer_movesets', 'viewer_held_items', 'shop_orders', 'web_game_actions', 'web_sessions', 'kick_messages']
       .map(table => db.prepare('DELETE FROM ' + table + ' WHERE viewer_id IN (' + identities + ')').bind(accountId)),
     db.prepare('DELETE FROM account_identities WHERE account_id = ?').bind(accountId),

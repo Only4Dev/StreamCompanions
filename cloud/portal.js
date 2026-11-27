@@ -1,3 +1,5 @@
+import { adminCommunities, adminPortal } from './admin.js'
+import { expireShopOrders } from './shop-queue.js'
 import { enqueueWebGame, webGameStatus, webGameViewer } from './web-game.js'
 import { botCopy } from '../ui/bot-copy.js'
 import { helpPage } from './help.js'
@@ -9,7 +11,8 @@ import { nationalDex } from './national-dex.js'
 import { kanto } from './kanto.js'
 import { equippedMoves, moveCooldown, movePp, moves } from '../dev/battle.js'
 import { familyDnaCount, familyRoot, maxDnaBoosters } from '../ui/evolution.js'
-import { creatureMoves, parseLoadout, speciesName, validMoveset } from './movesets.js'
+import { regionalSpecies } from '../ui/regional-species.js'
+import { creatureMoves, dexEntries, parseLoadout, speciesName, validMoveset } from './movesets.js'
 import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles, mobileStyles, liveReactionStyles } from './portal-style.js'
 import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
 import { arenaShopItems, heldItems } from '../ui/held-items.js'
@@ -239,7 +242,7 @@ function webGameState(runtime, row, language) {
     expired: en ? 'The encounter or request expired.' : 'El encuentro o la solicitud caducó.',
     pending: en ? 'An action is already pending.' : 'Ya hay una acción pendiente.',
     offline: en ? 'The streamer’s app is offline.' : 'La app del streamer está desconectada.',
-    cooldown: en ? 'Wait five seconds between commands in this channel.' : 'Espera cinco segundos entre comandos en este canal.',
+    cooldown: en ? 'Wait five seconds between game commands.' : 'Espera cinco segundos entre comandos de juego.',
     noBalls: en ? 'You have none of the selected Poké Ball.' : 'No te quedan Poké Balls del tipo elegido.',
     escaped: en ? 'The Pokémon escaped.' : 'El Pokémon escapó.'
   }
@@ -312,13 +315,13 @@ async function renderLiveGame(request, db, url, language) {
 }
 
 const families = new Map()
-for (const entry of nationalDex) {
+for (const entry of dexEntries) {
   const root = familyRoot(entry[0])
   if (!families.has(root)) families.set(root, [])
   families.get(root).push(entry)
 }
 const familyLinks = id => families.get(familyRoot(id)) ?? []
-const dexByName = new Map(nationalDex.map(([id]) => [speciesName(id), id]))
+const dexByName = new Map(dexEntries.map(([id]) => [speciesName(id), id]))
 function sharedDna(boosters, key) {
   const name = key.replace(/ ✦$/, '')
   const id = dexByName.get(name)
@@ -437,7 +440,8 @@ function submittingPurchase(en) {
 function hatchDialog(en) {
   return '<dialog class="egg-dialog" data-hatch aria-labelledby="egg-title" data-opening="' + (en ? 'The egg is hatching…' : '¡El huevo está eclosionando!') +
     '" data-reveal="' + (en ? 'Your egg hatched!' : '¡Tu huevo eclosionó!') + '"><h2 id="egg-title"></h2>' +
-    '<div class="egg-stage" aria-hidden="true"><div class="egg-rays"></div><div class="egg-shell"><i></i><i></i></div><img width="104" height="104" alt=""></div>' +
+    '<p class="egg-rarity" data-hatch-rarity hidden></p><div class="egg-stage" aria-hidden="true"><div class="egg-aura"></div><div class="egg-rays"></div>' +
+    '<div class="egg-waves"><i></i><i></i></div><div class="egg-particles"></div><div class="egg-shell"><i></i><i></i><b></b></div><img width="112" height="112" alt=""></div>' +
     '<p data-hatch-result aria-live="polite"></p><form method="dialog"><button>' + (en ? 'Close' : 'Cerrar') + '</button></form></dialog>'
 }
 
@@ -447,6 +451,19 @@ function pendingPurchase(en) {
 }
 
 export async function portal(request, url, env) {
+  if (request.method === 'GET' && url.pathname === '/assets/dex-new.js') {
+    return new Response(`function dismiss(event) {
+      const card = event.target.closest('[data-dex-new]');
+      if (!card) return;
+      const query = new URLSearchParams({ community: card.closest('[data-dex-community]').dataset.dexCommunity, species: card.dataset.dexNew, at: card.dataset.acquired });
+      delete card.dataset.dexNew;
+      card.querySelector('.dex-new').hidden = true;
+      fetch('/dex/seen?' + query, {method: 'POST', keepalive: true}).catch(() => {});
+    }
+    document.addEventListener('pointerover', dismiss);
+    document.addEventListener('click', dismiss);
+    document.addEventListener('focusin', dismiss);`, { headers: { 'Content-Type': 'text/javascript; charset=utf-8' } })
+  }
   if (request.method === 'GET' && url.pathname === '/assets/shop-status.js') {
     return new Response(`for (const input of document.querySelectorAll('[data-shop-quantity]')) {
         const total = input.form.querySelector('output');
@@ -475,7 +492,32 @@ export async function portal(request, url, env) {
         const title = dialog.querySelector('h2');
         const result = dialog.querySelector('[data-hatch-result]');
         const sprite = dialog.querySelector('.egg-stage img');
-        dialog.dataset.rarity = hatch.rarity;
+        const tiers = {
+          common: { duration: 1450, particles: 7, names: ['Común', 'Common'] },
+          uncommon: { duration: 1680, particles: 11, names: ['Poco común', 'Uncommon'] },
+          rare: { duration: 1950, particles: 17, names: ['Raro', 'Rare'] },
+          epic: { duration: 2320, particles: 25, names: ['Épico', 'Epic'] },
+          legendary: { duration: 2900, particles: 38, names: ['Legendario', 'Legendary'] }
+        };
+        const rarity = Object.hasOwn(tiers, hatch.rarity) ? hatch.rarity : 'common';
+        const tier = tiers[rarity];
+        const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        dialog.dataset.rarity = rarity;
+        dialog.style.setProperty('--hatch-time', tier.duration + 'ms');
+        const badge = dialog.querySelector('[data-hatch-rarity]');
+        badge.textContent = tier.names[Number(document.documentElement.lang === 'en')];
+        badge.hidden = false;
+        const particles = dialog.querySelector('.egg-particles');
+        if (!reducedMotion) for (let index = 0; index < tier.particles; index++) {
+          const mote = document.createElement('i');
+          const angle = index * Math.PI * (3 - Math.sqrt(5));
+          const distance = 42 + index % 7 * 11 + (rarity === 'legendary' ? 27 : 0);
+          mote.style.setProperty('--x', Math.round(Math.cos(angle) * distance) + 'px');
+          mote.style.setProperty('--y', Math.round(Math.sin(angle) * distance * .78) + 'px');
+          mote.style.setProperty('--delay', index % 6 * 35 + 'ms');
+          mote.style.setProperty('--size', (3 + index % 4) + 'px');
+          particles.append(mote);
+        }
         sprite.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' + hatch.id + '.png';
         title.textContent = dialog.dataset.opening;
         dialog.showModal();
@@ -483,7 +525,7 @@ export async function portal(request, url, env) {
           dialog.classList.add('hatched');
           title.textContent = dialog.dataset.reveal;
           result.textContent = hatch.name + (hatch.xp > 0 ? ' · +' + hatch.xp + ' XP' : '');
-        }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1450);
+        }, reducedMotion ? 0 : tier.duration);
       }
       const receipt = document.querySelector('[data-order-pending], [data-order-receipt]');
       const wallet = document.querySelector('[data-shop-wallet]');
@@ -668,24 +710,52 @@ export async function portal(request, url, env) {
   }
   const route = url.pathname.match(/^\/auth\/(twitch|kick)(?:\/(callback|link))?$/)
   const { session, key, identity } = await viewerSession(request, env.DB)
+  if (url.pathname === '/admin') return adminPortal(request, url, env.DB, identity, language === 'en', escape, page)
+
+  if (request.method === 'POST' && url.pathname === '/dex/seen') {
+    if (!identity || request.headers.get('Origin') !== url.origin) return new Response(null, { status: 403 })
+    const community = url.searchParams.get('community') ?? ''
+    const dex = Number(url.searchParams.get('species'))
+    const at = Number(url.searchParams.get('at'))
+    if (!/^[a-z0-9_-]{1,64}$/.test(community) || !Number.isInteger(dex) || !speciesName(dex) ||
+        !Number.isSafeInteger(at) || at < 1 || at > Date.now() + 60_000) return new Response(null, { status: 400 })
+    const name = speciesName(dex)
+    const { results } = await env.DB.prepare('SELECT p.payload FROM viewer_progress p JOIN account_identities i ON i.viewer_id = p.viewer_id WHERE p.community_id = ? AND i.account_id = ?')
+      .bind(community, identity.account_id).all()
+    if (!results.some(row => {
+      const { collection = {} } = JSON.parse(row.payload)
+      return Object.hasOwn(collection, name) || Object.hasOwn(collection, name + ' ✦')
+    })) return new Response(null, { status: 404 })
+    await env.DB.prepare('INSERT INTO dex_seen VALUES (?, ?, ?, ?) ON CONFLICT (account_id, community_id, species_id) DO UPDATE SET seen_at = MAX(seen_at, excluded.seen_at)')
+      .bind(identity.account_id, community, dex, at).run()
+    return new Response(null, { status: 204 })
+  }
 
   if (request.method === 'GET' && url.pathname === '/shop/status') {
     const json = (body, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } })
     if (!identity) return json({ error: 'authentication required' }, 401)
     const community = url.searchParams.get('community')
     const viewer = await env.DB.prepare(
-      'SELECT p.payload, s.seen_at, s.supports_quantity, s.supports_dna, s.prices, o.id AS order_id, o.result, o.hatch FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
+      'SELECT p.payload, s.seen_at, s.supports_quantity, s.supports_dna, s.prices, o.id AS order_id, o.result, o.hatch, o.created_at, o.dispatched_at FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
       'LEFT JOIN shop_online s ON s.community_id = p.community_id ' +
       'LEFT JOIN shop_orders o ON o.community_id = p.community_id AND o.viewer_id = p.viewer_id AND o.id = ? ' +
-      'WHERE i.account_id = ? AND p.community_id = ? ORDER BY o.id IS NOT NULL DESC, p.updated_at DESC, p.viewer_id LIMIT 1'
+      'WHERE i.account_id = ? AND p.community_id = ? ORDER BY o.id IS NOT NULL DESC, (p.viewer_id LIKE \'twitch:%\') DESC, p.updated_at DESC, p.viewer_id LIMIT 1'
     ).bind(url.searchParams.get('purchase'), identity.account_id, community).first()
     if (!viewer) return json({ error: 'community not found' }, 404)
+    if (viewer.order_id && viewer.result === null && viewer.created_at <= Date.now() - 120_000 &&
+        (!viewer.dispatched_at || viewer.dispatched_at <= Date.now() - 600_000)) {
+      await expireShopOrders(env.DB, community, Date.now()).run()
+      const row = await env.DB.prepare('SELECT result, hatch FROM shop_orders WHERE id = ? AND community_id = ?').bind(viewer.order_id, community).first()
+      if (row) Object.assign(viewer, row)
+    }
     const pending = Boolean(viewer.order_id && viewer.result === null)
     const online = viewer.seen_at > Date.now() - 70_000
     const { pokeDollars: balance = 0, balls = {}, heldItems = [], dnaBoosters = {}, collection = {} } = JSON.parse(viewer.payload)
     const species = url.searchParams.get('pokemon')
     const dnaCount = species && Object.hasOwn(collection, species) ? sharedDna(dnaBoosters, species) : undefined
     const messages = {
+      expired: language === 'en' ? 'The order expired before processing. You can retry.' : 'El pedido caducó antes de procesarse. Puedes volver a comprar.',
+      review: language === 'en' ? 'The app did not confirm the order. Check your inventory and balance.' : 'La app no confirmó el pedido. Revisa tu inventario y saldo.',
       purchased: language === 'en' ? 'Purchase complete.' : 'Compra realizada.',
       owned: language === 'en' ? 'Already owned.' : 'Ya tienes ese objeto.',
       funds: language === 'en' ? 'Not enough Pokédollars.' : 'No tienes suficientes Pokédólares.',
@@ -754,11 +824,14 @@ export async function portal(request, url, env) {
     const callback = url.origin + '/auth/' + provider + '/callback'
     const cookieName = 'sc_flow_' + provider
     if (action === 'callback' && request.method === 'GET') {
-      const [state, verifier, linkSession] = (getCookie(request, cookieName) || '').split('.')
+      const returnedState = url.searchParams.get('state') ?? ''
+      const flowCookie = /^[a-f0-9]{64}$/.test(returnedState) ? cookieName + '_' + returnedState : cookieName
+      const [state, verifier, linkSession] = (getCookie(request, flowCookie) || getCookie(request, cookieName) || '').split('.')
       const code = url.searchParams.get('code')
       if (!code || !state || state !== url.searchParams.get('state') ||
           (linkSession && (!identity || linkSession !== session))) {
-        return page('<p>' + t("La autorización venció o fue cancelada.") + ' <a href="/">' + t("Volver") + '</a></p>', 400)
+        console.warn(JSON.stringify({ event: 'viewer_oauth_failure', provider, stage: !code ? 'cancelled_or_missing_code' : 'flow_cookie' }))
+        return page('<p>' + t("La autorización venció o fue cancelada.") + ' <a href="/auth/' + provider + '">' + (language === 'en' ? 'Try sign-in again' : 'Volver a iniciar sesión') + '</a></p>', 400)
       }
       const verified = await platformIdentity(provider, config, code, callback, verifier)
       if (!verified) return page('<p>' + t("No se pudo verificar la cuenta.") + ' <a href="/">' + t("Volver") + '</a></p>', 502)
@@ -772,16 +845,17 @@ export async function portal(request, url, env) {
         : 'Esta identidad ya está vinculada a otra cuenta o tu cuenta ya tiene otra identidad de esta plataforma.') +
         ' <a href="/">' + t("Volver") + '</a></p>', 409)
       return redirect(linkSession ? '/?account=1' : '/', [
-        cookie(cookieName, '', 0), cookie('sc_session', newSession, 86_400)
+        cookie(flowCookie, '', 0), cookie('sc_session', newSession, 86_400)
       ])
     }
     const linking = action === 'link'
+    if (!action && request.method === 'GET' && identity) return redirect('/?account=1', [])
     if ((!action && request.method === 'GET') ||
         (linking && request.method === 'POST' && identity && request.headers.get('Origin') === url.origin)) {
       const state = randomId()
       const verifier = randomId()
       const destination = await authorizeUrl(provider, config, callback, state, verifier)
-      return redirect(destination, [cookie(cookieName, [state, verifier, linking ? session : ''].join('.'), 600)])
+      return redirect(destination, [cookie(cookieName + '_' + state, [state, verifier, linking ? session : ''].join('.'), 600)])
     }
     return page('<p>' + t("Solicitud inválida.") + '</p>', 403)
   }
@@ -845,7 +919,7 @@ export async function portal(request, url, env) {
   const { results } = await env.DB.prepare(
     'SELECT entries.*, COALESCE(k.login, entries.community_id) AS community_name FROM (' +
     'SELECT community_id, viewer_id, payload, updated_at FROM (' +
-    'SELECT p.community_id, p.viewer_id, p.payload, p.updated_at, row_number() OVER (PARTITION BY p.community_id ORDER BY p.updated_at DESC, p.viewer_id) AS entry ' +
+    "SELECT p.community_id, p.viewer_id, p.payload, p.updated_at, row_number() OVER (PARTITION BY p.community_id ORDER BY CASE WHEN p.viewer_id LIKE 'twitch:%' THEN 0 ELSE 1 END, p.updated_at DESC, p.viewer_id) AS entry " +
     'FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id WHERE i.account_id = ?' +
     ') WHERE entry = 1) entries LEFT JOIN kick_channels k ON k.community_id = entries.community_id ' +
     "AND entries.community_id LIKE 'kick-%' ORDER BY entries.community_id"
@@ -864,10 +938,11 @@ export async function portal(request, url, env) {
           : t('Próximamente')
       return '<li class="account-card"><strong>' + name + '</strong>' + info + '</li>'
     }).join('')
-    const message = url.searchParams.has('unlinked') ? (language === 'en' ? 'Sign-in unlinked. Your progress is still saved.' : 'Acceso desvinculado. Tu progreso sigue guardado.') :
+    const message = url.searchParams.has('unlinked') ? (language === 'en' ? 'Sign-in unlinked. The shared album stays with your remaining login.' : 'Acceso desvinculado. El álbum compartido se conserva con el acceso restante.') :
       url.searchParams.has('unlinkError') ? (language === 'en' ? 'Keep at least one sign-in method active.' : 'Mantén al menos una forma de iniciar sesión.') : ''
+    const admin = (await adminCommunities(env.DB, identity.account_id)).length ? '<p><a class="button" href="/admin">' + (language === 'en' ? 'Streamer administration' : 'Administración del streamer') + '</a></p>' : ''
     return page('<section class="sheet"><h1>' + t("Cuentas vinculadas") + '</h1>' + (message ? '<p role="status">' + message + '</p>' : '') + '<ul class="community-list">' + rows +
-      '</ul><p><a href="/">' + t("Volver a comunidades") + '</a></p><hr><p><a class="danger-action" href="/auth/delete">' + deleteLabel + '</a></p></section>')
+      '</ul>' + admin + '<p><a href="/">' + t("Volver a comunidades") + '</a></p><hr><p><a class="danger-action" href="/auth/delete">' + deleteLabel + '</a></p></section>')
   }
   const selected = results.find(row => row.community_id === url.searchParams.get('community'))
   if (editing && !selected) return new Response(null, { status: 404 })
@@ -881,7 +956,7 @@ export async function portal(request, url, env) {
         '<p class="empty">' + t("Aún no tienes comunidades sincronizadas. Usa !poke join en el chat de un streamer participante.") + '</p>') +
       '</section>')
   }
-  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, legendaryTrackers = 0, pokeDollars = 0, dnaBoosters = {}, log = [] } = JSON.parse(selected.payload)
+  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, legendaryTrackers = 0, pokeDollars = 0, dnaBoosters = {}, log = [], dexAcquired = {} } = JSON.parse(selected.payload)
   const online = buying || url.searchParams.get('tab') === 'shop' || !editing && url.searchParams.has('pokemon')
     ? await env.DB.prepare('SELECT seen_at, prices, supports_dna, supports_quantity FROM shop_online WHERE community_id = ?').bind(selected.community_id).first() : null
   const published = online?.prices ? JSON.parse(online.prices) : null
@@ -897,13 +972,28 @@ export async function portal(request, url, env) {
     feature: en ? 'The streamer’s app must be updated for this item.' : 'La app del streamer debe actualizarse para vender este objeto.',
     quantity: en ? 'The streamer’s app does not support buying multiple items yet.' : 'La app del streamer aún no permite comprar varias unidades.' }
   const reason = url.searchParams.get('reason')
-  const purchaseWarning = Object.hasOwn(reasons, reason ?? '') ? reasons[reason] : ''
+  const purchaseWarning = Object.hasOwn(reasons, reason ?? '') ? reasons[reason] : url.searchParams.has('retry') ?
+    (en ? 'A purchase is pending or you have reached the purchase limit. Wait a moment and try again.' : 'Hay una compra pendiente o alcanzaste el límite. Espera un momento y vuelve a intentar.') : ''
   if (buying) {
     const item = url.searchParams.get('item')
     const orderId = url.searchParams.get('order')
     if (!Object.hasOwn(shopItems, item ?? '') || !/^[a-f0-9-]{36}$/.test(orderId ?? '')) return new Response(null, { status: 400 })
     const product = shopItems[item]
-    const form = request.headers.get('Content-Type')?.startsWith('application/x-www-form-urlencoded') ? await request.formData() : null
+    let form
+    if (request.headers.get('Content-Type')?.startsWith('application/x-www-form-urlencoded')) {
+      const reader = request.body?.getReader()
+      let size = 0
+      let text = ''
+      const decoder = new TextDecoder()
+      if (reader) while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        size += value.byteLength
+        if (size > 1024) { await reader.cancel(); return new Response(null, { status: 413 }) }
+        text += decoder.decode(value, { stream: true })
+      }
+      form = new URLSearchParams(text + decoder.decode())
+    }
     const quantity = Number(form?.get('quantity') ?? 1)
     if (!validShopQuantity(product, quantity)) return new Response(null, { status: 400 })
     const target = product.dna ? url.searchParams.get('pokemon') : null
@@ -928,11 +1018,15 @@ export async function portal(request, url, env) {
     const findExistingOrder = () => env.DB.prepare('SELECT id FROM shop_orders WHERE id = ? AND community_id = ? AND viewer_id = ?')
       .bind(orderId, selected.community_id, selected.viewer_id).first()
     const now = Date.now()
-    const queued = await env.DB.prepare('INSERT OR IGNORE INTO shop_orders (id, community_id, viewer_id, item, created_at, price, species_key, quantity) ' +
+    const [, queued] = await env.DB.batch([expireShopOrders(env.DB, selected.community_id, now), env.DB.prepare('INSERT OR IGNORE INTO shop_orders (id, community_id, viewer_id, item, created_at, price, species_key, quantity) ' +
       'SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM shop_online WHERE community_id = ? AND seen_at > ? AND prices IS ? AND (? IS NULL OR supports_dna >= 3) AND (? = 1 OR supports_quantity = 1)) ' +
-      'AND EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ? AND account_id = ?) AND EXISTS (SELECT 1 FROM web_sessions WHERE id IN (?, ?) AND expires_at > ?)')
+      'AND EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ? AND account_id = ?) AND EXISTS (SELECT 1 FROM web_sessions WHERE id IN (?, ?) AND expires_at > ?) ' +
+      'AND NOT EXISTS (SELECT 1 FROM shop_orders o JOIN account_identities i ON i.viewer_id = o.viewer_id WHERE o.community_id = ? AND i.account_id = ? AND o.result IS NULL) ' +
+      'AND (SELECT COUNT(*) FROM shop_orders o JOIN account_identities i ON i.viewer_id = o.viewer_id WHERE o.community_id = ? AND i.account_id = ? AND o.created_at > ?) < 8 ' +
+      "AND NOT EXISTS (SELECT 1 FROM shop_orders o JOIN account_identities i ON i.viewer_id = o.viewer_id WHERE o.community_id = ? AND i.account_id = ? AND o.item = ? AND o.price IS ? AND o.species_key IS ? AND o.quantity = ? AND o.result = 'purchased' AND o.created_at > ?)")
       .bind(orderId, selected.community_id, selected.viewer_id, item, now, published ? price : null, target, quantity,
-        selected.community_id, now - 70_000, online?.prices ?? null, target, quantity, selected.viewer_id, identity.account_id, session, key, Date.now()).run()
+        selected.community_id, now - 70_000, online?.prices ?? null, target, quantity, selected.viewer_id, identity.account_id, session, key, now, selected.community_id, identity.account_id, selected.community_id, identity.account_id, now - 30_000,
+        selected.community_id, identity.account_id, item, published ? price : null, target, quantity, now - 3000)])
     return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, ...(queued.meta.changes || await findExistingOrder() ? { purchase: orderId } : { retry: '1' }) }), [])
   }
   const availableItems = [...new Set(ownedItems)].filter(item => Object.hasOwn(heldItems, item))
@@ -1080,13 +1174,14 @@ export async function portal(request, url, env) {
     const purchase = url.searchParams.get('purchase')
     const order = purchase && await env.DB.prepare('SELECT item, result FROM shop_orders WHERE community_id = ? AND viewer_id = ? AND id = ?')
       .bind(selected.community_id, selected.viewer_id, purchase).first()
-    const status = { purchased: en ? 'Purchase complete' : 'Compra realizada', owned: en ? 'Already owned' : 'Ya tienes ese objeto',
+    const status = { expired: en ? 'Order expired.' : 'El pedido caducó.', review: en ? 'Order unconfirmed. Check your balance.' : 'Pedido sin confirmar. Revisa tu saldo.', purchased: en ? 'Purchase complete' : 'Compra realizada', owned: en ? 'Already owned' : 'Ya tienes ese objeto',
       funds: fundsText, repriced: en ? 'The price changed.' : 'El precio cambió.', unavailable: en ? 'Purchase could not be completed' : 'No se pudo completar la compra',
       battleLocked: botCopy[language].battleLocked,
       maxed: en ? 'That Pokémon is at the DNA limit' : 'Ese Pokémon ya alcanzó el máximo de DNA' }
     const pending = order && !order.result
     const eggDialog = section === 'eggs' ? hatchDialog(en) : ''
-    shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong> <span data-shop-delta aria-live="polite"></span></p>' + shopTabs +
+    const eggOdds = section === 'eggs' ? '<p class="meta">' + (en ? 'First-stage Pokémon only. Legendary hatch chance: 0.001% per egg.' : 'Solo Pokémon en primera etapa. Probabilidad legendaria: 0,001% por huevo.') + '</p>' : ''
+    shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong> <span data-shop-delta aria-live="polite"></span></p>' + shopTabs + eggOdds +
       (url.searchParams.has('repriced') ? '<p role="status">' + (en ? 'The price changed. Check it before buying again.' : 'El precio cambió. Revísalo antes de volver a comprar.') + '</p>' : '') +
       (purchaseWarning ? '<p role="status" class="empty">' + escape(purchaseWarning) + '</p>' : '') +
       '<p role="status" class="empty" data-shop-availability data-offline="' + escape(offlineText) + '" data-upgrade="' +
@@ -1111,7 +1206,7 @@ export async function portal(request, url, env) {
           (product.ball ? ' data-shop-ball="' + product.ball + '"' : '') + (featured ? ' data-shop-feature' : '') + '>' +
           (product.ball ? '<span class="shop-count">' + (en ? 'In bag' : 'En la bolsa') + ' <strong data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</strong></span>' : '') + quantityInput + button + '</form>' + (featured ? '<small data-feature-upgrade' + (needsUpdate ? '' : ' hidden') + '>' + reasons.feature + '</small>' : '') + (id === 'master-ball' ? '<small data-shop-master-upgrade' + (available && needsUpdate ? '' : ' hidden') + '>' + escape(reasons.master) + '</small>' : '') +
           (available && !needsUpdate && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
-      }).join('') + '</ul>' + eggDialog + '</section><script src="/assets/shop-status.js?v=2" defer></script>'
+      }).join('') + '</ul>' + eggDialog + '</section><script src="/assets/shop-status.js?v=3" defer></script>'
   }
   const logDescription = entry => {
     const outcome = Object.hasOwn(outcomes, entry.result) ? outcomes[entry.result] : ''
@@ -1166,7 +1261,19 @@ export async function portal(request, url, env) {
     (pocket === 'key' ? '<ul class="bag">' + consumables + '</ul>' : pocket === 'held' && availableItems.length ?
       '<ul class="held-grid">' + availableItems.map(item => '<li>' + itemIcon(item) + '<strong>' + itemName(item) + '</strong></li>').join('') + '</ul>' :
       pocket === 'balls' && inventory ? '<ul class="bag">' + inventory + '</ul>' : '<p class="empty">' + t('Tu bolsa está vacía.') + '</p>') + '</section>'
-  const regionSpecies = nationalDex.slice(region[2] - 1, region[3])
+  const seen = new Map()
+  const eggAcquired = new Map()
+  if (tab === 'dex' && selected.viewer_id) {
+    const [seenRows, eggs] = await env.DB.batch([
+      env.DB.prepare('SELECT species_id, seen_at FROM dex_seen WHERE account_id = ? AND community_id = ?').bind(identity.account_id, selected.community_id),
+      env.DB.prepare("SELECT CAST(json_extract(o.hatch, '$.id') AS INTEGER) AS dex, MAX(o.created_at) AS acquired FROM shop_orders o JOIN account_identities i ON i.viewer_id = o.viewer_id WHERE o.community_id = ? AND i.account_id = ? AND o.result = 'purchased' AND o.hatch IS NOT NULL AND json_extract(o.hatch, '$.duplicate') = 0 GROUP BY dex").bind(selected.community_id, identity.account_id)
+    ])
+    for (const row of seenRows.results) seen.set(row.species_id, row.seen_at)
+    for (const row of eggs.results) eggAcquired.set(row.dex, row.acquired)
+  }
+  const regionalNumbers = new Map(regionalSpecies.map(form => [form.id, form.baseId]))
+  const regionSpecies = [...nationalDex.slice(region[2] - 1, region[3]), ...dexEntries.slice(nationalDex.length)
+    .filter(([, formRegion]) => region[0] === 'all' || formRegion === region[0])]
   const borders = tab === 'dex' ? '<style>' + [...new Set(regionSpecies.map(([dex]) => familyRoot(dex)))].map(root =>
     '.dex-grid:has([data-family="' + root + '"]:is(:hover,:focus-within)) [data-family="' + root + '"]{outline:2px solid #6664ac;outline-offset:1px}'
   ).join('') + '</style>' : ''
@@ -1189,8 +1296,11 @@ export async function portal(request, url, env) {
       familyLinks(dex).flatMap(([id]) => [speciesName(id), speciesName(id) + ' ✦'])
         .find(variant => Object.hasOwn(collection, variant))
     const profile = '<img src="' + sprite + '" width="96" height="96" loading="lazy" alt=""><strong>' + escape(label) + '</strong>'
-    return '<li class="slot ' + (owned ? 'owned' : 'locked') + '" data-family="' + familyRoot(dex) + '"><span class="dex-number">#' +
-      String(dex).padStart(3, '0') + '</span>' +
+    const acquired = Math.max(dexAcquired[key] ?? 0, dexAcquired[key + ' ✦'] ?? 0, eggAcquired.get(dex) ?? 0)
+    const isNew = owned && acquired > (seen.get(dex) ?? 0)
+    return '<li class="slot ' + (owned ? 'owned' : 'locked') + '" data-family="' + familyRoot(dex) + '"' +
+      (isNew ? ' data-dex-new="' + dex + '" data-acquired="' + acquired + '"><span class="dex-new">' + (en ? 'NEW' : 'NUEVO') + '</span>' : '>') + '<span class="dex-number">#' +
+      String(regionalNumbers.get(dex) ?? dex).padStart(3, '0') + '</span>' +
       (member ? summaryLink(member, profile, 'dex-entry') : profile) +
       '<div class="variants">' + (details || '<span>' + t("Sin capturar") + '</span>') + '</div></li>'
   }).join('') : ''
@@ -1204,7 +1314,7 @@ export async function portal(request, url, env) {
   return page('<div class="toolbar"><div><p class="meta">Viewer · ' + escape(displayName) + '</p><h1>' + t("Tu álbum") + '</h1></div>' +
     actions + '</div><p class="meta community-label">' + t('Comunidad · ') + escape(selected.community_name ?? selected.community_id) + '</p>' + nav +
     (tab === 'dex' ? borders + '<section class="sheet"><div class="dex-heading"><h2>Pokédex</h2><a class="button"' + (caughtOnly ? ' aria-current="true"' : '') + ' href="' + escape(href('dex', region[0], !caughtOnly)) + '">' +
-      (en ? 'Unlocked' : 'Desbloqueados') + '</a></div><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><ol class="dex-grid">' + slots + '</ol></section>'
+      (en ? 'Unlocked' : 'Desbloqueados') + '</a></div><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><ol class="dex-grid" data-dex-community="' + escape(selected.community_id) + '">' + slots + '</ol></section><script src="/assets/dex-new.js" defer></script>'
       : tab === 'overview' ? overview : tab === 'shop' ? shopPage : tab === 'log' ?
         '<section class="sheet"><h2>' + (en ? 'Activity log' : 'Registro de actividad') + '</h2><ul>' +
         [...log].reverse().map(entry => '<li><time>' + escape(new Date(entry.at).toLocaleString(language, { timeZone: 'America/Lima' })) +
