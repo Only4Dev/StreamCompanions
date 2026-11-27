@@ -436,7 +436,7 @@ if (panel) {
     const choices = kind === 'pokemon' ? catalog.flatMap(entry => entry.shiny ? [entry.name, entry.name + ' ✦'] : [entry.name]).map(name => [name, name]) :
       kind === 'balls' ? [['normal', 'Poké Ball'], ['great', en ? 'Great Ball' : 'Super Ball'], ['ultra', 'Ultra Ball'], ['master', 'Master Ball']] :
       kind === 'held' ? Object.entries(shopItems).filter(([, product]) => product.held).map(([id, product]) => [id, product.names[Number(en)]]) : []
-    adminGrant.elements.item.replaceChildren(...choices.map(([id, name]) => new Option(name, id)))
+    adminGrant.elements.namedItem('item').replaceChildren(...choices.map(([id, name]) => new Option(name, id)))
     $('admin-item-label').hidden = !choices.length
     const amount = adminGrant.elements.amount
     amount.max = kind === 'money' ? '1000000' : kind === 'held' || kind === 'pokemon' ? '1' : '999'
