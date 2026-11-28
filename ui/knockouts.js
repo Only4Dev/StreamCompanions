@@ -34,15 +34,35 @@ function renderBoss(boss, language) {
 
 const entries = new Map()
 const portrait = fighter => {
-  if (!fighter.sprite) {
-    const label = document.createElement('span')
-    label.textContent = fighter.name?.[0] ?? '?'
-    return label
+  const slot = document.createElement('span')
+  const showInitial = () => { slot.textContent = fighter.name?.[0] ?? '?' }
+  const showSprite = () => {
+    if (!fighter.frame) return showInitial()
+    const { url, width, height } = fighter.frame
+    const sheet = new Image()
+    sheet.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = canvas.height = 34
+      canvas.setAttribute('role', 'img')
+      canvas.setAttribute('aria-label', fighter.name)
+      const context = canvas.getContext('2d')
+      const ratio = 34 / Math.max(width, height)
+      context.imageSmoothingEnabled = false
+      context.drawImage(sheet, 0, 0, width, height,
+        (34 - width * ratio) / 2, (34 - height * ratio) / 2, width * ratio, height * ratio)
+      slot.replaceChildren(canvas)
+    }
+    sheet.onerror = showInitial
+    sheet.src = url
   }
-  const img = document.createElement('img')
-  img.src = fighter.sprite
-  img.alt = fighter.name
-  return img
+  if (fighter.sprite) {
+    const img = document.createElement('img')
+    img.alt = fighter.name
+    img.onerror = () => { slot.replaceChildren(); showSprite() }
+    img.src = fighter.sprite
+    slot.append(img)
+  } else showSprite()
+  return slot
 }
 
 function render(rows, language) {

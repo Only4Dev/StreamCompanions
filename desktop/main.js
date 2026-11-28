@@ -1040,15 +1040,19 @@ const server = createServer(async (req, res) => {
       const portrait = fighter => {
         const appearance = fighter.appearance ?? fighter
         const entry = feedSpecies.get(appearance.name)
+        const art = entry?.battleForms?.[appearance.form ?? fighter.bossForm ?? fighter.form] ?? entry
+        const animations = (appearance.shiny ? art?.shiny ?? art?.normal : art?.normal)?.animations
+        const frame = animations?.Idle ?? animations?.Walk ?? Object.values(animations ?? {})[0]
         return {
-          sprite: appearance.shiny ? entry?.shinyPortrait ?? entry?.portrait : entry?.portrait,
+          sprite: appearance.shiny ? art?.shinyPortrait ?? (art?.shiny ? undefined : art?.portrait) : art?.portrait,
+          frame: frame && { url: frame.url, width: frame.width, height: frame.height },
           name: appearance.name, viewer: fighter.ownerName || fighter.name, boss: Boolean(fighter.boss)
         }
       }
       const samples = [
         [{ name: 'Pikachu' }, { name: 'Blastoise', ownerName: 'Viewer 3' }],
         [{ name: 'Charizard' }, { name: 'Venusaur', ownerName: 'Viewer 1' }],
-        [{ name: 'Blastoise' }, { name: 'Dragonite', ownerName: 'Viewer 2' }]
+        [{ name: 'Alolan Exeggutor' }, { name: 'Dragonite', ownerName: 'Viewer 2' }]
       ]
       const rows = preview === 'raid' ? [{
         id: 'raid', target: portrait({ name: 'Pikachu' }), killer: portrait({ name: 'Blastoise', boss: true })
