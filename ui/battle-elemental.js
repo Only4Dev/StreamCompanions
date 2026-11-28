@@ -189,6 +189,31 @@ function ruin(ctx, fx, e, width, floor, t, time) {
   }
 }
 
+export function drawEarthImpact(ctx, fx, e, floor, time) {
+  const t = limit((time - e.at) / (e.expires - e.at))
+  const radius = Math.max(45, Math.min(330, e.reach ?? 110)) * (.24 + .76 * t)
+  const rocky = e.type === 'rock'
+  ctx.save()
+  ctx.globalAlpha = 1 - t ** 2
+  for (let i = 0; i < 12; i++) {
+    const lane = i - 5.5
+    const x = e.x + lane * radius / 5.5
+    const altitude = Math.sin(t * Math.PI) * (20 + drift(i * 13) * 65)
+    const y = floor - 13 - altitude
+    const size = 13 + drift(i * 7) * (rocky ? 27 : 19)
+    stone(ctx, x, y, size, rocky, t * 4 + i)
+    fx.add(x, y + 9, size * 1.22, e.type, 1 - t * .64, 9, t * 4 + i)
+    fx.add(x + 18 * t, floor - 13 - altitude * .41, size * 1.8, e.type, (1 - t) * .61, 2, t + i)
+  }
+  if (!rocky) for (const [weight, color] of [[8, '#482c2c'], [2.5, '#eaa475']]) {
+    ctx.lineWidth = weight
+    ctx.strokeStyle = color
+    path(ctx, Array.from({ length: 25 }, (_, i) => [e.x + (i - 12) * radius / 12, floor + 8 + noise(i * 6) * 16]))
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
 function graveyard(ctx, fx, e, width, floor, t, time) {
   cloudBed(ctx, fx, width, floor - 46, time, 'ghost', .72)
   for (let i = 0; i < 11; i++) {

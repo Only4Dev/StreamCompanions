@@ -2,7 +2,7 @@ import { level, maxLevel, xpAtLevel } from './levels.js'
 import { drawArea, drawBattleContact, drawChannel, drawClash, drawDigMound, drawField, drawHyper, drawOngoing, drawPoisonHazard, drawProjectile, drawStatus, drawTarget, drawUltimate } from '../dev/battle-vfx.js'
 import { battleFxColor, createBattleParticles, drawBarrier, drawImpact, drawMoveCue, drawPiercingBeam, drawSpellProjectile,
   drawStageAura, drawStageMarks, drawStatusParticles } from './battle-fx.js'
-import { drawElementalUltimate, drawFrozenShell, drawRainLayers, drawWarp } from './battle-elemental.js'
+import { drawEarthImpact, drawElementalUltimate, drawFrozenShell, drawRainLayers, drawWarp } from './battle-elemental.js'
 
 const images = new Map()
 
@@ -549,9 +549,16 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         else if (effect.kind === 'pierce') drawPiercingBeam(context, particles, effect, floor - 42, renderTime)
         else if (effect.kind === 'clash') drawClash(context, effect.x, floor, renderTime - effect.at)
         else if (effect.kind === 'hazard' && effect.visual === 'web') drawWeb(context, effect.x, floor - 7, 80, 29)
-        else if (effect.kind === 'hazard') drawPoisonHazard(context, effect, floor, renderTime)
+        else if (effect.kind === 'hazard') {
+          drawPoisonHazard(context, effect, floor, renderTime)
+          const spin = renderTime * 3 + effect.x
+          particles.add(effect.x + Math.sin(spin) * 16, floor - 15 - Math.sin(spin * .73) ** 2 * 18, 23, 'poison', .63, 18, spin * .18)
+        }
         else if (effect.kind === 'target') drawTarget(context, effect, floor - 38, renderTime)
-        else if (effect.kind === 'area') drawArea(context, effect, floor, color, renderTime)
+        else if (effect.kind === 'area') {
+          if (effect.type === 'ground' || effect.type === 'rock') drawEarthImpact(context, particles, effect, floor, renderTime)
+          else drawArea(context, effect, floor, color, renderTime)
+        }
       }
       if (!battle.over) for (const shot of battle.projectiles) {
         const x = shot.x + shot.direction * 720 * ahead
