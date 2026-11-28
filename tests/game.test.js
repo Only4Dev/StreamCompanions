@@ -824,3 +824,32 @@ test('a battle pause keeps a live encounter catchable and resets the next spawn'
   game.setWildPaused(false)
   assert.equal(game.schedule(), now + 30 * 60_000)
 })
+
+test('TM disks and ancestral fragments unlock only the owned Pokémon family', () => {
+  const catalog = [{id:7,name:'Squirtle'}, {id:8,name:'Wartortle'}, {id:9,name:'Blastoise'}, {id:4,name:'Charmander'}]
+  const make = progress => createGame({ catalog, now: () => 0, random: () => .5, progress })
+  const game = make({ viewers: { A: { collection: { Squirtle: 0, Blastoise: 0, Charmander: 0 }, pokeDollars: 20000, tmFragments: 4 } } })
+  assert.equal(game.fulfillOrder({ id: 'disk', viewerId: 'A', item: 'tm-disk' }), 'purchased')
+  assert.equal(game.learnTm('A', 'Charmander', 'liquidation'), 'tmUnavailable')
+  assert.equal(game.learnTm('A', 'Blastoise', 'liquidation'), 'tmLearned')
+  assert.equal(game.learnTm('A', 'Squirtle', 'liquidation'), 'tmKnown')
+  assert.equal(game.learnTm('A', 'Squirtle', 'aurorafountain'), 'tmUnavailable')
+  game.configure({ ...game.config, raidTmChance: 100 })
+  game.grantRaidRewards(['A', 'A'])
+  assert.equal(game.learnTm('A', 'Squirtle', 'aurorafountain'), 'tmLearned')
+  const viewer = make(game.progress()).progress().viewers.A
+  assert.equal(viewer.tmFragments, 0)
+  assert.equal(viewer.tmDisks, 0)
+  assert.deepEqual(viewer.tmMoves, { 7: ['liquidation', 'aurorafountain'] })
+})
+
+test('raid fragment drops roll independently once per participant', () => {
+  const draws = [.001, .8]
+  const game = createGame({ now: () => 0, random: () => draws.shift() ?? .5,
+    progress: { config: { raidTmChance: .5, raidRewards: [] },
+      viewers: { A: { collection: {} }, B: { collection: {} } } } })
+  game.grantRaidRewards(['A', 'A', 'B'])
+  const { A, B } = game.progress().viewers
+  assert.equal(A.tmFragments, 1)
+  assert.equal(B.tmFragments, undefined)
+})

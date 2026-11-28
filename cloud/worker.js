@@ -13,6 +13,7 @@ import { battleSpecies } from '../dev/battle.js'
 import { eggRarities } from '../ui/egg-rules.js'
 import { eggRarity, specialEncounterTag } from '../ui/capture-rates.js'
 import { validTraining } from '../ui/training.js'
+import { validTmMoves } from '../ui/tm.js'
 import { featuredShopItems, normalizeShopPrices, shopItems, validShopQuantity } from '../ui/shop.js'
 
 const json = (data, status = 200) => Response.json(data, {
@@ -120,6 +121,8 @@ function viewerWrites(db, device, viewers) {
     const legendaryTrackers = viewer.legendaryTrackers ?? 0
     const shinyDust = viewer.shinyDust ?? 0
     const vitamins = viewer.vitamins ?? 0
+    const { tmDisks = 0, tmFragments = 0, tmMoves = {} } = viewer
+    if (!validTmMoves(tmMoves)) return json({ error: 'invalid TM moves' }, 400)
     const eggPity = viewer.eggPity
     if (eggPity !== undefined && (!eggPity || Array.isArray(eggPity) || Object.keys(eggPity).length !== 3 ||
         !['rare', 'epic', 'legendary'].every(tier => Number.isSafeInteger(eggPity[tier]) && eggPity[tier] >= 0))) {
@@ -134,7 +137,7 @@ function viewerWrites(db, device, viewers) {
       !Object.hasOwn(viewer.collection, name) || !Number.isSafeInteger(at) || at < 0)) return json({ error: 'invalid dex acquisitions' }, 400)
     if (typeof dnaBoosters !== 'object' || Array.isArray(dnaBoosters) || Object.entries(dnaBoosters).some(([key, count]) =>
       !Object.hasOwn(viewer.collection, key) || !Number.isInteger(count) || count < 0 || count > 10)) return json({ error: 'invalid DNA boosters' }, 400)
-    if (![rareCandies, legendaryTrackers, shinyDust, vitamins, pokeDollars].every(value => Number.isSafeInteger(value) && value >= 0)) return json({ error: 'invalid rewards' }, 400)
+    if (![rareCandies, legendaryTrackers, shinyDust, vitamins, pokeDollars, tmDisks, tmFragments].every(value => Number.isSafeInteger(value) && value >= 0)) return json({ error: 'invalid rewards' }, 400)
     if (!Array.isArray(items) || items.length > Object.keys(heldItems).length ||
         items.some(item => typeof item !== 'string' || !Object.hasOwn(heldItems, item))) return json({ error: 'invalid items' }, 400)
     const generation = viewer.generation ?? 0
@@ -161,6 +164,7 @@ function viewerWrites(db, device, viewers) {
       'WHERE excluded.revision > viewer_progress.revision'
     ).bind(device.community_id, viewer.id, viewer.revision,
         JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters, ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(shinyDust ? { shinyDust } : {}), ...(vitamins ? { vitamins } : {}), ...(Object.keys(training).length ? { training } : {}),
+          ...(tmDisks ? { tmDisks } : {}), ...(tmFragments ? { tmFragments } : {}), ...(Object.keys(tmMoves).length ? { tmMoves } : {}),
           ...(eggPity ? { eggPity } : {}), ...(Object.keys(dexAcquired).length ? { dexAcquired } : {}), log: log.slice(-8).map(({ at, platform, action, result, capture }) => ({
             at, platform, action, result, ...(capture ? { capture: { ball: capture.ball, remaining: capture.remaining, pokemon: capture.pokemon } } : {})
           })), metrics: { wins: metrics.wins, losses: metrics.losses, summonMinutes: metrics.summonMinutes } }), Date.now(), viewer.id, generation, generation, viewer.id, device.key_hash))

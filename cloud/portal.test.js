@@ -26,7 +26,7 @@ test('a signed-in viewer can save unlocked moves for an owned variant only', asy
       if (sql.includes('row_number')) return { all: async () => ({ results: [{
         community_id: 'channel', viewer_id: 'twitch:123',
         payload: JSON.stringify({ collection: { Rattata: 0, Charmander: 30 ** 2 * 120, Charizard: 30 ** 2 * 120,
-          Dreepy: 15 ** 2 * 120, Drakloak: 15 ** 2 * 120 } })
+          Dreepy: 15 ** 2 * 120, Drakloak: 15 ** 2 * 120 }, tmMoves: { 4: ['flareblitz'] } })
       }] }) }
       if (sql.startsWith('SELECT moves')) return { first: async () => saved ? { moves: saved[3] } : null }
       return { run: async () => { saved = args } }
@@ -52,6 +52,7 @@ test('a signed-in viewer can save unlocked moves for an owned variant only', asy
   const summaryHtml = await summary.text()
   assert.match(summaryHtml, /Rattata.*Ataques activos.*Placaje.*Ataques guardados/)
   assert.match(summaryHtml, /CD 1,1 s · PP 20/)
+  assert.match(summaryHtml, /Físico · BP/)
   assert.match(summaryHtml, /Saldo actual: <strong data-shop-wallet="0">\$0<\/strong>/)
   assert.match(summaryHtml, /Puedes comprar cuando la app del streamer esté conectada y el juego activo/)
   assert.equal((await save('Charizard', 'ember', ['ultimate-fire', 'ultimate-flying'])).status, 400)
@@ -65,6 +66,11 @@ test('a signed-in viewer can save unlocked moves for an owned variant only', asy
   const html = await duelSummary.text()
   assert.match(html, /value="ultimate-fire">/)
   assert.match(html, /value="ultimate-flying" selected/)
+  assert.match(html, /Ataques TM desbloqueables/)
+  assert.match(html, /Desbloquear · 5 fragmentos ancestrales/)
+  assert.match(html, /name="move" value="flareblitz"/)
+  assert.equal((await save('Charmander', 'flareblitz')).status, 303)
+  assert.equal((await save('Charizard', 'ancestraltempest')).status, 400)
   const familyUrl = new URL('https://example.test/?community=channel&region=galar&pokemon=Dreepy')
   const family = await portal(new Request(familyUrl, { headers }), familyUrl, env)
   const familyHtml = await family.text()

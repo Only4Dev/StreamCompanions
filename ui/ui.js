@@ -73,6 +73,8 @@ Object.assign(labels.en, { captureTab: 'Capture', captureDifficulty: 'Difficulty
   captureDefaults: 'Load defaults', captureSaved: 'Capture rates saved.' })
 Object.assign(labels.es, { shopTab: 'Tienda', shopPricesHelp: 'Edita los precios en Pokédólares. Se publican en la siguiente conexión de la tienda con el juego activo.', publishShopPrices: 'Guardar y publicar precios', shopPricesSaved: 'Precios guardados. Se publicarán en la próxima sincronización de la tienda.' })
 Object.assign(labels.en, { shopTab: 'Shop', shopPricesHelp: 'Edit prices in Pokédollars. They go live on the next shop sync while the game is running.', publishShopPrices: 'Save and publish prices', shopPricesSaved: 'Prices saved. They will go live on the next shop sync.' })
+labels.es.raidTmChance = 'Fragmento de TM ancestral por jugador (%)'
+labels.en.raidTmChance = 'Ancestral TM Fragment per player (%)'
 
 Object.assign(labels.es, { homeTab: 'Inicio', sourcesTab: 'Fuentes', next: 'Próximo encuentro', wildCount: 'Encuentros de esta sesión', caughtCount: 'Capturas de esta sesión',
   encounterSettings: 'Encuentros salvajes', companionSettings: 'Compañeros en pantalla', battleSettings: 'Batallas por equipos', teamBattleHelp: 'Cada viewer participa con su equipo guardado. Con el equipo vacío entra su Pokémon invocado.', raidHelp: 'Inicia una incursión con uno o más compañeros invocados o lanza una prueba sin premios. Ambas se ven en la fuente Compañeros de OBS o Streamlabs.', startRaidNow: 'Iniciar incursión ahora', interval: 'Cada cuántos minutos aparece un salvaje', duration: 'Minutos para capturar', catchGraceSeconds: 'Margen por retraso (s)',

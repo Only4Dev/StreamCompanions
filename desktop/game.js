@@ -9,6 +9,7 @@ import { captureCategories, catchChance, catchDifficulty, normalizeCapturePercen
 import { heldItems } from '../ui/held-items.js'
 import { eggPool, eggProbabilities, eggRarities, nextEggPity, parseEggPool } from '../ui/egg-rules.js'
 import { normalizeShopPrices, shopItems, validShopPrice, validShopQuantity } from '../ui/shop.js'
+import { ancestralFragmentCost, tmCost } from '../ui/tm.js'
 
 export const creatures = ['Brasa', 'Musgo', 'Gota']
 
@@ -74,6 +75,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   config.capturePercentages = normalizeCapturePercentages(config.capturePercentages) ??
     Object.fromEntries(captureCategories.map(({ id, defaults }) => [id, [...defaults]]))
   config.shopPrices = normalizeShopPrices(config.shopPrices ?? {}) ?? normalizeShopPrices({})
+  config.raidTmChance ??= .5
   let encounter = null
   let wildPaused = false
   let battleActive = false
@@ -446,6 +448,12 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         const chance = reward.chance ?? 100
         if (chance === 100 || chance > 0 && random() * 100 < chance) this.grantAdmin({ ...reward, viewerId })
       }
+      for (const viewerId of new Set(viewerIds)) {
+        const viewer = viewers.get(viewerId)
+        if (viewer && config.raidTmChance > 0 && random() * 100 < config.raidTmChance) {
+          viewer.tmFragments = (viewer.tmFragments ?? 0) + 1
+        }
+      }
     },
     setShopPrices(values) {
       const prices = normalizeShopPrices(values)
@@ -481,6 +489,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
             viewer.dnaBoosters[keys[0]] = dna + quantity
           }
           else if (item === 'vitamin-complex') viewer.vitamins = (viewer.vitamins ?? 0) + quantity
+          else if (item === 'tm-disk') viewer.tmDisks = (viewer.tmDisks ?? 0) + 1
           else if (item === 'shiny-dust') viewer.shinyDust = (viewer.shinyDust ?? 0) + 1
           else if (item === 'legendary-tracker') viewer.legendaryTrackers = (viewer.legendaryTrackers ?? 0) + 1
           else if (item === 'poke-egg') {
@@ -540,6 +549,23 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       if (!Number.isSafeInteger(total)) return false
       viewer[key] = total
       return true
+    },
+    learnTm(viewerId, pokemon, move) {
+      const viewer = viewers.get(viewerId)
+      const id = byName.get(pokemon.replace(/ ✦$/, ''))?.id
+      if (!id || !viewer || !Object.hasOwn(viewer.collection, pokemon)) return 'missingCreature'
+      if (battleActive) return 'battleLocked'
+      const cost = tmCost(id, move)
+      if (!cost) return 'tmUnavailable'
+      const family = familyRoot(id)
+      const learned = viewer.tmMoves?.[family] ?? []
+      if (learned.includes(move)) return 'tmKnown'
+      const counter = cost === 'ancestral' ? 'tmFragments' : 'tmDisks'
+      const amount = cost === 'ancestral' ? ancestralFragmentCost : 1
+      if ((viewer[counter] ?? 0) < amount) return 'tmUnavailable'
+      viewer[counter] -= amount
+      ;(viewer.tmMoves ??= {})[family] = [...learned, move]
+      return 'tmLearned'
     },
     train(viewerId, pokemon, operation, stat) {
       const viewer = viewers.get(viewerId)
@@ -685,6 +711,12 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         for (const root of target.shinyFamilies) syncShinyUnlocks(target, root)
         target.vitamins = Math.max(target.vitamins ?? 0, source.vitamins ?? 0)
         target.eggPity ??= source.eggPity
+        target.tmDisks = Math.max(target.tmDisks ?? 0, source.tmDisks ?? 0)
+        target.tmFragments = Math.max(target.tmFragments ?? 0, source.tmFragments ?? 0)
+        if (source.tmMoves) for (const [family, keys] of Object.entries(source.tmMoves)) {
+          const learned = target.tmMoves ??= {}
+          learned[family] = [...new Set([...(learned[family] ?? []), ...keys])]
+        }
         target.training = { ...source.training, ...target.training }
         target.shinyDust = Math.max(target.shinyDust ?? 0, source.shinyDust ?? 0)
         target.legendaryTrackers = Math.max(target.legendaryTrackers ?? 0, source.legendaryTrackers ?? 0)
@@ -740,8 +772,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         erasedViewers: [...erasedViewers],
         viewerGenerations: Object.fromEntries(viewerGenerations),
         shopReceipts: Object.fromEntries(shopReceipts),
-        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, vitamins, eggPity, training, pokeDollars, dnaBoosters, log, dexAcquired }]) =>
-          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, vitamins, eggPity, training, pokeDollars, dnaBoosters, log, dexAcquired }]))
+        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, vitamins, eggPity, training, pokeDollars, dnaBoosters, log, dexAcquired, tmDisks, tmFragments, tmMoves }]) =>
+          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, vitamins, eggPity, training, pokeDollars, dnaBoosters, log, dexAcquired, tmDisks, tmFragments, tmMoves }]))
       }
     },
     recordBattle(participants, winner, speciesKey, performances = []) {
@@ -804,6 +836,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       }
       Object.assign(config, { interval, duration, catchGraceSeconds, legendaryChancePercent, shiny, nameLimit, visibleLimit, spriteScale })
       if (Number.isFinite(values.raidChance) && values.raidChance >= 0 && values.raidChance <= 100) config.raidChance = values.raidChance
+      if (Number.isFinite(values.raidTmChance) && values.raidTmChance >= 0 && values.raidTmChance <= 100) config.raidTmChance = values.raidTmChance
       for (const name of ['raidSizePercent', 'raidHpMultiplier', 'raidViewerHpPercent', 'raidStatMultiplier']) if (values[name] !== undefined) config[name] = values[name]
       if (['highest', 'average'].includes(values.raidLevelMode)) config.raidLevelMode = values.raidLevelMode
       if (Number.isInteger(values.raidDuration) && values.raidDuration >= 30 && values.raidDuration <= 600) config.raidDuration = values.raidDuration

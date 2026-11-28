@@ -4,11 +4,13 @@ import { familyRoot } from '../ui/evolution.js'
 import { level, maxLevel } from '../ui/levels.js'
 import { kanto } from './kanto.js'
 import { nationalDex } from './national-dex.js'
+import { learnedTmMoves } from '../ui/tm.js'
 
 export const dexEntries = [...nationalDex, ...regionalSpecies.map(form => [form.id, form.region, form.name])]
 const entriesById = new Map(dexEntries.map(entry => [entry[0], entry]))
 export const speciesName = id => kanto[id - 1] ?? entriesById.get(id)?.[2]
 const idsByName = new Map(dexEntries.map(([id]) => [speciesName(id), id]))
+export const pokemonId = name => idsByName.get(name.replace(/ ✦$/, ''))
 
 const regionalBase = new Map(regionalSpecies.map(form => [form.id, form.baseId]))
 export function battleTeamFamily(name) {
@@ -23,8 +25,8 @@ export async function readBattleTeams(db, community, viewerIds) {
   return Object.fromEntries(results.map(({ viewer_id, slots }) => [viewer_id, JSON.parse(slots).map(({ pokemon }) => ({ pokemon }))]))
 }
 
-export function creatureMoves(speciesKey, xp, dna = 0, training) {
-  const id = idsByName.get(speciesKey.replace(/ ✦$/, ''))
+export function creatureMoves(speciesKey, xp, dna = 0, training, tmMoves) {
+  const id = pokemonId(speciesKey)
   if (!id) return null
   const rank = level(xp)
   const [form, stats, types, final] = battleSpecies(id)
@@ -34,10 +36,13 @@ export function creatureMoves(speciesKey, xp, dna = 0, training) {
       if (!moves[key].ultimate && !unlockedAt.has(key)) unlockedAt.set(key, rank)
     }
   }
+  const learned = learnedTmMoves(id, tmMoves)
+  for (const key of learned) unlockedAt.set(key, 1)
   return {
     id, form, rank, types, final, stats: battleStatsAtLevel(id, stats, rank, dna, training),
     unlockedAt,
-    options: moveOptions(form, types, final, rank).filter(key => !moves[key].ultimate),
+    options: [...new Set([...moveOptions(form, types, final, rank).filter(key => !moves[key].ultimate), ...learned])],
+    learned,
     ultimates: ultimateOptions(types, rank)
   }
 }

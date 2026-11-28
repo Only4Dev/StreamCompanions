@@ -1,4 +1,5 @@
 import { parseTrainingCommand } from '../ui/training.js'
+import { learnedTmMoves, parseTmCommand } from '../ui/tm.js'
 import { app, BrowserWindow, dialog, safeStorage, session, shell } from 'electron'
 import { createHash, randomBytes } from 'node:crypto'
 import { dirname, join } from 'node:path'
@@ -450,18 +451,20 @@ async function processWebGame(actions) {
   for (const action of actions.slice(0, 10)) {
     const { id, viewerId, platform, command, encounterId, twitchId, kickId } = action
     const training = parseTrainingCommand(command)
+    const tm = parseTmCommand(command)
     if (!/^[a-f0-9-]{36}$/.test(id) || !/^(twitch|kick):\d{1,24}$/.test(viewerId) ||
         !['twitch', 'kick'].includes(platform) || typeof command !== 'string' || command.length > 120 ||
-        (!training && !/^!(?:catch (?:normal|great|ultra|master)|summon .+|summonshiny .+|candy \d{1,2}|legendaryticket|shiny)$/.test(command))) continue
+        (!training && !tm && !/^!(?:catch (?:normal|great|ultra|master)|summon .+|summonshiny .+|candy \d{1,2}|legendaryticket|shiny)$/.test(command))) continue
     let result = game.webReceipt(id)
     const replay = Boolean(result)
     const linked = /^twitch:\d{1,24}$/.test(twitchId ?? '') && /^kick:\d{1,24}$/.test(kickId ?? '') &&
         [twitchId, kickId].includes(viewerId)
     const owner = linked ? twitchId : viewerId
-    if (training) trainingViewers.set(id, owner)
+    if (training || tm) trainingViewers.set(id, owner)
     if (!result) {
       if (linked) mergeLinkedViewers(kickId, twitchId)
       if (training) result = game.train(owner, training.pokemon, training.operation, training.value)
+      else if (tm) result = game.learnTm(owner, tm[2], tm[1])
       else if (!isLive(platform)) result = 'offline'
       else if (encounterId && game.currentEncounter()?.id !== encounterId) result = 'expired'
       else {
@@ -790,6 +793,7 @@ function publicBattle(battle) {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
       return { name, ownerName, shiny, ulting: ultimate?.index === actor.index, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, bossHop: actor.boss && actor.dashUntil > battle.time ? Math.sin(Math.PI * Math.min(1, (actor.dashUntil - battle.time) / .24)) * 62 : 0, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
+        physicalBarrier: actor.barriers?.physical > battle.time, specialBarrier: actor.barriers?.special > battle.time, rooted: actor.rootedUntil > battle.time,
         evasion: boosts.evasion > battle.time, flinched: flinchUntil > battle.time }
     }) }
 }
@@ -836,6 +840,7 @@ async function runCommunityBattle(waitForBanner, raidBoss, manual) {
     const variant = pokemon.endsWith(' ✦') ? form.shiny ?? form.normal : form.normal
     return { viewerId, speciesKey: pokemon, team: teamMode ? viewerId : 'raid-party', id, stats, types, final, level: rank,
       training: game.battleTraining(viewer, pokemon, id),
+      tmMoves: learnedTmMoves(id, viewer.tmMoves),
       ownedHeldItems: viewer.heldItems ?? [],
       name: form.name, margin: Math.max(75, ...Object.values(variant?.animations ?? {}).map(clip => clip.width * spriteScale(clip, 3) / 2 + 18)),
       ownerName: viewer.displayName,
@@ -985,6 +990,8 @@ const routes = new Map([
   ['/ui/egg-rules.js', ['egg-rules.js', 'text/javascript']],
   ['/ui/egg-pool.json', ['egg-pool.json', 'application/json']],
   ['/ui/learnsets.json', ['learnsets.json', 'application/json']],
+  ['/ui/battle-moves.json', ['battle-moves.json', 'application/json']],
+  ['/ui/tmlearn.json', ['tmlearn.json', 'application/json']],
   ['/ui/training.js', ['training.js', 'text/javascript']],
   ['/ui/training.json', ['training.json', 'application/json']],
   ['/ui/shop.js', ['shop.js', 'text/javascript']],

@@ -1,7 +1,8 @@
 import { decodeAllocation, trainingRules } from '../ui/training.js'
 import { captureCategories, catchDifficulty } from '../ui/capture-rates.js'
 import { encounterRarities, rarityFor, specialRarities } from '../ui/species-rules.js'
-import { speciesName } from './movesets.js'
+import { pokemonId, speciesName } from './movesets.js'
+import { tmCost } from '../ui/tm.js'
 import { battleSpecies } from '../dev/battle.js'
 
 const pendingMs = 15_000
@@ -90,12 +91,14 @@ export async function enqueueWebGame(db, account, community, platform, form) {
   if (!viewerId.test(viewer?.viewer_id ?? '')) return null
   const progress = JSON.parse(viewer.payload)
   const training = action === 'train'
+  const tm = action === 'learnTm'
+  const progression = training || tm
   const runtime = await db.prepare('SELECT seen_at, encounter_id FROM web_game_runtime WHERE community_id = ?')
     .bind(community).first()
   if (!runtime || runtime.seen_at <= Date.now() - 20000) return 'offline'
   const stream = await db.prepare('SELECT platforms, seen_at FROM community_stream_status WHERE community_id = ?')
     .bind(community).first()
-  if (!training && !(stream?.seen_at > Date.now() - 90000 && JSON.parse(stream.platforms).some(channel => channel.live && channel.provider === platform))) {
+  if (!progression && !(stream?.seen_at > Date.now() - 90000 && JSON.parse(stream.platforms).some(channel => channel.live && channel.provider === platform))) {
     return 'offline'
   }
   let command
@@ -114,6 +117,13 @@ export async function enqueueWebGame(db, account, community, platform, form) {
         !/^\d{1,2}$/.test(stat ?? '') || Number(stat) < 1 || Number(stat) > trainingRules.maxPoints) return null
     } else if (operation === 'apply' || operation === 'reset') stat = '-'
     command = '!training ' + operation + ' ' + stat + ' ' + pokemon
+  } else if (tm) {
+    const pokemon = form.get('pokemon') ?? ''
+    const move = form.get('move')
+    if (!Object.hasOwn(progress.collection, pokemon) || !tmCost(pokemonId(pokemon), move)) return null
+    const client = await db.prepare('SELECT prices FROM shop_online WHERE community_id = ?').bind(community).first()
+    if (!Object.hasOwn(JSON.parse(client?.prices ?? '{}'), 'tm-disk')) return 'offline'
+    command = '!learntm ' + move + ' ' + pokemon
   } else if (action === 'catch' && ['normal', 'great', 'ultra', 'master'].includes(form.get('ball'))) {
     encounter = form.get('encounter')
     if (!encounter || encounter !== runtime.encounter_id) return 'expired'
@@ -136,7 +146,7 @@ export async function enqueueWebGame(db, account, community, platform, form) {
     db.prepare('INSERT OR IGNORE INTO web_game_actions (id, community_id, viewer_id, platform, command, encounter_id, created_at) ' +
       'SELECT ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM web_game_actions a JOIN account_identities i ON i.viewer_id = a.viewer_id ' +
       'WHERE a.community_id = ? AND i.account_id = ? AND ((a.result IS NULL AND a.created_at > ?) OR (? = 0 AND a.finished_at > ?)))')
-      .bind(id, community, viewer.viewer_id, platform, command, encounter, now, community, account, now - pendingMs, Number(training), now - cooldownMs)
+      .bind(id, community, viewer.viewer_id, platform, command, encounter, now, community, account, now - pendingMs, Number(progression), now - cooldownMs)
   ])
   const order = await webGameStatus(db, account, community, id)
   console.info(JSON.stringify({ event: 'web_game_queue', requestId: id, platform, action, result: order?.id ? 'accepted' : 'pending' }))

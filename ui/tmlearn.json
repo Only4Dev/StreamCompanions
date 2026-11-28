@@ -1,0 +1,26 @@
+{
+  "notes": "Keys are evolution-family root Pokédex IDs. A standard move costs one TM Disk. An ancestral move costs five Ancestral TM Fragments. The last-teammate revival move is intentionally unassigned.",
+  "families": {
+    "1": {"standard":["seedbomb","reflect"],"ancestral":["ancestralmeteor"]},
+    "4": {"standard":["flareblitz","hurricane"],"ancestral":["ancestraltempest"]},
+    "7": {"standard":["liquidation","lightscreen"],"ancestral":["aurorafountain"]},
+    "25": {"standard":["voltswitch","electroball"],"ancestral":[]},
+    "92": {"standard":["shadowclaw","nightdaze"],"ancestral":[]},
+    "95": {"standard":["ironhead","riftburst"],"ancestral":["ancestralmeteor"]},
+    "113": {"standard":["reflect","auroraveil"],"ancestral":[]},
+    "123": {"standard":["skittersmack","bravebird"],"ancestral":[]},
+    "129": {"standard":["crunch","brine"],"ancestral":["aurorafountain"]},
+    "131": {"standard":["freezedry","healbeam"],"ancestral":["aurorafountain"]},
+    "133": {"standard":["echoedvoice","round","snarl"],"ancestral":[]},
+    "147": {"standard":["aeroblast","dragonburst"],"ancestral":["ancestraltempest"]},
+    "246": {"standard":["nightdaze","riftburst"],"ancestral":["ancestralmeteor"]},
+    "280": {"standard":["psychocut","purifyingwave"],"ancestral":[]},
+    "371": {"standard":["dragonrush","coreenforcer"],"ancestral":["ancestraltempest"]},
+    "374": {"standard":["flashcannon","psychocut"],"ancestral":["ancestralmeteor"]},
+    "447": {"standard":["focusblast","spiritwave"],"ancestral":[]},
+    "595": {"standard":["overloadcoil","reflect"],"ancestral":[]},
+    "656": {"standard":["darkpulse","liquidation"],"ancestral":["aurorafountain"]},
+    "778": {"standard":["fairyblade","poltergeist"],"ancestral":[]},
+    "868": {"standard":["purifyingwave","auroraveil"],"ancestral":[]}
+  }
+}

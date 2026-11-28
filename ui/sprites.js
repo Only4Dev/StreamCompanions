@@ -322,6 +322,26 @@ export function chooseBehavior(actor, animations, time, random = Math.random) {
   actor.until = time + duration
 }
 
+function drawWeb(context, x, y, width, height) {
+  context.save()
+  context.strokeStyle = '#e7d0ff'
+  context.shadowColor = '#ad79ff'
+  context.shadowBlur = 9
+  context.lineWidth = 2
+  context.beginPath()
+  for (const size of [.35, .68, 1]) {
+    context.moveTo(x + width * size, y)
+    context.ellipse(x, y, width * size, height * size, 0, 0, Math.PI * 2)
+  }
+  for (let index = 0; index < 8; index++) {
+    const angle = index * Math.PI / 4
+    context.moveTo(x, y)
+    context.lineTo(x + Math.cos(angle) * width, y + Math.sin(angle) * height)
+  }
+  context.stroke()
+  context.restore()
+}
+
 function dynamaxAura(context, x, y, top, time, age) {
   const height = Math.max(90, y - top)
   const radius = Math.min(170, height * .64)
@@ -502,6 +522,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
             context.stroke()
           }
           context.restore()
+        } else if (effect.kind === 'warning' && effect.visual === 'quake') {
+          drawArea(context, effect, floor, color, renderTime)
         } else if (effect.kind === 'warning') {
           context.save()
           context.globalAlpha = .55
@@ -514,6 +536,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         } else if (effect.kind === 'ultimate') drawUltimate(context, effect, width, floor, renderTime, color)
         else if (effect.visual === 'hyper') drawHyper(context, effect, width, floor, renderTime)
         else if (effect.kind === 'clash') drawClash(context, effect.x, floor, renderTime - effect.at)
+        else if (effect.kind === 'hazard' && effect.visual === 'web') drawWeb(context, effect.x, floor - 7, 80, 29)
         else if (effect.kind === 'hazard') drawPoisonHazard(context, effect, floor, renderTime)
         else if (effect.kind === 'target') drawTarget(context, effect, floor - 38, renderTime)
         else if (effect.kind === 'area') drawArea(context, effect, floor, color, renderTime)
@@ -546,6 +569,22 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           scale = bossDisplayScale(reference, base, fighter.bossScale ?? 4, zoom, floor)
         }
         const top = Math.max(28, y - Math.max(38, (clip?.height ?? 0) * spriteScale(clip, scale)))
+        if (fighter.hp && fighter.rooted) drawWeb(context, x, y - 6, 41, 21)
+        if (fighter.hp && (fighter.physicalBarrier || fighter.specialBarrier)) {
+          context.save()
+          const glow = fighter.physicalBarrier && fighter.specialBarrier ? '#c9b0ff' : fighter.physicalBarrier ? '#ffba7a' : '#7fe6ff'
+          const height = Math.max(36, (y - top) * .62)
+          context.globalAlpha = .72 + .15 * Math.sin(renderTime * 8)
+          context.strokeStyle = context.shadowColor = glow
+          context.shadowBlur = 14
+          context.lineWidth = 3
+          context.fillStyle = glow + '24'
+          context.beginPath()
+          context.ellipse(x, y - height * .65, Math.max(35, height * .67), height, 0, 0, Math.PI * 2)
+          context.fill()
+          context.stroke()
+          context.restore()
+        }
         if (fighter.hp && fighter.maneuver?.kind === 'dig') drawDigMound(context, x, y, renderTime)
         else if (fighter.hp) {
           context.save()

@@ -225,33 +225,34 @@ export function drawStatus(ctx, kind, x, y, time, width = 48, height = 55) {
 
 export function drawArea(ctx, effect, floor, color, time) {
   const { x, reach, visual, kind } = effect
-  const progress = Math.min(1, (time - effect.at) / (effect.expires - effect.at))
+  const progress = Math.max(0, Math.min(1, (time - effect.at) / (effect.expires - effect.at)))
   const warning = kind === 'warning'
   ctx.save()
   if (visual === 'quake') {
+    const surface = floor - 4
     const spread = reach * (warning ? progress : 1)
     ctx.strokeStyle = warning ? '#d9a66b' : '#f6d396'
     ctx.lineWidth = warning ? 2 : 4
     ctx.globalAlpha = warning ? .55 : 1 - progress
     for (const side of [-1, 1]) {
       ctx.beginPath()
-      ctx.moveTo(x, floor + 35)
+      ctx.moveTo(x, surface)
       for (let i = 1; i <= 11; i++) {
-        ctx.lineTo(x + side * spread * i / 11, floor + 35 + Math.sin(i * 2.3) * (9 + i))
+        ctx.lineTo(x + side * spread * i / 11, surface + Math.sin(i * 2.3) * (9 + i))
       }
       ctx.stroke()
     }
-    for (let i = 1; i <= 15; i++) {
+    for (let i = 1; i <= 24; i++) {
       const offset = Math.sin(i * 2.4) * reach
       const phase = progress * 1.5 - Math.abs(offset) / reach * .5
       if (phase < 0) continue
-      const height = Math.sin(Math.min(1, phase) * Math.PI) * (14 + (i % 4) * 12)
-      ctx.globalAlpha = warning ? .4 : .8
-      polygon(ctx, [[x + offset - 14, floor + 34], [x + offset - 7, floor + 34 - height],
-        [x + offset + 4, floor + 29 - height * .6], [x + offset + 15, floor + 34]], '#a5825b', '#e5c486')
-      if (!warning && reach > 300) {
+      const height = Math.sin(Math.min(1, phase) * Math.PI) * (25 + (i % 4) * 19)
+      ctx.globalAlpha = warning ? .35 : .95 * (1 - progress * .65)
+      polygon(ctx, [[x + offset - 14, surface], [x + offset - 7, surface - height],
+        [x + offset + 4, surface - height * .6], [x + offset + 15, surface]], '#a5825b', '#ffe4a7')
+      if (!warning) {
         const px = x + offset * (1 + progress * .13)
-        const py = floor + 33 - Math.sin(Math.PI * progress) * (42 + i % 5 * 18)
+        const py = surface - Math.sin(Math.PI * progress) * (58 + i % 5 * 28)
         const size = 4 + i % 4 * 3
         polygon(ctx, [[px - size, py], [px - size / 2, py - size], [px + size, py - size / 2],
           [px + size / 2, py + size]], '#8c6f58', '#eed196')

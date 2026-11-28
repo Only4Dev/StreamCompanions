@@ -4,11 +4,12 @@ import { heldItems } from './held-items.js'
 export const shopIconUrl = item => 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/' +
   (item === 'poke-egg' ? 'pokemon/egg.png' : 'items/' + (shopItems[item]?.icon ?? item) + '.png')
 
-export const featuredShopItems = ['poke-egg', 'legendary-tracker', 'shiny-dust', 'vitamin-complex']
+export const featuredShopItems = ['poke-egg', 'legendary-tracker', 'shiny-dust', 'vitamin-complex', 'tm-disk']
 export const eggShopQuantities = [1, 5, 10]
 export { legendaryEggChance } from './egg-rules.js'
 
 export const shopItems = {
+  'tm-disk': { price: 20_000, names: ['Disco TM', 'TM Disk'], section: 'keys', icon: 'tm-normal' },
   'vitamin-complex': {price:2500,names:['Complejo de Vitaminas','Vitamin Complex'],section:'keys',icon:'protein',bulk:true},
   'shiny-dust': { price: 1_000_000, maxPrice: 10_000_000, names: ['Shiny Dust', 'Shiny Dust'], section: 'keys', icon: 'stardust' },
   'poke-egg': { price: 5_000, names: ['Poké Egg', 'Poké Egg'], section: 'eggs', quantities: eggShopQuantities },

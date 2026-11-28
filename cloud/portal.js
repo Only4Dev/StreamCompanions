@@ -15,7 +15,8 @@ import { webEnglish } from "./web-copy.js"
 import { authorizeUrl, eraseAccount, platformIdentity, providerConfig, sessionKey, signIn, unlinkIdentity } from './auth.js'
 import { nationalDex } from './national-dex.js'
 import { kanto } from './kanto.js'
-import { baseStatsData, equippedMoves, moveCooldown, movePp, moves } from '../dev/battle.js'
+import { baseStatsData, equippedMoves, moveCooldown, moveDamageClass, movePp, moves } from '../dev/battle.js'
+import { ancestralFragmentCost, tmLearn, tmOptions } from '../ui/tm.js'
 import { familyDnaCount, familyRoot, maxDnaBoosters, sharesRegionalBase } from '../ui/evolution.js'
 import { regionalSpecies } from '../ui/regional-species.js'
 import { battleTeamFamily, creatureMoves, dexEntries, parseLoadout, speciesName, validMoveset } from './movesets.js'
@@ -393,12 +394,14 @@ function typeIcon(type, en) {
 
 const helpHint = (label, copy) => '<details class="portal-hint"><summary aria-label="' + escape(label) + '">?</summary><p>' + escape(copy) + '</p></details>'
 
-function moveCard(key, selected, en, unlockLevel = 0) {
+function moveCard(key, selected, en, unlockLevel = 0, readOnly = false) {
   const move = moves[key]
   const ultimate = Boolean(move.ultimate)
   const fieldTypes = { rain: 'water', sun: 'fire', electric: 'electric', grass: 'grass' }
   const type = move.type ?? fieldTypes[move.field] ?? ({ speed: 'psychic', evasion: 'normal', mind: 'psychic' })[move.boost] ?? (ultimate ? move.ultimate : 'normal')
-  const target = move.field || ['area', 'pierce'].includes(move.kind) ? (en ? 'Area' : 'Área') :
+  const target = move.teamBarrier || move.teamCleanse ? (en ? 'Team' : 'Equipo') :
+    move.kind === 'support' ? (en ? 'Ally' : 'Aliado') :
+    move.field || ['area', 'pierce'].includes(move.kind) ? (en ? 'Area' : 'Área') :
     move.kind === 'guard' ? (en ? 'Self' : 'Propio') : (en ? 'Single target' : 'Un objetivo')
   const effects = {
     paralysis: ['Parálisis', 'Paralysis'], freeze: ['Congelación', 'Freeze'], burn: ['Quemadura', 'Burn'],
@@ -412,18 +415,25 @@ function moveCard(key, selected, en, unlockLevel = 0) {
     heal: ['Con ≤20 % de PS, recupera el 40 %', 'At ≤20% HP, restores 40%']
   }
   const effect = effects[move.effect ?? move.boost ?? move.field ?? (move.blink ? 'blink' : move.leech ? 'leech' : move.slow ? 'slow' : move.heal ? 'heal' : 'shield')]
-  const note = move.effect || !(move.power > 0) && !ultimate
+  const support = move.teamBarrier ? (en ? 'Team barrier' : 'Barrera de equipo') + ' · ' + move.duration + ' s' :
+    move.teamCleanse ? (en ? 'Clears team status conditions' : 'Cura los estados del equipo') :
+    move.reviveAlly ? (en ? 'Revives the last fainted ally' : 'Revive al último aliado caído') :
+    move.healAlly ? (en ? 'Restores ally HP' : 'Recupera PS de un aliado') :
+    move.hazard === 'web' ? (en ? 'Roots grounded rivals' : 'Inmoviliza a los rivales en tierra') : ''
+  const note = support ? '<small>' + support + '</small>' : move.effect || !(move.power > 0) && !ultimate
     ? '<small>' + effect[Number(en)] + (move.chance ? ' · ' + Math.round(move.chance * 100) + ' %' : '') + '</small>' :
     move.ongoing ? '<small>' + (en ? 'Damage over time' : 'Daño con el tiempo') + '</small>' :
     move.flinch ? '<small>' + (en ? 'Flinch' : 'Amedrentar') + ' · ' + Math.round(move.flinch * 100) + ' %</small>' : ''
-  const power = move.power > 0 ? 'BP ' + move.power + (move.count ? ' × ' + move.count : '') : (en ? 'Status' : 'Estado')
-  const selectable = !ultimate && !unlockLevel
+  const category = { physical: ['Físico', 'Physical'], special: ['Especial', 'Special'],
+    status: ['Estado', 'Status'], adaptive: ['Adaptativo', 'Adaptive'] }[moveDamageClass(move)][Number(en)]
+  const power = move.power > 0 ? ' · BP ' + move.power + (move.count ? ' × ' + move.count : '') : ''
+  const selectable = !readOnly && !ultimate && !unlockLevel
   const tag = selectable ? 'label' : 'div'
   return '<' + tag + ' class="move-card' + (unlockLevel ? ' move-locked' : '') + '">' +
     (selectable ? '<input type="checkbox" name="move" value="' + escape(key) + '"' + (selected ? ' checked' : '') + '>' : '') +
     '<span class="move-title">' + typeIcon(type, en) + '<strong>' + escape(move.name) + '</strong></span>' +
     '<span class="move-limits">' + (ultimate ? (en ? 'Charge' : 'Carga') : 'CD ' + moveCooldown(move).toLocaleString(en ? 'en' : 'es') + ' s') + ' · PP ' + movePp(move) + '</span>' +
-    '<small>' + power + ' · ' + target + '</small>' + (unlockLevel ? '<small>' + (en ? 'Unlocks at Lv. ' : 'Se aprende al Nv. ') + unlockLevel + '</small>' : note) + '</' + tag + '>'
+    '<small>' + category + power + ' · ' + target + '</small>' + (unlockLevel ? '<small>' + (en ? 'Unlocks at Lv. ' : 'Se aprende al Nv. ') + unlockLevel + '</small>' : note) + '</' + tag + '>'
 }
 
 const cookie = (name, value, seconds) =>
@@ -924,6 +934,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
 }
 `, { headers: { 'Content-Type': 'text/javascript; charset=utf-8' } })
   const data = url.pathname === '/data/training.json' ? trainingRules : url.pathname === '/data/base-stats.json' ? baseStatsData : url.pathname === '/data/learnsets.json' ? learnsetData : url.pathname === '/data/pokemon-abilities.json' ? abilitiesData : url.pathname === '/data/egg-pool.json' ? eggPool : url.pathname === '/data/catch-rates.json' ? catchRates : url.pathname === '/data/encounter-rarities.json' ? encounterRarities : null
+  if (request.method === 'GET' && url.pathname === '/data/tmlearn.json') return Response.json(tmLearn)
   if (request.method === 'GET' && data) return Response.json(data)
   const requested = url.searchParams.get('lang') ?? getCookie(request, 'sc_lang')
   const language = requested === 'en' ? 'en' : 'es'
@@ -1103,6 +1114,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
         return Response.json({ id, message: state.message, ...(state.result ? { result: state.result } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
       }
       if (form.get('action') === 'train') return redirect('/?' + new URLSearchParams({ community, pokemon: form.get('pokemon'), training: result }), [])
+      if (form.get('action') === 'learnTm') return redirect('/?' + new URLSearchParams({ community, pokemon: form.get('pokemon'), tm: result }), [])
       return redirect('/?' + new URLSearchParams({ tab: 'live', community, platform, game: result }) + '#play-web', [])
     }
     if (request.method !== 'GET' || url.pathname !== '/live/status') return new Response(null, { status: 405 })
@@ -1271,7 +1283,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
         '<p class="empty">' + t("Aún no tienes comunidades sincronizadas. Usa !poke join en el chat de un streamer participante.") + '</p>') +
       '</section>')
   }
-  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, legendaryTrackers = 0, shinyDust = 0, vitamins = 0, training = {}, pokeDollars = 0, dnaBoosters = {}, log = [], dexAcquired = {} } = JSON.parse(selected.payload)
+  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, legendaryTrackers = 0, shinyDust = 0, vitamins = 0, training = {}, pokeDollars = 0, dnaBoosters = {}, log = [], dexAcquired = {}, tmDisks = 0, tmFragments = 0, tmMoves = {} } = JSON.parse(selected.payload)
   const teamUrl = '/?' + new URLSearchParams({ community: selected.community_id, tab: 'team' })
   if (editingTeam) {
     const body = await request.text()
@@ -1367,7 +1379,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
   const speciesId = speciesKey && dexByName.get(speciesKey.replace(/ ✦$/, ''))
   const learned = speciesId ? normalizeTraining(training[trainingKey(speciesId)], dna) : null
   const supportsVitamins = Object.hasOwn(published ?? {}, 'vitamin-complex')
-  const detail = speciesKey && Object.hasOwn(collection, speciesKey) ? creatureMoves(speciesKey, collection[speciesKey], dna, supportsVitamins ? learned?.stats : undefined) : null
+  const detail = speciesKey && Object.hasOwn(collection, speciesKey) ? creatureMoves(speciesKey, collection[speciesKey], dna, supportsVitamins ? learned?.stats : undefined, tmMoves) : null
   if (editing) {
     if (!detail || !selected.viewer_id) return new Response(null, { status: 404 })
     const raw = await request.text()
@@ -1428,7 +1440,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     const saved = await env.DB.prepare('SELECT moves FROM viewer_movesets WHERE community_id = ? AND viewer_id = ? AND species_key = ?')
       .bind(selected.community_id, selected.viewer_id, speciesKey).first()
     const choices = parseLoadout(saved?.moves)
-    const active = equippedMoves(detail.form, detail.types, detail.final, detail.rank, choices.moves, choices.selectedAt)
+    const active = equippedMoves(detail.form, detail.types, detail.final, detail.rank, choices.moves, choices.selectedAt, detail.learned)
     const ultimate = detail.ultimates.includes(choices.ultimate) ? choices.ultimate : detail.ultimates[0]
     const itemLabel = en ? 'Held item' : 'Objeto equipado'
     let itemFrame = '<div class="held-frame"><strong>' + itemLabel + '</strong><span>' + (en ? 'No held items yet' : 'Aún no tienes objetos') + '</span></div>'
@@ -1518,6 +1530,28 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       }).join('') + '</nav><p class="meta">' + (en ? 'Shared family level · Lv. ' : 'Nivel compartido de la línea · Nv. ') + detail.rank +
       (suffix ? ' ✦' : '') + '</p>' : ''
     const action = '/moveset?' + new URLSearchParams({ ...locationParams, pokemon: speciesKey })
+    const tmPlatform = selected.viewer_id.startsWith('kick:') ? 'kick' : 'twitch'
+    const tmAction = '/live/action?' + new URLSearchParams({community:selected.community_id, platform:tmPlatform})
+    const tmReceipt = url.searchParams.get('tm')
+    const tmRow = tmReceipt && await webGameStatus(env.DB, identity.account_id, selected.community_id, tmReceipt)
+    const tmState = webGameState(null, tmRow || (tmReceipt ? { result: /^[a-f0-9-]{36}$/.test(tmReceipt) ? 'expired' : tmReceipt } : null), language)
+    const tmStatus = '/live/status?' + new URLSearchParams({community:selected.community_id, platform:tmPlatform, game:tmReceipt ?? ''})
+    const tmCards = Object.entries(tmOptions(detail.id)).flatMap(([kind, keys]) => keys.map(key => {
+      const ancestral = kind === 'ancestral'
+      const cost = ancestral ? tmFragments >= ancestralFragmentCost : tmDisks > 0
+      const known = detail.learned.includes(key) || detail.unlockedAt.has(key)
+      const disabled = known || !cost || tmState.pending || !shopOpen || !Object.hasOwn(published ?? {}, 'tm-disk')
+      const material = ancestral ? ancestralFragmentCost + (en ? ' ancestral fragments' : ' fragmentos ancestrales') : '1 ' + (en ? 'TM Disk' : 'Disco TM')
+      return '<div>' + moveCard(key, false, en, 0, true) + '<form method="post" action="' + escape(tmAction) + '">' +
+        '<input type="hidden" name="id" value="' + crypto.randomUUID() + '"><input type="hidden" name="action" value="learnTm">' +
+        '<input type="hidden" name="pokemon" value="' + escape(speciesKey) + '"><input type="hidden" name="move" value="' + escape(key) + '">' +
+        '<button' + (disabled ? ' disabled' : '') + '>' + (known ? (en ? 'Learned' : 'Aprendido') : (en ? 'Unlock · ' : 'Desbloquear · ') + material) + '</button></form></div>'
+    })).join('')
+    const tmSection = tmCards ? '<section class="tm-section"><h2>' + (en ? 'Unlockable TM moves' : 'Ataques TM desbloqueables') + '</h2><p class="meta">' +
+      (en ? 'TM Disks' : 'Discos TM') + ' ×' + tmDisks + ' · ' + (en ? 'Ancestral fragments' : 'Fragmentos ancestrales') + ' ×' + tmFragments + '</p>' +
+      (tmState.message ? '<p role="status"' + (tmState.pending ? ' data-training-receipt="' + escape(tmStatus) + '"' : '') + '>' + escape(tmState.message) + '</p>' : '') +
+      '<div class="move-options">' + tmCards + '</div></section>' +
+      (tmState.pending && !trainingSection.includes('/assets/training.js') ? '<script src="/assets/training.js?v=3" defer></script>' : '') : ''
     const sprite = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' +
       (speciesKey.endsWith(' ✦') ? 'shiny/' : '') + detail.id + '.png'
     return page(communityTabs(selected.community_id, language, 'dex', url.searchParams.get('region') ?? 'kanto') + '<section class="sheet creature-summary"><p><a href="' + escape(returnToDex) + '">' +
@@ -1537,6 +1571,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
         '<p class="meta">' + (en ? 'Unlocks at Lv. ' : 'Se aprende al Nv. ') + ultimateLevel + '</p>') + '</fieldset>' +
       '<button type="submit"' + (active.length ? '' : ' disabled') + '>' + (en ? 'Save moves' : 'Guardar ataques') + '</button></form>' +
       (url.searchParams.has('saved') ? '<p role="status">' + (en ? 'Moves saved.' : 'Ataques guardados.') + '</p>' : '') +
+      tmSection +
       '</section><script src="/assets/moveset.js" defer></script><script src="/assets/shop-status.js" defer></script>')
   }
   const requestedTab = url.searchParams.get('tab')
@@ -1638,7 +1673,8 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
   const pocket = pockets.some(([id]) => id === url.searchParams.get('pocket')) ? url.searchParams.get('pocket') : 'balls'
   const wallet = '<p class="meta">Pokédólares · <strong>$' + escape(pokeDollars) + '</strong></p>'
   const consumables = [['rare-candy', language === 'en' ? 'Rare Candy' : 'Caramelo Raro', rareCandies],
-    ['dowsing-machine', 'Legendary Tracker', legendaryTrackers], ['stardust', 'Shiny Dust', shinyDust], ['protein', en ? 'Vitamin Complex' : 'Complejo de Vitaminas', vitamins]].map(([icon, label, amount]) =>
+    ['dowsing-machine', 'Legendary Tracker', legendaryTrackers], ['stardust', 'Shiny Dust', shinyDust], ['protein', en ? 'Vitamin Complex' : 'Complejo de Vitaminas', vitamins],
+    ['tm-normal', en ? 'TM Disk' : 'Disco TM', tmDisks], ['shard-yellow', en ? 'Ancestral TM Fragment' : 'Fragmento de TM ancestral', tmFragments]].map(([icon, label, amount]) =>
     '<li class="bag-slot">' + itemDescription(({ 'dowsing-machine': 'legendary-tracker', stardust: 'shiny-dust', protein: 'vitamin-complex' })[icon] ?? icon, en, itemIcon(icon), label) + '<span>' + label + '</span><strong>×' + escape(amount) + '</strong></li>').join('')
   const inventoryPage = '<section class="sheet"><h2>' + (language === 'en' ? 'Inventory' : 'Inventario') + '</h2>' + wallet + '<nav class="tabs pockets" aria-label="Inventory">' + pockets.map(([id, label]) =>
     '<a href="?' + escape(new URLSearchParams({ community: selected.community_id, tab: 'inventory', pocket: id })) + '"' +

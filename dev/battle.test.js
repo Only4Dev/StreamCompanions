@@ -936,3 +936,66 @@ test('a channel continues after taking damage and a saved set is validated again
   assert.ok(opponent.hp < opponent.maxHp)
 })
 
+
+test('team screens protect both teammates and expire after five seconds', () => {
+  const battle = createBattle([{ ...example(122), team: 'a' }, { ...example(19), team: 'a' },
+    { ...example(6), team: 'b' }], { auto: false, random: () => .5 })
+  const [caster, ally, rival] = battle.actors
+  assert.ok(battle.manual(0, 'reflect'))
+  run(battle, 1)
+  assert.ok(caster.barriers.physical > battle.time)
+  assert.equal(ally.barriers.physical, caster.barriers.physical)
+  assert.equal(rival.barriers, undefined)
+  run(battle, 5)
+  assert.ok(ally.barriers.physical < battle.time)
+})
+
+test('revival returns the last fainted teammate and Heal Beam targets an injured ally', () => {
+  const battle = createBattle([{ ...example(122), team: 'a' }, { ...example(19), team: 'a' },
+    { ...example(52), team: 'a' }, { ...example(6), team: 'b' }], { auto: false, random: () => .5 })
+  const [, first, last] = battle.actors
+  Object.assign(first, { x: 190, hp: 0, faintedAt: 0 })
+  Object.assign(last, { x: 240, hp: 0, faintedAt: .1 })
+  assert.ok(battle.manual(0, 'revivebeam'))
+  run(battle, 1)
+  assert.equal(first.hp, 0)
+  const revivedHp = last.hp
+  assert.ok(revivedHp > 0)
+  assert.ok(battle.manual(0, 'healbeam'))
+  run(battle, 1)
+  assert.ok(last.hp > revivedHp)
+  assert.equal(moves.revivebeam.pp, 1)
+})
+
+test('Sticky Web roots a grounded rival but never roots a raid boss', () => {
+  const battle = createBattle([{ ...example(12), team: 'a' }, { ...example(19), team: 'b' },
+    { ...example(9), team: 'b', boss: true }], { auto: false, raid: true, random: () => .5 })
+  const [caster, victim, boss] = battle.actors
+  caster.x = 400
+  victim.x = boss.x = 510
+  assert.ok(battle.manual(0, 'stickyweb'))
+  run(battle, 1)
+  assert.ok(victim.rootedUntil > battle.time)
+  assert.equal(boss.rootedUntil, undefined)
+  assert.equal(battle.manual(1, 'tackle'), false)
+})
+
+test('raid bosses keep casting through hits and reject incapacitating status', () => {
+  const battle = createBattle([{ ...example(6), team: 'party' }, { ...example(9), team: 'boss', boss: true }],
+    { auto: false, raid: true, random: () => .5 })
+  const [attacker, boss] = battle.actors
+  attacker.x = 500
+  boss.x = 570
+  assert.ok(battle.manual(0, 'tackle'))
+  assert.ok(battle.manual(1, 'raidgeysers'))
+  run(battle, .5)
+  assert.equal(boss.cast?.moveId, 'raidgeysers')
+  run(battle, 1.5)
+  assert.ok(attacker.hp < attacker.maxHp)
+  assert.ok(battle.manual(0, 'hypnosis'))
+  run(battle, 1.5)
+  assert.equal(boss.status, null)
+  assert.ok(battle.manual(0, 'wisp'))
+  run(battle, 1.5)
+  assert.equal(boss.status?.kind, 'burn')
+})

@@ -1,6 +1,7 @@
 import { trainingRules } from '../ui/training.js'
 import baseStatsData from '../ui/base-stats.json' with { type: 'json' }
 import bundledLearnsets from '../ui/learnsets.json' with { type: 'json' }
+import extraMoves from '../ui/battle-moves.json' with { type: 'json' }
 import { nationalStats, typeChart } from './national-stats.js'
 import { ultimateLevel } from '../ui/levels.js'
 import { regionalSpecies } from '../ui/regional-species.js'
@@ -152,6 +153,8 @@ const moves = {
   dragon: { name: 'Dragoaliento', type: 'dragon', kind: 'projectile', power: 44, reach: 490, effect: 'paralysis', chance: .15 },
   fairy: { name: 'Voz Cautivadora', type: 'fairy', kind: 'area', power: 46, reach: 240 },
 }
+Object.assign(moves, extraMoves)
+const progressionCache = new Map()
 const originalMoves = Object.fromEntries(Object.entries(moves).map(([key, move]) => [key, {...move}]))
 export function applyLearnsets(data) {
   validateLearnsets(data)
@@ -159,7 +162,15 @@ export function applyLearnsets(data) {
   for (const [key, move] of Object.entries(originalMoves)) {
     const settings = data.moves[key]?.mechanics
     adjusted[key] = {...move}
-    for (const [field, min, max] of [['power', 0, 200], ['pp', 1, 99], ['cooldown', .1, 60], ['reach', 0, 4000]]) {
+    if (settings?.damageClass !== undefined) {
+      if (!['physical', 'special', 'status', 'adaptive'].includes(settings.damageClass)) throw new Error('Invalid damage class: ' + key)
+      adjusted[key].damageClass = settings.damageClass
+    }
+    if (settings && Object.hasOwn(settings, 'effect')) {
+      if (settings.effect !== null && !['paralysis', 'freeze', 'sleep', 'burn', 'poison'].includes(settings.effect)) throw new Error('Invalid status: ' + key)
+      adjusted[key].effect = settings.effect ?? undefined
+    }
+    for (const [field, min, max] of [['power', 0, 200], ['pp', 1, 99], ['cooldown', .1, 60], ['reach', 0, 4000], ['chance', 0, 1], ['flinch', 0, 1], ['duration', .1, 30]]) {
       const value = settings?.[field]
       if (value === undefined) continue
       if (!Number.isFinite(value) || value < min || value > max || field === 'pp' && !Number.isInteger(value)) throw new Error('Invalid move setting: ' + key + '.' + field)
@@ -167,10 +178,13 @@ export function applyLearnsets(data) {
     }
   }
   for (const [key, move] of Object.entries(moves)) {
-    for (const field of ['power', 'pp', 'cooldown', 'reach']) if (!Object.hasOwn(adjusted[key], field)) delete move[field]
+    for (const field of ['power', 'pp', 'cooldown', 'reach', 'damageClass', 'effect', 'chance', 'flinch', 'duration']) {
+      if (!Object.hasOwn(adjusted[key], field)) delete move[field]
+    }
     Object.assign(move, adjusted[key])
   }
   learnsets = data
+  progressionCache.clear()
 }
 
 export { moves }
@@ -343,7 +357,6 @@ function learnedFor(id) {
   return entries
 }
 
-const progressionCache = new Map()
 function authoredProgression(id, types, family) {
   if (loadouts[family]) return loadouts[family]
   if (progressionCache.has(id)) return progressionCache.get(id)
@@ -353,11 +366,11 @@ function authoredProgression(id, types, family) {
   const power = key => moves[key].power * (moves[key].count ?? 1)
   const score = ([key, at]) => {
     const move = moves[key]
-    const physical = move.kind === 'rush' || move.damageClass === 'physical'
+    const physical = moveDamageClass(move) === 'physical'
     return power(key) + (types.includes(move.type) ? 15 : 0) +
       (physical ? stats[1] - stats[3] : stats[3] - stats[1]) * .12 - at * .35
   }
-  const attacks = records.filter(([key]) => power(key) > 0 && !moves[key].needsSleep).sort((a, b) => score(b) - score(a))
+  const attacks = records.filter(([key]) => power(key) > 0 && !moves[key].needsSleep && !Object.hasOwn(extraMoves, key)).sort((a, b) => score(b) - score(a))
   const opener = (attacks.find(([key, at]) => at <= 7 && power(key) <= 47) ??
     attacks.find(([key]) => power(key) <= 47) ?? attacks[0])?.[0]
   const finisher = attacks.find(([key]) => key !== opener)?.[0]
@@ -386,13 +399,13 @@ export function movesFor(id, types, final, level = 100) {
     ...(signature ? [signature] : [])]
 }
 
-export function equippedMoves(id, types, final, level, selected, selectedAt) {
+export function equippedMoves(id, types, final, level, selected, selectedAt, learned = []) {
   const defaults = movesFor(id, types, final, level).filter(key => !moves[key].ultimate)
   if (!Array.isArray(selected)) return defaults
-  const unlocked = moveOptions(id, types, final, level)
+  const unlocked = [...moveOptions(id, types, final, level), ...learned]
   const legal = [...new Set(selected)].filter(key => unlocked.includes(key) && !moves[key].ultimate)
   if (!legal.length) return defaults
-  const known = Number.isInteger(selectedAt) ? moveOptions(id, types, final, selectedAt) : unlocked
+  const known = Number.isInteger(selectedAt) ? [...moveOptions(id, types, final, selectedAt), ...learned] : unlocked
   return [...legal, ...defaults.filter(key => !known.includes(key) && !legal.includes(key))].slice(0, 4)
 }
 
@@ -475,7 +488,8 @@ export function arenaBaseStats(id, original) {
 }
 
 export const moveCooldown = move => move.cooldown ?? (move.kind === 'area' ? 3.4 : move.kind === 'guard' ? 4.5 : 1.1)
-export const movePp = move => move.ultimate ? 2 : (move.pp ?? 20)
+export const movePp = move => move.pp ?? (move.ultimate ? 2 : move.kind === 'support' ? 5 : 20)
+export const moveDamageClass = move => move.damageClass ?? (move.ultimate ? 'adaptive' : !move.power ? 'status' : move.kind === 'rush' ? 'physical' : 'special')
 
 export function battleStatsAtLevel(id, stats, level, dna = 0, training) {
   const [hp, attack, defense, specialAttack, specialDefense, speed] = arenaBaseStats(id, stats).map((stat, index) => stat + (training ? (training[trainingRules.stats[index]] ?? 0) * trainingRules.statPerPoint : dna * 10))
@@ -529,7 +543,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const unlockedUltimates = ultimateOptions(types, entry.level)
     const equippedUltimate = entry.boss && moves[entry.bossUltimate]?.ultimate ? entry.bossUltimate :
       unlockedUltimates.includes(entry.selectedUltimate) ? entry.selectedUltimate : unlockedUltimates[0]
-    const chosen = entry.boss && entry.bossMoves?.length ? entry.bossMoves : equippedMoves(entry.id, entry.types, entry.final, entry.level, entry.selectedMoves, entry.selectedAt)
+    const chosen = entry.boss && entry.bossMoves?.length ? entry.bossMoves : equippedMoves(entry.id, entry.types, entry.final, entry.level, entry.selectedMoves, entry.selectedAt, entry.tmMoves)
     const support = entry.team != null && ['pollenpuff', 'healpulse'].includes(entry.support) ? entry.support : null
     const kit = [...chosen, ...(support ? [support] : []), ...(equippedUltimate ? [equippedUltimate] : [])]
     const margin = clamp(entry.margin ?? 75, 75, arena.width / 2)
@@ -538,7 +552,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       margin, x: clamp(150 + index * (arena.width - 300) / Math.max(1, entries.length - 1), margin, arena.width - margin),
       direction: index < entries.length / 2 ? 1 : -1, next: entry.boss ? .25 : .5 + index * .12,
       shield: 0, boosts: {}, status: null, knockback: 0, hurtUntil: 0, motion: 'Idle', motionSince: 0,
-      cast: null, dashUntil: 0, dashReady: 0, cooldowns: {}, ultimatePp: entry.boss ? entry.bossUltimatePp ?? 4 : movePp({ ultimate: true }), ultimateCharge: 0,
+      cast: null, dashUntil: 0, dashReady: 0, cooldowns: {}, ultimatePp: entry.boss ? entry.bossUltimatePp ?? 4 : equippedUltimate ? movePp(moves[equippedUltimate]) : 0, ultimateCharge: 0,
       hasUltimate: Boolean(equippedUltimate), equippedUltimate,
       kit, pp: Object.fromEntries(kit.filter(key => !moves[key].ultimate).map(key => [key, movePp(moves[key]) + (entry.heldItem === 'leppa-berry' && moves[key].kind !== 'support' ? 2 : 0)]))
     }
@@ -610,7 +624,16 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   const teams = entries.some(entry => entry.team != null)
   const teamOf = actor => actor.team ?? actor.index
   function rivals(a, b) { return a !== b && teamOf(a) !== teamOf(b) }
+  function canReceiveStatus(actor, kind) {
+    return Boolean(kind && (!actor.boss || ['poison', 'burn'].includes(kind)) &&
+      !actors.some(ally => ally.hp > 0 && teamOf(ally) === teamOf(actor) && ally.abilities.has('team-safeguard')))
+  }
+  const barrierTypes = move => move.teamBarrier === 'both' ? ['physical', 'special'] : [move.teamBarrier]
   function supportTarget(actor, move) {
+    if (actor.team == null) return null
+    if (move.reviveAlly) return actors.filter(ally => ally !== actor && teamOf(ally) === teamOf(actor) && !ally.hp &&
+      Number.isFinite(ally.faintedAt)).sort((a, b) => b.faintedAt - a.faintedAt)[0]
+    if (move.teamCleanse) return actors.find(ally => teamOf(ally) === teamOf(actor) && ally.hp && ally.status)
     return actors.filter(ally => ally !== actor && !rivals(actor, ally) && ally.hp > 0 && ally.hp < ally.maxHp * .7 &&
       Math.abs(actor.x - ally.x) <= move.reach).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0]
   }
@@ -710,13 +733,13 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const fieldEvasion = field?.kind === 'sandstorm' && defender.abilities.has('sand-veil') ||
       field?.kind === 'hail' && defender.abilities.has('snow-cloak')
     const accurate = field?.kind === 'rain' && move === moves.lightning || field?.kind === 'hail' && move === moves.blizzard
-    if (!accurate && !move.ultimate && !move.struggle && matchup && random() < (defender.boosts.evasion > time ? .25 : fieldEvasion ? .15 : .05)) {
+    if (!actor.boss && !accurate && !move.ultimate && !move.struggle && matchup && random() < (defender.boosts.evasion > time ? .25 : fieldEvasion ? .15 : .05)) {
       effects.push({ kind: 'hit', type, x: defender.x, dodged: true, at: time, expires: time + .58 })
       return
     }
     const reduced = matchup === 0 ? 0 : clamp(matchup, 0.5, 1.6)
-    const physical = move.damageClass === 'physical' || move.kind === 'rush'
-    const usesPhysical = move.ultimate ? actor.attack > actor.specialAttack : physical
+    const category = moveDamageClass(move)
+    const usesPhysical = category === 'adaptive' ? actor.attack > actor.specialAttack : category === 'physical'
     const attack = usesPhysical ? actor.attack : actor.specialAttack
     const weatherDefense = usesPhysical && field?.kind === 'sandstorm' && defender.types.some(type => type === 'rock' || type === 'ground') ||
       !usesPhysical && field?.kind === 'hail' && defender.types.includes('ice')
@@ -728,7 +751,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       if (random() < .3) defender.status = null
       else sleepMultiplier += .1
     }
-    const statusLands = matchup && move.effect && !defender.status && !(move.effect === 'sleep' && sleepBlocked()) &&
+    const statusLands = matchup && canReceiveStatus(defender, move.effect) && !defender.status && !(move.effect === 'sleep' && sleepBlocked()) &&
       !defender.types.some(type => immune[move.effect].includes(type)) && random() < move.chance
     const critical = !!(!move.ultimate && !move.struggle && matchup && move.power && random() < (actor.abilities.has('super-luck') ? .14 : .07))
     const fieldMultiplier = fieldDamage[field?.kind]?.[type] ?? 1
@@ -742,7 +765,11 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const rawDamage = move.ultimate ? Math.min(Math.round(ultimateDamage * (actor.boss ? 1.28 : 1)), Math.floor(defender.maxHp * .6)) : move.struggle ? Math.ceil(damageHealth(defender) * .2) :
       Math.round(move.power * (0.5 + actor.level / 100) * statRatio * reduced * stab *
         (solarCharge ? .7 : 1) * sleepMultiplier * fieldMultiplier * (critical ? 1.45 : 1) * itemMultiplier * abilityMultiplier * variance)
-    const damage = rawDamage && defender.boss ? Math.max(1, Math.round(rawDamage / raidPressure)) : rawDamage
+    const barrier = defender.barriers?.[usesPhysical ? 'physical' : 'special'] > time
+    const bulwark = actors.some(ally => ally.hp && teamOf(ally) === teamOf(defender) && ally.abilities.has('team-bulwark'))
+    const screened = !move.struggle && (barrier || bulwark) ?
+      Math.max(Number(rawDamage > 0), Math.round(rawDamage * (barrier ? .65 : 1) * (bulwark ? .92 : 1))) : rawDamage
+    const damage = screened && defender.boss ? Math.max(1, Math.round(screened / raidPressure)) : screened
     if (move.struggle) {
       actor.hp = Math.max(0, actor.hp - Math.ceil(damageHealth(actor) * .1))
       if (!actor.hp) actor.faintedAt = time
@@ -787,8 +814,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         updateForm(defender)
         dealChip(actor, .08, 'flying', 'dreepy', defender)
       }
-      if (!channeling || !defender.hp) defender.cast = null
-      defender.next = Math.max(defender.next, time + .42)
+      if (!defender.hp || !defender.boss && !channeling) defender.cast = null
+      if (!defender.boss) defender.next = Math.max(defender.next, time + .42)
       if (defender.hp) updateForm(defender)
       if (!defender.boss && move.flinch && !channeling && random() < move.flinch) defender.flinchUntil = time + 1.5
     }
@@ -797,11 +824,11 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
     if (move.ongoing && matchup && defender.hp) {
       defender.ongoing = { source: actor.index, kind: move.ongoing, next: time + 1, ends: time + (actor.heldItem === 'grip-claw' ? 6.1 : 4.1) }
-      if (move.ongoing === 'wrap') defender.slowUntil = defender.ongoing.ends
+      if (!defender.boss && move.ongoing === 'wrap') defender.slowUntil = defender.ongoing.ends
     }
-    if (move.slow && matchup && defender.hp) defender.slowUntil = time + 4
+    if (!defender.boss && move.slow && matchup && defender.hp) defender.slowUntil = time + 4
     if (defender.hp && statusLands) {
-      defender.status = { source: actor.index, kind: move.effect, ends: time + (defender.boss && ['sleep', 'freeze'].includes(move.effect) ? 1 : statusDuration[move.effect]), tick: time + 1, severity: 0 }
+      defender.status = { source: actor.index, kind: move.effect, ends: time + statusDuration[move.effect], tick: time + 1, severity: 0 }
       if (move.effect === 'freeze' || move.effect === 'sleep') {
         defender.cast = null
         defender.knockback = 0
@@ -841,7 +868,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       return true
     }
     if (!force && actor.pp[moveId] > 0) {
-      const pressure = move.kind !== 'support' && actors.some(enemy => rivals(actor, enemy) && enemy.hp > 0 && enemy.abilities.has('pressure'))
+      const pressure = move.kind !== 'support' && !move.teamBarrier && actors.some(enemy => rivals(actor, enemy) && enemy.hp > 0 && enemy.abilities.has('pressure'))
       actor.pp[moveId] = Math.max(0, actor.pp[moveId] - (pressure ? 2 : 1))
     }
     if (move.selfConfuse) actor.confuseAt = time + move.selfConfuse
@@ -874,7 +901,10 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     actor.next = time + duration + clamp(1.4 - actor.speed / 140, .45, 1.2) * (quickClaw ? .5 : 1) / weatherSpeed(actor)
     actor.cooldowns[moveId] = time + duration + moveCooldown(move)
     if (move.kind === 'area') {
-      effects.push({ kind: 'warning', type: move.type, visual: move.visual, x: actor.x, reach: move.reach, at: time, expires: time + duration })
+      const warning = { kind: 'warning', type: move.type, visual: move.visual,
+        x: actor.boss && target && move.visual !== 'raid-geysers' ? target.x : actor.x, reach: move.reach, at: time, expires: time + duration }
+      effects.push(warning)
+      actor.cast.warning = warning
     }
     if (move.kind === 'pierce') {
       effects.push({ kind: 'charge', visual: move.visual, x: actor.x, at: time, expires: time + duration })
@@ -888,11 +918,22 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   function resolve(actor, dt) {
     const cast = actor.cast
     const { move, origin } = cast
+    if (actor.boss && cast.warning && cast.target?.hp && move.visual !== 'raid-geysers') cast.warning.x = cast.target.x
     if (move.kind === 'support') {
       if (time < cast.resolve) return
       actor.cast = null
       const ally = cast.target
-      if (ally.hp) {
+      if (move.reviveAlly && !ally.hp) {
+        Object.assign(ally, { hp: Math.max(1, Math.round(ally.maxHp * move.reviveAlly)), faintedAt: undefined,
+          cast: null, status: null, ongoing: null, leech: null, knockback: 0, rootedUntil: 0, hurtUntil: 0,
+          flinchUntil: 0, exhaustedUntil: 0, dashUntil: 0, next: time + .7 })
+        effects.push({ kind: 'target', visual: 'heal', x: ally.x, at: time, expires: time + 1 })
+      } else if (move.teamCleanse) {
+        for (const member of actors) if (member.hp && member.status && teamOf(member) === teamOf(actor)) {
+          member.status = null
+          effects.push({ kind: 'target', visual: 'heal', x: member.x, at: time, expires: time + .65 })
+        }
+      } else if (ally.hp && move.healAlly) {
         ally.hp = Math.min(ally.maxHp, ally.hp + Math.round(ally.maxHp * move.healAlly))
         effects.push({ kind: 'target', visual: 'heal', x: ally.x, at: time, expires: time + .6 })
       }
@@ -915,6 +956,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
     if (move.kind === 'rush') {
       const prior = actor.x
+      if (actor.boss && cast.target?.hp > 0) actor.direction = Math.sign(cast.target.x - actor.x) || actor.direction
       actor.x = bound(actor.x + actor.direction * (actor.boss ? 680 : 540) * dt, actor)
       const contact = actors.find(enemy => rivals(actor, enemy) && enemy.hp > 0 &&
         enemy.x >= Math.min(prior, actor.x) - 32 - extraReach(enemy) - extraReach(actor) &&
@@ -951,7 +993,12 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       updateForm(actor)
     }
     if (move.kind === 'guard') {
-      if (move.blink && cast.target) {
+      if (move.teamBarrier) {
+        for (const ally of actors) if (ally.hp && teamOf(ally) === teamOf(actor)) {
+          ally.barriers ??= {}
+          for (const kind of barrierTypes(move)) ally.barriers[kind] = Math.max(ally.barriers[kind] ?? 0, time + move.duration)
+        }
+      } else if (move.blink && cast.target) {
         const away = -Math.sign(cast.target.x - actor.x) || -actor.direction
         actor.x = bound(actor.x + (Math.abs(bound(actor.x + away * 250, actor) - actor.x) >= 100 ? away : -away) * 250, actor)
         for (const x of [origin, actor.x]) effects.push({ kind: 'target', visual: 'psychic', x, at: time, expires: time + .45 })
@@ -984,30 +1031,47 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         if (rivals(actor, enemy) && enemy.hp > 0 && (enemy.x - actor.x) * direction >= -24) hit(actor, enemy, move, direction)
       }
     } else if (move.kind === 'target') {
-      const target = cast.target
-      if (target.hp > 0 && (cast.moveId === 'lightning' && field?.kind === 'rain' || Math.abs(target.x - actor.x) <= move.reach + 40 + extraReach(target))) {
+      const target = cast.target.hp > 0 ? cast.target : actor.boss ? closest(actor) : undefined
+      if (target?.hp > 0 && (actor.boss || cast.moveId === 'lightning' && field?.kind === 'rain' || Math.abs(target.x - actor.x) <= move.reach + 40 + extraReach(target))) {
         if (move.hazard) {
           const x = bound(target.x - actor.direction * Math.min(135, Math.abs(target.x - actor.x) * .44))
-          placeSpikes(actor, x, 8)
+          placeSpikes(actor, x, move.duration ?? 8, move.hazard === 'web' ? 'web' : 'poison')
+          if (move.hazard === 'web') {
+            const another = bound(x - actor.direction * 165)
+            if (Math.abs(another - x) >= 85) placeSpikes(actor, another, move.duration, 'web')
+          }
         } else {
+          if (move.teleportBehind && !(actor.rootedUntil > time)) actor.x = bound(target.x + actor.direction * 72, actor)
           effects.push({ kind: 'target', visual: move.visual, type: move.type, origin: actor.x, x: target.x, at: time, expires: time + .52 })
           hit(actor, target, move, Math.sign(target.x - actor.x) || actor.direction)
+          if (move.displace && !target.boss && target.hp) target.x = bound(target.x + actor.direction * move.displace, target)
+          if (move.chain) {
+            const nearby = actors.filter(enemy => enemy !== target && enemy.hp && rivals(actor, enemy) && Math.abs(enemy.x - target.x) < 220)
+              .sort((a, b) => Math.abs(a.x - target.x) - Math.abs(b.x - target.x))
+            for (const enemy of nearby.slice(0, move.chain)) {
+              effects.push({ kind: 'target', visual: 'lightning', x: enemy.x, at: time, expires: time + .52 })
+              hit(actor, enemy, { ...move, power: Math.round(move.power * .5) }, Math.sign(enemy.x - target.x) || actor.direction)
+            }
+          }
         }
       }
     } else if (move.visual === 'raid-geysers') {
       const struck = new Set()
+      const direction = cast.target?.hp > 0 ? Math.sign(cast.target.x - origin) || actor.direction : actor.direction
       for (let index = 0; index < 6; index++) {
-        const x = bound(origin + actor.direction * (75 + index * (move.reach - 75) / 5))
+        const start = actor.boss && cast.target?.hp > 0 ? cast.target.x : origin + direction * 75
+        const x = bound(start + direction * index * (move.reach - 75) / 5)
         if (index && x === geysers.at(-1)?.x) break
         const at = time + .28 + index * .16
         geysers.push({ actor, move, x, at, struck })
         effects.push({ kind: 'geyser', x, at, expires: at + .55 })
       }
     } else if (move.kind === 'area') {
-      effects.push({ kind: 'area', type: move.type, visual: move.visual, x: origin, reach: move.reach, at: time, expires: time + .45 })
+      const center = actor.boss && cast.target?.hp > 0 ? cast.target.x : origin
+      effects.push({ kind: 'area', type: move.type, visual: move.visual, x: center, reach: move.reach, at: time, expires: time + (move.visual === 'quake' ? 1.05 : .45) })
       for (const enemy of actors) {
-        if (rivals(actor, enemy) && enemy.hp > 0 && Math.abs(enemy.x - origin) <= move.reach + extraReach(enemy)) {
-          hit(actor, enemy, move, Math.sign(enemy.x - origin) || actor.direction)
+        if (rivals(actor, enemy) && enemy.hp > 0 && Math.abs(enemy.x - center) <= move.reach + extraReach(enemy)) {
+          hit(actor, enemy, move, Math.sign(enemy.x - center) || actor.direction)
         }
       }
     }
@@ -1017,9 +1081,9 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     projectiles.push({ actor, move, x: actor.x, origin: actor.x, direction, end: time + move.reach / 720 })
   }
 
-  function placeSpikes(actor, x, seconds) {
-    hazards.push({ x, owner: actor.index, expires: time + seconds, affected: new Set() })
-    effects.push({ kind: 'hazard', x, at: time, expires: time + seconds })
+  function placeSpikes(actor, x, seconds, kind = 'poison') {
+    hazards.push({ kind, x, owner: actor.index, expires: time + seconds, affected: new Set() })
+    effects.push({ kind: 'hazard', visual: kind, x, at: time, expires: time + seconds })
   }
 
   function stepOnSpikes(actor) {
@@ -1027,10 +1091,18 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       if (hazard.expires <= time || !rivals(actors[hazard.owner], actor) || Math.abs(actor.x - hazard.x) > 85 ||
           hazard.affected.has(actor.index)) continue
       hazard.affected.add(actor.index)
+      if (hazard.kind === 'web') {
+        if (!actor.boss && !actor.types.includes('flying')) {
+          actor.rootedUntil = time + 2.5
+          actor.dashUntil = 0
+          actor.cast = null
+        }
+        continue
+      }
       actor.hp = Math.max(0, actor.hp - 4)
       if (!actor.hp) actor.faintedAt = time
       effects.push({ kind: 'hit', type: 'poison', x: actor.x, target: actor.index, damage: 4, at: time, expires: time + .6 })
-      if (actor.hp && (!actor.status || actor.status.kind === 'poison' && !actor.status.severe) &&
+      if (actor.hp && canReceiveStatus(actor, 'poison') && (!actor.status || actor.status.kind === 'poison' && !actor.status.severe) &&
           !immune.poison.some(type => actor.types.includes(type))) {
         actor.status = { source: hazard.owner, kind: 'poison', severe: true, ends: time + statusDuration.poison, tick: time + 1, severity: 5 }
       }
@@ -1138,7 +1210,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         if (!pulse) {
           for (const enemy of enemies) {
             if (sleepBlocked()) break
-            enemy.status = { kind: 'sleep', ends: time + (enemy.boss ? 1 : 5) }
+            if (!canReceiveStatus(enemy, 'sleep') || enemy.types.some(type => immune.sleep.includes(type))) continue
+            enemy.status = { kind: 'sleep', ends: time + 5 }
             enemy.ultimateSleep = true
           }
           targets = []
@@ -1186,7 +1259,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   }
 
   function immobilized(actor) {
-    return actor.status?.kind === 'freeze' || actor.status?.kind === 'sleep'
+    return !actor.boss && (actor.rootedUntil > time || actor.status?.kind === 'freeze' || actor.status?.kind === 'sleep')
   }
 
   function advanceKnockback(actor, dt) {
@@ -1216,6 +1289,14 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   }
 
   function tickStatus(actor) {
+    if (actor.abilities.has('team-heart') && time >= (actor.nextRescuePulse ?? 8)) {
+      const ally = supportTarget(actor, { reach: Infinity })
+      if (ally && ally.hp <= ally.maxHp * .65) {
+        actor.nextRescuePulse = time + 8
+        ally.hp = Math.min(ally.maxHp, ally.hp + Math.max(1, Math.round(ally.maxHp * .06)))
+        effects.push({ kind: 'target', visual: 'heal', x: ally.x, at: time, expires: time + .65 })
+      }
+    }
     if (actor.heldItem === 'leftovers' && time >= (actor.nextLeftovers ?? 5)) {
       actor.nextLeftovers = time + 5
       actor.hp = Math.min(actor.maxHp, actor.hp + Math.max(1, Math.round(actor.maxHp * .02)))
@@ -1275,7 +1356,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
 
   function separateBodies() {
     const solid = actors.filter(actor => !actor.boss && actor.hp > 0 && !(actor.dashUntil > time)).sort((a, b) => a.x - b.x)
-    const anchored = actor => actor.cast?.move.channel && actor.cast.start + actor.cast.move.channel > time
+    const anchored = actor => actor.rootedUntil > time || actor.cast?.move.channel && actor.cast.start + actor.cast.move.channel > time
     for (let i = 1; i < solid.length; i++) {
       const left = solid[i - 1]
       const right = solid[i]
@@ -1311,8 +1392,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       const overlap = 53 - (right.x - left.x)
       if (overlap <= 0) continue
       const correction = Math.min(overlap / 2, dt * 165)
-      if (!left.cast) left.x = bound(left.x - correction, left)
-      if (!right.cast) right.x = bound(right.x + correction, right)
+      if (!left.cast && !(left.rootedUntil > time)) left.x = bound(left.x - correction, left)
+      if (!right.cast && !(right.rootedUntil > time)) right.x = bound(right.x + correction, right)
     }
   }
 
@@ -1347,12 +1428,19 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     for (const id of choices) {
       const move = moves[id]
       if (move.kind === 'support') {
-        if (supportTarget(actor, move) && !(actor.cooldowns[id] > time) && bestScore < 140) { best = id; bestScore = 140 }
+        const priority = move.reviveAlly ? 200 : move.teamCleanse ? 176 : 168
+        if (supportTarget(actor, move) && !(actor.cooldowns[id] > time) && bestScore < priority) { best = id; bestScore = priority }
         continue
       }
-      if (!move.ultimate && !move.heal && !move.protect && !fallback && !(actor.cooldowns[id] > time) &&
+      if (!move.ultimate && !move.heal && !move.protect && !move.teamBarrier && !fallback && !(actor.cooldowns[id] > time) &&
           (distance <= moveReach(actor, move) || move.kind === 'guard')) fallback = id
       if (move.kind === 'guard') {
+        if (move.teamBarrier) {
+          const uncovered = actors.some(ally => ally.hp && teamOf(actor) === teamOf(ally) &&
+            barrierTypes(move).some(kind => !(ally.barriers?.[kind] > time)))
+          if (uncovered && actor.team != null && !(actor.cooldowns[id] > time) && bestScore < 152) { best = id; bestScore = 152 }
+          continue
+        }
         const active = move.field ? field?.kind === move.field : move.boost ? actor.boosts[move.boost] > time : actor.shield > time
         const score = move.field ? (actor.hp < actor.maxHp * .85 ? 41 : 31) :
           move.heal ? (actor.hp <= actor.maxHp * .2 ? 150 : 0) : move.protect ? (enemy.cast && distance < 170 ? 85 : 0) :
@@ -1365,7 +1453,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       }
       const matchup = move.ultimate || move.struggle ? 1 : effectiveness(actor, enemy, move)
       if (move.needsSleep && enemy.status?.kind !== 'sleep') continue
-      const statusUseful = move.effect && !enemy.status && !(move.effect === 'sleep' && sleepBlocked()) &&
+      const statusUseful = canReceiveStatus(enemy, move.effect) && !enemy.status && !(move.effect === 'sleep' && sleepBlocked()) &&
         !enemy.types.some(type => immune[move.effect].includes(type))
       const fatigue = actor.lastMove === id ? Math.max(.66, 1 - ((actor.repeat ?? 1) - 1) * .12) : 1
       const score = move.ultimate ? 125 : move.struggle ? 65 : move.hazard ?
@@ -1467,7 +1555,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         const enemy = auto && !locked && !exhausted && !(actor.flinchUntil > time) && closest(actor)
         const dashing = enemy && !isHurt(actor, time) && actor.dashUntil > time
         if (dashing) actor.x = bound(actor.x + actor.dashDirection * 850 * dt, actor)
-        const motion = dashing ? 'Run' : exhausted || locked && actor.status.kind === 'sleep' ? 'Sleep' :
+        const motion = dashing ? 'Run' : exhausted || locked && actor.status?.kind === 'sleep' ? 'Sleep' :
           enemy && !isHurt(actor, time) ? act(actor, enemy, dt) : 'Idle'
         if (motion !== actor.motion) {
           actor.motion = motion
@@ -1480,7 +1568,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         const wave = geysers[index]
         if (wave.at > time) continue
         if (wave.actor.hp) for (const target of actors) {
-          if (!target.hp || !rivals(wave.actor, target) || target.dashUntil > time || wave.struck.has(target.index) || Math.abs(target.x - wave.x) > 76) continue
+          if (!target.hp || !rivals(wave.actor, target) || !wave.actor.boss && target.dashUntil > time || wave.struck.has(target.index) || Math.abs(target.x - wave.x) > 76) continue
           wave.struck.add(target.index)
           hit(wave.actor, target, wave.move, Math.sign(target.x - wave.x) || wave.actor.direction)
         }
