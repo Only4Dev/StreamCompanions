@@ -2,7 +2,7 @@ const params = new URLSearchParams(location.search)
 const preview = ['1', 'raid'].includes(params.get('preview')) ? params.get('preview') : ''
 const scale = Math.min(300, Math.max(100, Number(params.get('scale')) || 150))
 const feed = document.querySelector('#feed')
-document.querySelector('#source').style.zoom = scale / 100
+const source = document.querySelector('#source')
 const winner = document.querySelector('#winner')
 const raid = document.querySelector('#raid')
 const bossName = document.querySelector('#boss-name')
@@ -10,8 +10,19 @@ const bossHealth = document.querySelector('#boss-health')
 const bossPoints = document.querySelector('#boss-points')
 const raidTime = document.querySelector('#raid-time')
 
+function fitSource() {
+  // Leave room for three entries so a new knockout does not resize the HUD.
+  const zoom = raid.hidden ? scale / 100 : Math.min(scale / 100, innerWidth / source.offsetWidth, innerHeight / 130)
+  source.style.zoom = zoom
+}
+
+window.addEventListener('resize', fitSource)
+fitSource()
+
 function renderBoss(boss, language) {
   raid.hidden = !boss
+  source.classList.toggle('dynamax', Boolean(boss))
+  fitSource()
   if (!boss) return
   bossName.textContent = boss.name + ' · Dynamax'
   bossHealth.setAttribute('aria-label', boss.name)

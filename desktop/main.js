@@ -1050,9 +1050,11 @@ const server = createServer(async (req, res) => {
         [{ name: 'Charizard' }, { name: 'Venusaur', ownerName: 'Viewer 1' }],
         [{ name: 'Blastoise' }, { name: 'Dragonite', ownerName: 'Viewer 2' }]
       ]
-      const rows = preview === '1' ? samples.map(([target, killer], i) => ({
+      const rows = preview === 'raid' ? [{
+        id: 'raid', target: portrait({ name: 'Pikachu' }), killer: portrait({ name: 'Blastoise', boss: true })
+      }] : preview === '1' ? samples.map(([target, killer], i) => ({
         id: String(i), target: portrait(target), killer: portrait(killer)
-      })) : preview === 'raid' || battle?.raid ? [] : (battle?.knockouts ?? []).flatMap(({ killer, target, at }) => {
+      })) : (battle?.knockouts ?? []).flatMap(({ killer, target, at }) => {
         const remaining = 5 - (clock - at)
         if (remaining <= 0) return []
         return [{ id: target + ':' + at, target: portrait(battle.actors[target]), killer: portrait(battle.actors[killer]), expiresAt: now + remaining * 1000 }]
