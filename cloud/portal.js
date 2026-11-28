@@ -16,7 +16,7 @@ import { authorizeUrl, eraseAccount, platformIdentity, providerConfig, sessionKe
 import { nationalDex } from './national-dex.js'
 import { kanto } from './kanto.js'
 import { baseStatsData, equippedMoves, moveCooldown, movePp, moves } from '../dev/battle.js'
-import { familyDnaCount, familyRoot, maxDnaBoosters } from '../ui/evolution.js'
+import { familyDnaCount, familyRoot, maxDnaBoosters, sharesRegionalBase } from '../ui/evolution.js'
 import { regionalSpecies } from '../ui/regional-species.js'
 import { battleTeamFamily, creatureMoves, dexEntries, parseLoadout, speciesName, validMoveset } from './movesets.js'
 import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles, mobileStyles, liveReactionStyles } from './portal-style.js'
@@ -1528,7 +1528,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     for (const row of eggs.results) eggAcquired.set(row.dex, row.acquired)
   }
   const regionSpecies = [...nationalDex.slice(region[2] - 1, region[3]), ...dexEntries.slice(nationalDex.length)
-    .filter(([, formRegion]) => region[0] === 'all' || formRegion === region[0])]
+    .filter(([id, formRegion]) => !sharesRegionalBase(id) && (region[0] === 'all' || formRegion === region[0]))]
   const borders = tab === 'dex' ? '<style>' + [...new Set(regionSpecies.map(([dex]) => familyRoot(dex)))].map(root =>
     '.dex-grid:has([data-family="' + root + '"]:is(:hover,:focus-within)) [data-family="' + root + '"]{outline:2px solid #6664ac;outline-offset:1px}'
   ).join('') + '</style>' : ''
@@ -1536,7 +1536,9 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     const key = kanto[dex - 1] ?? label
     const normal = collection[key]
     const shiny = collection[key + ' ✦']
-    const owned = normal !== undefined || shiny !== undefined
+    const regionalForms = regionalSpecies.filter(form => form.baseId === dex && sharesRegionalBase(form.id))
+    const owned = normal !== undefined || shiny !== undefined || regionalForms.some(form =>
+      Object.hasOwn(collection, form.name) || Object.hasOwn(collection, form.name + ' ✦'))
     if (caughtOnly && !owned) return ''
     const sprite = spriteBase + 'pokemon/' +
       (normal === undefined && shiny !== undefined ? 'shiny/' : '') + dex + '.png'
@@ -1545,13 +1547,16 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       '">' + label + '</a>'
     const details = [
       normal !== undefined ? summaryLink(key, 'Normal · Lv. ' + level(normal)) : '',
-      shiny !== undefined ? summaryLink(key + ' ✦', '✦ Shiny · Lv. ' + level(shiny), 'shiny-tag') : ''
+      shiny !== undefined ? summaryLink(key + ' ✦', '✦ Shiny · Lv. ' + level(shiny), 'shiny-tag') : '',
+      ...regionalForms.flatMap(({ name }) => [name, name + ' ✦'].filter(variant => Object.hasOwn(collection, variant))
+        .map(variant => summaryLink(variant, escape(variant) + ' · Lv. ' + level(collection[variant]), variant.endsWith(' ✦') ? 'shiny-tag' : '')))
     ].join('')
-    const member = owned ? (normal === undefined ? key + ' ✦' : key) :
+    const member = normal !== undefined ? key : shiny !== undefined ? key + ' ✦' :
       familyLinks(dex).flatMap(([id]) => [speciesName(id), speciesName(id) + ' ✦'])
         .find(variant => Object.hasOwn(collection, variant))
     const profile = '<img src="' + sprite + '" width="96" height="96" loading="lazy" alt=""><strong>' + escape(label) + '</strong>'
-    const acquired = Math.max(dexAcquired[key] ?? 0, dexAcquired[key + ' ✦'] ?? 0, eggAcquired.get(dex) ?? 0)
+    const acquired = Math.max(dexAcquired[key] ?? 0, dexAcquired[key + ' ✦'] ?? 0, eggAcquired.get(dex) ?? 0,
+      ...regionalForms.flatMap(({ name }) => [dexAcquired[name] ?? 0, dexAcquired[name + ' ✦'] ?? 0]))
     const isNew = owned && acquired > (seen.get(dex) ?? 0)
     return '<li class="slot ' + (owned ? 'owned' : 'locked') + '" data-family="' + familyRoot(dex) + '"' +
       (isNew ? ' data-dex-new="' + dex + '" data-acquired="' + acquired + '"><span class="dex-new">' + (en ? 'NEW' : 'NUEVO') + '</span>' : '>') + '<span class="dex-number">#' +

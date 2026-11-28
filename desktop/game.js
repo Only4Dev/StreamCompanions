@@ -3,7 +3,7 @@ import { decodeAllocation, validTraining, normalizeTraining, trainingRules, trai
 import { regionalSpecies } from '../ui/regional-species.js'
 import { hasPickup } from '../ui/abilities.js'
 import { normalizeCommand } from './commands.js'
-import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, isFirstStage, maxDnaBoosters, nextEvolutionLevel, regionalEvolutionsFrom } from '../ui/evolution.js'
+import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, isFirstStage, maxDnaBoosters, nextEvolutionLevel, previousFamilyRoot, sharesRegionalBase } from '../ui/evolution.js'
 import { defaultSummonXpPerSecond, level, maxLevel, maxXp, xpAtLevel } from '../ui/levels.js'
 import { captureCategories, catchChance, catchDifficulty, normalizeCapturePercentages, specialEncounterTag } from '../ui/capture-rates.js'
 import { heldItems } from '../ui/held-items.js'
@@ -157,31 +157,21 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       }
       viewer.collection[form] = xp
     }
-    const regionalUnlocked = []
-    for (const id of unlocked) {
-      const requiredLevel = nextEvolutionLevel(id) ?? 31
-      if (rank < requiredLevel) continue
-      for (const regionalId of regionalEvolutionsFrom(id)) {
-        const variant = byId.get(regionalId)
-        if (!variant || (shiny && !variant.shiny)) continue
-        const name = variant.name + suffix
-        if (Object.hasOwn(viewer.collection, name)) continue
-        viewer.collection[name] = xpAtLevel(requiredLevel)
-        ;(viewer.dexAcquired ??= {})[name] = now()
-        regionalUnlocked.push(name)
-      }
-    }
     if (!shiny) syncShinyUnlocks(viewer, shinyRoot(entry.id))
-    if (!announce || (!newForms.length && !regionalUnlocked.length)) return
-    if (newForms.length === 1 && viewer.active?.key === key) {
-      const target = newForms[0]
-      if (evolutionChildren(byName.get(key.replace(/ ✦$/, ''))?.id).includes(byName.get(target.replace(/ ✦$/, ''))?.id)) {
+    if (!announce || !newForms.length) return
+    if (viewer.active?.key === key) {
+      const next = newForms.filter(form => {
+        const id = byName.get(form.replace(/ ✦$/, ''))?.id
+        return !sharesRegionalBase(id) && evolutionParent(id) === entry.id
+      })
+      if (next.length === 1) {
+        const [target] = next
         viewer.active.key = target
         viewer.active.evolvedAt = now()
         onSummonChange({ event: 'evolved', from: key, species: target, layer: viewer.active.layer })
       }
     }
-    onEvolution(viewer.displayName, [...newForms, ...regionalUnlocked])
+    onEvolution(viewer.displayName, newForms)
   }
 
   function familyXp(viewer, key) {
@@ -199,7 +189,27 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       .filter(name => Object.hasOwn(viewer.collection, name)).sort()
   }
 
+  const mergedFamilies = [...families].map(([root, members]) =>
+    [root, Map.groupBy(members, member => previousFamilyRoot(member.id))]).filter(([, groups]) => groups.size > 1)
   for (const viewer of viewers.values()) {
+    for (const [root, groups] of mergedFamilies) {
+      const legacyKeys = members => members.flatMap(({ name }) => [name, name + ' ✦'])
+      const sources = [...groups].map(([oldRoot, members]) => {
+        const keys = legacyKeys(members)
+        return { oldRoot, keys, row: normalizeTraining(viewer.training?.[oldRoot], familyDnaCount(viewer.dnaBoosters, keys)) }
+      })
+      if (!sources.some(({ oldRoot, row }) => oldRoot !== root && row.points > 0)) continue
+      const points = sources.reduce((total, { row }) => total + row.points, 0)
+      const stats = Object.fromEntries(trainingRules.stats.map(stat =>
+        [stat, Math.min(trainingRules.maxPerStat, sources.reduce((total, { row }) => total + (row.stats[stat] ?? 0), 0))]))
+      ;(viewer.training ??= {})[root] = { points: Math.min(trainingRules.maxPoints, points), stats }
+      if (points > trainingRules.maxPoints) viewer.vitamins = (viewer.vitamins ?? 0) + points - trainingRules.maxPoints
+      for (const { oldRoot, keys } of sources) {
+        if (oldRoot === root) continue
+        delete viewer.training[oldRoot]
+        if (viewer.dnaBoosters) for (const key of keys) delete viewer.dnaBoosters[key]
+      }
+    }
     for (const key of Object.keys(viewer.collection)) shareFamily(viewer, key, familyXp(viewer, key), false)
   }
 

@@ -1418,7 +1418,8 @@ app.whenReady().then(() => {
       }
     } })
   try { game.setEggPool(JSON.parse(readFileSync(join(profile, 'egg-pool.json'), 'utf8'))) } catch { /* bundled eggs */ }
-  if (!savedProgress) game.setRunning(false)
+  if (savedProgress) persistGame()
+  else game.setRunning(false)
   if (setup.platform !== 'demo' && safeStorage.isEncryptionAvailable()) {
     const file = join(profile, 'cloud-device.enc')
     try {

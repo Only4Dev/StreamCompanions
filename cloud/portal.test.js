@@ -1,3 +1,4 @@
+import { sharesRegionalBase } from '../ui/evolution.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { runInNewContext } from 'node:vm'
@@ -109,7 +110,7 @@ test('the portal uses the authenticated viewer and escapes synced display names'
           assert.equal(id, 'sc-account')
           return { all: async () => ({ results: [{ community_id: 'only4gx', updated_at: 0,
             payload: JSON.stringify({ displayName: '<Viewer>', balls: { normal: 4, great: 0, ultra: 0, master: 0 },
-              collection: { Weedle: 120, "Weedle ✦": 0 }, metrics: { wins: 4, losses: 2, summonMinutes: 93 } })
+              collection: { Weedle: 120, "Weedle ✦": 0, Exeggutor: 108000, "Alolan Exeggutor": 108000 }, metrics: { wins: 4, losses: 2, summonMinutes: 93 } })
           }] }) }
         }
       }
@@ -125,6 +126,7 @@ test('the portal uses the authenticated viewer and escapes synced display names'
   assert.match(html, /class="slot owned"/)
   assert.doesNotMatch(html, /twitch:999|<Viewer>/)
   assert.match(html, /✦ Shiny · Lv\. 1/)
+  assert.match(html, /<strong>Exeggutor<\/strong>[^]*?<div class="variants">[^]*?Alolan Exeggutor · Lv\. 31<\/a><\/div><\/li>/)
   const inventoryUrl = new URL('https://example.test/?tab=inventory&community=only4gx')
   const inventory = await portal(new Request(inventoryUrl, {
     headers: { Cookie: 'sc_session=' + 'a'.repeat(64) }
@@ -151,8 +153,11 @@ test('the portal uses the authenticated viewer and escapes synced display names'
     const numbers = [...html.matchAll(/class="dex-number">#(\d+)/g)].map(match => match[1])
     assert.equal(numbers[0], first)
     assert.equal(numbers[count - 1], last)
-    assert.equal(numbers.length, count + regionalSpecies.filter(form => form.region === region).length)
-    if (region === 'alola') assert.match(html, /Alolan Rattata/)
+    assert.equal(numbers.length, count + regionalSpecies.filter(form => form.region === region && !sharesRegionalBase(form.id)).length)
+    if (region === 'alola') {
+      assert.match(html, /Alolan Rattata/)
+      assert.doesNotMatch(html, /Alolan Exeggutor/)
+    }
   }
   const chooserUrl = new URL('https://example.test/?community=another')
   const chooser = await portal(new Request(chooserUrl, {

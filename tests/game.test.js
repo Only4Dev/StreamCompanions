@@ -159,18 +159,38 @@ test('the legendary hatch threshold is 0.001% and eggs exclude evolved species',
   }
 })
 
-test('Exeggcute unlocks both evolutions without sharing later XP with Alolan Exeggutor', () => {
+test('Exeggcute unlocks both evolutions and shares later XP with Alolan Exeggutor', () => {
   const catalog = [{ id: 102, name: 'Exeggcute' }, { id: 103, name: 'Exeggutor' }, { id: 10114, name: 'Alolan Exeggutor' }]
   const game = createGame({ catalog, now: () => 0, progress: { viewers: { A: { collection: { Exeggcute: xpAtLevel(30) }, rareCandies: 2 } } } })
   assert.equal(game.chat('A', '!summon exeggcute', 'A', 'twitch'), 'summoned')
   assert.equal(game.chat('A', '!candy', 'A', 'kick'), 'candyUsed')
   const first = game.progress().viewers.A.collection
   assert.equal(first.Exeggutor, xpAtLevel(31))
+  assert.equal(game.chat('A', '!summon alolan exeggutor'), 'summoned')
   assert.equal(first['Alolan Exeggutor'], xpAtLevel(31))
   assert.equal(game.chat('A', '!candy', 'A', 'kick'), 'candyUsed')
   const second = game.progress().viewers.A.collection
   assert.equal(second.Exeggutor, xpAtLevel(32))
-  assert.equal(second['Alolan Exeggutor'], xpAtLevel(31))
+  assert.equal(second['Alolan Exeggutor'], xpAtLevel(32))
+})
+
+test('a shared regional branch migrates the highest level and both training budgets once', () => {
+  const catalog = [{ id: 102, name: 'Exeggcute' }, { id: 103, name: 'Exeggutor' }, { id: 10114, name: 'Alolan Exeggutor' }]
+  const game = createGame({ catalog, progress: { viewers: { A: {
+    collection: { Exeggutor: xpAtLevel(32), 'Alolan Exeggutor': xpAtLevel(45) },
+    vitamins: 3,
+    training: { 102: { points: 50, stats: { attack: 20 } }, 10114: { points: 32, stats: { attack: 8, specialAttack: 12 } } }
+  } } } })
+  const viewer = game.progress().viewers.A
+  for (const name of ['Exeggcute', 'Exeggutor', 'Alolan Exeggutor']) assert.equal(viewer.collection[name], xpAtLevel(45))
+  assert.equal(viewer.training[102].points, 75)
+  assert.equal(viewer.training[102].stats.attack, 25)
+  assert.equal(viewer.training[102].stats.specialAttack, 12)
+  assert.equal(viewer.training[10114], undefined)
+  assert.equal(viewer.vitamins, 10)
+  const restarted = createGame({ catalog, progress: game.progress() })
+  assert.deepEqual(restarted.progress().viewers.A.training, viewer.training)
+  assert.equal(restarted.progress().viewers.A.vitamins, 10)
 })
 
 test('a Poké Egg hatches only a regular base species and keeps its receipt across restart', () => {
