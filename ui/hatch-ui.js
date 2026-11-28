@@ -68,7 +68,7 @@ export async function revealHatches(dialog, hatches, language) {
       let played = false;
       if (rarity !== 'common' && !reducedMotion) {
         try {
-          const { playHatchSpace } = await import('/assets/hatch-space.js');
+          const { playHatchSpace } = await import(new URL('/assets/hatch-space.js', location.href).href);
           const duration = rarity === 'legendary' ? 3900 : rarity === 'epic' ? 3200 : 2600;
           played = await playHatchSpace(stage, rarity, duration, controller.signal, () => dialog.classList.add('hatched'));
         } catch { /* the CSS animation remains available */ }

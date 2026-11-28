@@ -3,7 +3,7 @@ export async function playHatchSpace(stage, rarity, duration, signal, onReveal) 
   let timer
   try {
     engine = await Promise.race([
-      import('/assets/three-hatch-r187.js'),
+      import(new URL('/assets/three-hatch-r187.js', location.href).href),
       new Promise(resolve => { timer = setTimeout(resolve, 2200) })
     ])
   } catch { return false }
