@@ -826,7 +826,7 @@ async function runCommunityBattle(waitForBanner, raidBoss, manual) {
       } catch { /* single summon fallback for this batch */ }
     }
   }
-  const entriesForViewer = (viewerId, pokemon) => {
+  const entriesForViewer = (viewerId, pokemon, heldItem) => {
     const viewer = viewers[viewerId]
     if (!Object.hasOwn(viewer.collection, pokemon)) return null
     const species = byName.get(pokemon.replace(/ ✦$/, '').toLowerCase())
@@ -841,14 +841,15 @@ async function runCommunityBattle(waitForBanner, raidBoss, manual) {
     return { viewerId, speciesKey: pokemon, team: teamMode ? viewerId : 'raid-party', id, stats, types, final, level: rank,
       training: game.battleTraining(viewer, pokemon, id),
       tmMoves: learnedTmMoves(id, viewer.tmMoves),
-      ownedHeldItems: viewer.heldItems ?? [],
+      heldItem: viewer.heldItems?.includes(heldItem) ? heldItem : undefined,
       name: form.name, margin: Math.max(75, ...Object.values(variant?.animations ?? {}).map(clip => clip.width * spriteScale(clip, 3) / 2 + 18)),
       ownerName: viewer.displayName,
       shiny: pokemon.endsWith(' ✦') }
   }
   let entries = activeIds.flatMap(viewerId => {
-    const team = savedTeams[viewerId]?.slice(0, 3).map(slot => entriesForViewer(viewerId, slot.pokemon)).filter(Boolean)
-    return team?.length ? team : [entriesForViewer(viewerId, viewers[viewerId].active.key)].filter(Boolean)
+    const slots = savedTeams[viewerId] ?? []
+    const team = slots.slice(0, 3).map(slot => entriesForViewer(viewerId, slot.pokemon, slot.heldItem)).filter(Boolean)
+    return team.length ? team : [entriesForViewer(viewerId, viewers[viewerId].active.key, slots[0]?.heldItem)].filter(Boolean)
   })
   if (new Set(entries.map(entry => entry.viewerId)).size < (raidBoss ? 1 : 2)) {
     return 422
@@ -869,7 +870,6 @@ async function runCommunityBattle(waitForBanner, raidBoss, manual) {
           entry.selectedMoves = loadout?.moves
           entry.selectedAt = loadout?.selectedAt
           entry.selectedUltimate = loadout?.ultimate
-          if (entry.ownedHeldItems.includes(loadout?.heldItem)) entry.heldItem = loadout.heldItem
         }
       } catch (error) { console.warn('Could not load community movesets:', error.message) }
     }
@@ -1033,7 +1033,7 @@ const server = createServer(async (req, res) => {
       return
     }
     if (req.method === 'GET' && pathname === '/ui/learnsets.json') {
-      const data = JSON.parse(await readFile(new URL('../ui/learnsets.json', import.meta.url), 'utf8'))
+      const data = battleRules.activeLearnsets()
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
       res.end(JSON.stringify({ ...data, raidBosses }))
       return
@@ -1383,7 +1383,7 @@ const server = createServer(async (req, res) => {
         const selection = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] })
         if (selection.canceled) { res.writeHead(204).end(); return }
         const bytes = await readFile(selection.filePaths[0])
-        if (bytes.length > 1_000_000 || simulating || communityBattle && !communityBattle.battle.over) throw new Error('Learnsets unavailable')
+        if (bytes.length > 10_000_000 || simulating || communityBattle && !communityBattle.battle.over) throw new Error('Learnsets unavailable')
         const data = JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, ''))
         const bosses = data.raidBosses === undefined ? null : validateRaidBosses(data.raidBosses)
         battleRules.applyLearnsets(data)

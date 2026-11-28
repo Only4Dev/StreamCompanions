@@ -5,6 +5,7 @@ import { level, maxLevel } from '../ui/levels.js'
 import { kanto } from './kanto.js'
 import { nationalDex } from './national-dex.js'
 import { learnedTmMoves } from '../ui/tm.js'
+import { heldItems } from '../ui/held-items.js'
 
 export const dexEntries = [...nationalDex, ...regionalSpecies.map(form => [form.id, form.region, form.name])]
 const entriesById = new Map(dexEntries.map(entry => [entry[0], entry]))
@@ -18,11 +19,21 @@ export function battleTeamFamily(name) {
   return id && familyRoot(regionalBase.get(id) ?? id)
 }
 
+export async function teamSlotEquipment(db, community, viewerId, slots) {
+  const legacy = slots.filter(slot => slot.pokemon && !Object.hasOwn(slot, 'heldItem'))
+  if (!legacy.length) return slots
+  const { results } = await db.prepare('SELECT species_key, item FROM viewer_held_items WHERE community_id = ? AND viewer_id = ? AND species_key IN (' +
+    legacy.map(() => '?').join(',') + ')').bind(community, viewerId, ...legacy.map(slot => slot.pokemon)).all()
+  const equipped = new Map(results.filter(({ item }) => Object.hasOwn(heldItems, item)).map(row => [row.species_key, row.item]))
+  return slots.map(slot => !Object.hasOwn(slot, 'heldItem') && equipped.has(slot.pokemon) ? { ...slot, heldItem: equipped.get(slot.pokemon) } : slot)
+}
+
 export async function readBattleTeams(db, community, viewerIds) {
   const { results } = await db.prepare('SELECT i.viewer_id, t.slots FROM viewer_battle_teams t JOIN account_identities i ON i.account_id = t.account_id ' +
     'WHERE t.community_id = ? AND i.detached_at IS NULL AND i.viewer_id IN (' + viewerIds.map(() => '?').join(',') + ')')
     .bind(community, ...viewerIds).all()
-  return Object.fromEntries(results.map(({ viewer_id, slots }) => [viewer_id, JSON.parse(slots).map(({ pokemon }) => ({ pokemon }))]))
+  return Object.fromEntries(await Promise.all(results.map(async ({ viewer_id, slots }) =>
+    [viewer_id, await teamSlotEquipment(db, community, viewer_id, JSON.parse(slots))])))
 }
 
 export function creatureMoves(speciesKey, xp, dna = 0, training, tmMoves) {

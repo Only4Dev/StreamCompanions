@@ -188,6 +188,7 @@ export function applyLearnsets(data) {
 }
 
 export { moves }
+export const activeLearnsets = () => learnsets
 const loadouts = {
   1: ['tackle', 'leaf', 'spores', 'solar'],
   4: ['tackle', 'ember', 'claw', 'fireblast'],

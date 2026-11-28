@@ -282,6 +282,23 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.match(teamHtml, /class="team-portrait"[^>]*><img[^>]*pokemon\/19\.png/)
   assert.doesNotMatch(teamHtml, /name="support[0-9]/)
   assert.deepEqual(await loadTeams.json(), { 'twitch:1': [{pokemon:'Rattata'}, {pokemon:'Mewtwo'}] })
+  const saveSlots = fields => worker.fetch(new Request(base + '/battle-team?community=stream', {
+    method: 'POST', headers: { ...cookie, Origin: base }, body: new URLSearchParams(fields)
+  }), { DB: D1 })
+  const fetchSlots = () => worker.fetch(new Request(base + '/api/movesets', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: JSON.stringify({ teams: ['twitch:1'] })
+  }), { DB: D1 }).then(response => response.json())
+  assert.match((await saveSlots({ pokemon0: 'Rattata', item0: 'leftovers' })).headers.get('Location'), /team=item/)
+  db.prepare("UPDATE viewer_progress SET payload = json_set(payload, '$.heldItems', json('[\"leftovers\"]')) WHERE viewer_id = 'twitch:1'").run()
+  db.prepare('INSERT INTO viewer_held_items VALUES (?, ?, ?, ?)').run('stream', 'twitch:1', 'Rattata', 'leftovers')
+  assert.deepEqual((await fetchSlots())['twitch:1'][0], { pokemon: 'Rattata', heldItem: 'leftovers' })
+  assert.match((await (await authTeamPage()).text()), /name="item0"[^]*?<option value="leftovers" selected>/)
+  assert.match((await saveSlots({ pokemon0: 'Mewtwo', item0: 'leftovers', pokemon2: 'Rattata', item2: '' })).headers.get('Location'), /team=saved/)
+  assert.deepEqual((await fetchSlots())['twitch:1'], [
+    { pokemon: 'Mewtwo', heldItem: 'leftovers' }, { pokemon: '' }, { pokemon: 'Rattata', heldItem: '' }
+  ])
+  const creature = await worker.fetch(new Request(base + '/?community=stream&pokemon=Mewtwo', { headers: cookie }), { DB: D1 })
+  assert.doesNotMatch(await creature.text(), /choose-held|\/held-item\?/)
   assert.equal(JSON.parse(db.prepare('SELECT hatch FROM shop_orders WHERE id = ?').get(legendaryEgg).hatch).rarity, 'legendary')
   assert.match((await order(egg, 5000, 1, 'poke-egg')).headers.get('Location'), new RegExp('purchase=' + egg))
   const consumables = await worker.fetch(new Request(base + '/?community=stream&tab=inventory&pocket=key', { headers: cookie }), { DB: D1 })

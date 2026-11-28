@@ -19,7 +19,7 @@ import { baseStatsData, equippedMoves, moveCooldown, moveDamageClass, movePp, mo
 import { ancestralFragmentCost, tmLearn, tmOptions } from '../ui/tm.js'
 import { familyDnaCount, familyRoot, maxDnaBoosters, sharesRegionalBase } from '../ui/evolution.js'
 import { regionalSpecies } from '../ui/regional-species.js'
-import { battleTeamFamily, creatureMoves, dexEntries, parseLoadout, speciesName, validMoveset } from './movesets.js'
+import { battleTeamFamily, creatureMoves, dexEntries, parseLoadout, speciesName, teamSlotEquipment, validMoveset } from './movesets.js'
 import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles, mobileStyles, liveReactionStyles } from './portal-style.js'
 import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
 import { arenaShopItems, heldItems, itemEffect } from '../ui/held-items.js'
@@ -1261,10 +1261,9 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     if (identity) await env.DB.prepare('DELETE FROM web_sessions WHERE id IN (?, ?)').bind(session, key).run()
     return redirect('/', [cookie('sc_session', '', 0)])
   }
-  const editingItem = request.method === 'POST' && url.pathname === '/held-item'
   const buying = request.method === 'POST' && url.pathname === '/shop/buy'
   const editingTeam = request.method === 'POST' && url.pathname === '/battle-team'
-  const editing = editingTeam || buying || editingItem || request.method === 'POST' && url.pathname === '/moveset'
+  const editing = editingTeam || buying || request.method === 'POST' && url.pathname === '/moveset'
   if (!editing && (request.method !== 'GET' || url.pathname !== '/')) return null
   if (editing && (!identity || request.headers.get('Origin') !== url.origin)) return new Response(null, { status: 403 })
   if (!identity) return page(
@@ -1322,10 +1321,16 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     const body = await request.text()
     if (body.length > 2048) return new Response(null, { status: 413 })
     const form = new URLSearchParams(body)
-    const slots = [0, 1, 2].map(index => ({ pokemon: form.get('pokemon' + index) ?? '' })).filter(slot => slot.pokemon)
-    const teams = slots.map(slot => battleTeamFamily(slot.pokemon))
-    if (new Set(teams).size !== slots.length || slots.some(({pokemon}, index) =>
+    const slots = [0, 1, 2].map(index => ({ pokemon: form.get('pokemon' + index) ?? '',
+      ...(form.has('item' + index) ? { heldItem: form.get('item' + index) } : {}) }))
+    const team = slots.filter(slot => slot.pokemon)
+    const teams = team.map(slot => battleTeamFamily(slot.pokemon))
+    if (new Set(teams).size !== team.length || team.some(({pokemon}, index) =>
       !teams[index] || !Object.hasOwn(collection, pokemon))) return redirect(teamUrl + '&team=invalid', [])
+    if (slots.some(({ heldItem }) => heldItem && (!Object.hasOwn(heldItems, heldItem) || !ownedItems.includes(heldItem)))) {
+      return redirect(teamUrl + '&team=item', [])
+    }
+    while (slots.length && !slots.at(-1).pokemon && !slots.at(-1).heldItem) slots.pop()
     await env.DB.prepare('INSERT INTO viewer_battle_teams (community_id, account_id, slots) VALUES (?, ?, ?) ON CONFLICT (community_id, account_id) DO UPDATE SET slots = excluded.slots')
       .bind(selected.community_id, identity.account_id, JSON.stringify(slots)).run()
     return redirect(teamUrl + '&team=saved', [])
@@ -1417,17 +1422,6 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     if (!detail || !selected.viewer_id) return new Response(null, { status: 404 })
     const raw = await request.text()
     const fields = new URLSearchParams(raw)
-    if (editingItem) {
-      const item = fields.get('item')
-      if (raw.length > 100 || fields.getAll('item').length !== 1 || (item !== '' && !availableItems.includes(item))) {
-        return new Response(null, { status: 400 })
-      }
-      const keys = [selected.community_id, selected.viewer_id, speciesKey]
-      if (item) await env.DB.prepare('INSERT INTO viewer_held_items SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ? AND account_id = ?) AND EXISTS (SELECT 1 FROM web_sessions WHERE id IN (?, ?) AND expires_at > ?) ' +
-        'ON CONFLICT (community_id, viewer_id, species_key) DO UPDATE SET item = excluded.item').bind(...keys, item, selected.viewer_id, identity.account_id, session, key, Date.now()).run()
-      else await env.DB.prepare('DELETE FROM viewer_held_items WHERE community_id = ? AND viewer_id = ? AND species_key = ?').bind(...keys).run()
-      return redirect('/?' + new URLSearchParams({ ...locationParams, pokemon: speciesKey }), [])
-    }
     const selection = fields.getAll('move')
     const equipped = fields.getAll('ultimate')
     if (raw.length > 700 || !validMoveset(selection, detail.options) ||
@@ -1475,20 +1469,6 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     const choices = parseLoadout(saved?.moves)
     const active = equippedMoves(detail.form, detail.types, detail.final, detail.rank, choices.moves, choices.selectedAt, detail.learned)
     const ultimate = detail.ultimates.includes(choices.ultimate) ? choices.ultimate : detail.ultimates[0]
-    const itemLabel = en ? 'Held item' : 'Objeto equipado'
-    let itemFrame = '<div class="held-frame"><strong>' + itemLabel + '</strong><span>' + (en ? 'No held items yet' : 'Aún no tienes objetos') + '</span></div>'
-    if (availableItems.length) {
-      const equipped = await env.DB.prepare('SELECT item FROM viewer_held_items WHERE community_id = ? AND viewer_id = ? AND species_key = ?')
-        .bind(selected.community_id, selected.viewer_id, speciesKey).first()
-      const current = availableItems.includes(equipped?.item) ? equipped.item : ''
-      const itemAction = '/held-item?' + new URLSearchParams({ ...locationParams, pokemon: speciesKey })
-      itemFrame = '<button type="button" class="held-frame" popovertarget="choose-held"><strong>' + itemLabel + '</strong>' +
-        (current ? '<span>' + itemName(current) + '</span>' : '<span>' + (en ? 'None' : 'Ninguno') + '</span>') + '</button>' +
-        (current ? itemDescription(current, en, itemIcon(current), itemName(current)) : '') +
-        '<div class="held-picker" id="choose-held" popover><h3>' + itemLabel + '</h3><form method="post" action="' + escape(itemAction) + '">' +
-        ['' , ...availableItems].map(item => '<div class="held-choice">' + (item ? itemDescription(item, en, itemIcon(item), itemName(item)) : '') + '<button name="item" value="' + item + '"' + (current === item ? ' class="chosen"' : '') + '>' +
-          (item ? itemName(item) : (en ? 'None' : 'Ninguno')) + '</button></div>').join('') + '</form></div>'
-    }
     const descriptions = {
       1: en ? 'The bulb on its back stores energy as it grows.' : 'El bulbo de su lomo acumula energía a medida que crece.',
       19: en ? 'An agile rodent with incisors that never stop growing.' : 'Un roedor ágil con incisivos que nunca dejan de crecer.',
@@ -1592,7 +1572,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       '"><div><h1>' + escape(speciesKey) + '</h1><p class="summary-meta">#' + String(regionalBase.get(detail.id) ?? detail.id).padStart(3, '0') + ' · Lv. ' + detail.rank +
       detail.types.map(type => typeIcon(type, en)).join('') + '</p>' + (description ? '<p>' + escape(description) + '</p>' : '') +
       (detail.form === detail.id ? '' : '<p>' + (en ? 'Battle form · ' : 'Forma en combate · ') + escape(speciesName(detail.form)) + '</p>') +
-      abilitySummary(detail.form, en) + xpBar + '</div><div class="summary-equipment">' + itemFrame + '</div></div><dl class="battle-stats">' + stats.map(([es, english, key]) => '<div><dt>' + (en ? english : es) +
+      abilitySummary(detail.form, en) + xpBar + '</div></div><dl class="battle-stats">' + stats.map(([es, english, key]) => '<div><dt>' + (en ? english : es) +
         '</dt><dd data-trained-stat="' + key + '">' + Math.round(detail.stats[key]) + '</dd></div>').join('') + '</dl>' + (supportsVitamins ? trainingSection : dnaSection) +
       '<div class="section-with-help"><h2>' + (en ? 'Moveset' : 'Ataques activos') + '</h2>' + helpHint(en ? 'About cooldowns and PP' : 'Sobre recarga y PP', en ? 'CD is the cooldown in seconds after the move finishes. PP is how many times the move can be used per battle. Ultimates use a charge meter.' : 'CD es la recarga en segundos después del ataque. PP indica cuántas veces puedes usarlo por batalla. Los ataques definitivos requieren carga.') + '</div><form class="moveset-form" method="post" action="' + escape(action) +
       '"><fieldset><legend>' + (en ? 'Choose up to four' : 'Elige hasta cuatro') + ' · <output>' + active.length + ' / 4</output></legend><div class="move-options">' +
@@ -1782,9 +1762,10 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
   if (tab === 'team') {
     const saved = await env.DB.prepare('SELECT slots FROM viewer_battle_teams WHERE community_id = ? AND account_id = ?')
       .bind(selected.community_id, identity.account_id).first()
-    const slots = saved ? JSON.parse(saved.slots) : []
+    const slots = saved ? await teamSlotEquipment(env.DB, selected.community_id, selected.viewer_id, JSON.parse(saved.slots)) : []
     const mode = url.searchParams.get('team')
     const message = mode === 'invalid' ? (en ? 'Choose Pokémon from different evolutionary lines.' : 'Elige Pokémon de líneas evolutivas distintas.') :
+      mode === 'item' ? (en ? 'Choose an item from your inventory.' : 'Elige un objeto de tu inventario.') :
       mode === 'saved' ? (en ? 'Team saved.' : 'Equipo guardado.') : ''
     const teamSprites = new Map(Object.keys(collection).sort().flatMap(name => {
       const id = dexByName.get(name.replace(/ ✦$/, ''))
@@ -1807,7 +1788,10 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
           '" data-save-failed="' + (en ? 'Could not save the moveset.' : 'No se pudieron guardar los ataques.') + '" data-failed="' + (en ? 'Could not load the moveset.' : 'No se pudieron cargar los ataques.') + '"></div></details>' +
           '<label>' + slot + '<select form="save-battle-team" name="pokemon' + index + '"><option value="">' + (en ? 'Choose Pokémon' : 'Elige un Pokémon') + '</option>' +
           [...teamSprites].map(([option, url]) => '<option value="' + escape(option) + '" data-sprite="' + url + '"' + (name === option ? ' selected' : '') +
-            '>' + escape(option) + '</option>').join('') + '</select></label></section>'
+            '>' + escape(option) + '</option>').join('') + '</select></label>' +
+          '<label>' + (en ? 'Held item' : 'Objeto equipable') + '<select form="save-battle-team" name="item' + index + '"><option value="">' +
+          (en ? 'None' : 'Ninguno') + '</option>' + availableItems.map(item => '<option value="' + escape(item) + '"' +
+            (slots[index]?.heldItem === item ? ' selected' : '') + '>' + itemName(item) + '</option>').join('') + '</select></label></section>'
       }).join('') + '</div><button form="save-battle-team">' + (en ? 'Save team' : 'Guardar equipo') + '</button><script src="/assets/battle-team.js?v=2" defer></script></section>'
   }
   const nav = communityTabs(selected.community_id, language, tab, region[0])
