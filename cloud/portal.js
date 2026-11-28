@@ -680,41 +680,103 @@ export async function portal(request, url, env) {
 const editor = document.querySelector('[data-training-editor]');
 if (editor) {
   const allocation = editor.elements.allocation;
-  const original = allocation.value;
-  const points = Number(editor.dataset.points);
   const cap = Number(editor.dataset.cap);
   const cards = Array.from(editor.querySelectorAll('[data-training-stat]'));
   const available = document.querySelector('[data-training-available]');
+  const total = document.querySelector('[data-training-total]');
+  const inventory = document.querySelector('[data-vitamin-count]');
+  const feedback = document.querySelector('[data-training-feedback]');
   const apply = document.querySelector('[data-vitamin-apply]');
-  const applyDisabled = apply.disabled;
+  const quantity = apply.form.elements.quantity;
+  let original = allocation.value;
+  let points = Number(editor.dataset.points);
+  let vitamins = Number(inventory.textContent);
   let values = original.split(',').map(Number);
+  let busy = editor.querySelector('fieldset').disabled;
+
   function render() {
     const free = points - values.reduce((sum, value) => sum + value, 0);
+    const maximum = Math.min(vitamins, Number(editor.dataset.max) - points);
     allocation.value = values.join(',');
+    const dirty = allocation.value !== original;
     available.textContent = free;
-    editor.elements.save.disabled = allocation.value === original;
-    apply.disabled = applyDisabled || allocation.value !== original;
+    total.textContent = points;
+    inventory.textContent = vitamins;
+    editor.elements.save.disabled = busy || !dirty;
+    editor.querySelector('[data-reset-training]').disabled = busy || !values.some(Boolean);
+    quantity.max = Math.max(1, maximum);
+    quantity.disabled = busy || !maximum || dirty;
+    if (Number(quantity.value) > quantity.max) quantity.value = quantity.max;
+    apply.disabled = quantity.disabled;
     cards.forEach((card, i) => {
       card.querySelector('output').textContent = values[i] + '/' + cap;
-      card.querySelector('[data-step="1"]').disabled = !free || values[i] >= cap;
-      card.querySelector('[data-step="-1"]').disabled = values[i] === 0;
+      card.querySelector('[data-step="1"]').disabled = busy || !free || values[i] >= cap;
+      card.querySelector('[data-step="-1"]').disabled = busy || values[i] === 0;
     });
   }
+
   editor.addEventListener('click', event => {
     const button = event.target.closest('button');
-    if (button?.hasAttribute('data-reset-training')) {
+    if (busy || !button || button.disabled) return;
+    if (button.hasAttribute('data-reset-training')) {
       values.fill(0);
       render();
-    } else if (button?.dataset.step) {
+    } else if (button.dataset.step) {
       const index = cards.indexOf(button.closest('[data-training-stat]'));
       values[index] += Number(button.dataset.step);
       render();
     }
   });
-  for (const form of [editor, apply.form]) form.addEventListener('submit', event => {
-    if (editor.dataset.submitting) { event.preventDefault(); return; }
-    editor.dataset.submitting = '1';
-    for (const button of document.querySelectorAll('.training button')) button.disabled = true;
+
+  async function waitForTraining(url) {
+    for (let attempt = 0; attempt < 22; attempt++) {
+      const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(4000) });
+      if (response.ok) {
+        const state = await response.json();
+        if (!state.pending) return state;
+      }
+      await new Promise(resolve => setTimeout(resolve, 700));
+    }
+    throw Error('Training receipt expired');
+  }
+
+  for (const form of [editor, apply.form]) form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (busy || (form === editor ? editor.elements.save.disabled : apply.disabled)) return;
+    const data = new URLSearchParams(new FormData(form));
+    busy = true;
+    feedback.textContent = feedback.dataset.waiting;
+    render();
+    try {
+      const response = await fetch(form.action, { method: 'POST', body: data,
+        headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw Error('Training rejected');
+      const queued = await response.json();
+      if (!queued.id) { feedback.textContent = queued.message || feedback.dataset.failed; return; }
+      const url = new URL(form.action);
+      url.pathname = '/live/status';
+      url.searchParams.set('game', queued.id);
+      url.searchParams.set('trainingPokemon', data.get('pokemon'));
+      const state = await waitForTraining(url);
+      if (state.result === 'trainingUpdated') {
+        if (!state.training) throw Error('Missing training progress');
+        points = state.training.points;
+        vitamins = state.training.vitamins;
+        values = state.training.allocation;
+        original = values.join(',');
+        for (const node of document.querySelectorAll('[data-trained-stat]')) {
+          node.textContent = state.training.battleStats[node.dataset.trainedStat];
+        }
+        quantity.value = 1;
+      }
+      feedback.textContent = state.message || feedback.dataset.failed;
+    } catch {
+      feedback.textContent = feedback.dataset.failed;
+    } finally {
+      form.elements.id.value = crypto.randomUUID();
+      busy = false;
+      render();
+    }
   });
   render();
 }
@@ -1009,11 +1071,25 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       return redirect('/?' + new URLSearchParams({ tab: 'live', community, platform, game: result }) + '#play-web', [])
     }
     if (request.method !== 'GET' || url.pathname !== '/live/status') return new Response(null, { status: 405 })
+    const row = await webGameStatus(env.DB, identity.account_id, community, url.searchParams.get('game'))
     const viewer = await webGameViewer(env.DB, identity.account_id, community, platform)
     if (!viewer) return new Response(null, { status: 404 })
     const runtime = await env.DB.prepare('SELECT * FROM web_game_runtime WHERE community_id = ?').bind(community).first()
-    const row = await webGameStatus(env.DB, identity.account_id, community, url.searchParams.get('game'))
-    const { balls = {}, log = [], legendaryTrackers = 0, rareCandies = 0, shinyDust = 0 } = JSON.parse(viewer.payload)
+    const progress = JSON.parse(viewer.payload)
+    const trainingPokemon = url.searchParams.get('trainingPokemon')
+    if (trainingPokemon && row?.result === 'trainingUpdated' && Object.hasOwn(progress.collection, trainingPokemon)) {
+      const id = dexByName.get(trainingPokemon.replace(/ ✦$/, ''))
+      if (id) {
+        const learned = normalizeTraining(progress.training?.[trainingKey(id)], sharedDna(progress.dnaBoosters, trainingPokemon))
+        const detail = creatureMoves(trainingPokemon, progress.collection[trainingPokemon], 0, learned.stats)
+        return Response.json({ ...webGameState(null, row, language), training: {
+          points: learned.points, vitamins: progress.vitamins ?? 0,
+          allocation: trainingRules.stats.map(stat => learned.stats[stat] ?? 0),
+          battleStats: Object.fromEntries(Object.entries(detail.stats).map(([stat, value]) => [stat, Math.round(value)]))
+        } }, { headers: { 'Cache-Control': 'private, no-store' } })
+      }
+    }
+    const { balls = {}, log = [], legendaryTrackers = 0, rareCandies = 0, shinyDust = 0 } = progress
     const activity = log.slice(-8).reverse().map(({ action, result }) => ({ action,
       message: webGameState(null, { result: result === 'caught' || result === 'duplicateReward' ? 'catchSuccess' : result }, language).message }))
     const lock = await webActionLock(env.DB, identity.account_id, community)
@@ -1372,7 +1448,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
         Math.max(1, maxVitamins) + '" value="1" required></label><button data-vitamin-apply' + (pending || !maxVitamins ? ' disabled' : '') + '>' +
         (en ? 'Use vitamins' : 'Usar vitaminas') + '</button></fieldset></form>'
       const editor = batchForm('save').replace('<form ', '<form data-training-editor data-points="' + learned.points + '" data-cap="' +
-        trainingRules.maxPerStat + '" ') + '<input type="hidden" name="allocation" value="' + stats.map(stat => stat.value).join(',') +
+        trainingRules.maxPerStat + '" data-max="' + trainingRules.maxPoints + '" ') + '<input type="hidden" name="allocation" value="' + stats.map(stat => stat.value).join(',') +
         '"><fieldset' + (pending ? ' disabled' : '') + '><ul>' + stats.map(stat =>
           '<li data-training-stat><div><strong>' + stat.label + '</strong> <output>' + stat.value + '/' + trainingRules.maxPerStat +
           '</output></div><div class="training-actions"><button type="button" data-step="1" aria-label="+ ' + stat.label +
@@ -1384,10 +1460,12 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
         stats.map(stat => '<li><div><strong>' + stat.label + '</strong> ' + stat.value + '/' + trainingRules.maxPerStat + '</div><div class="training-actions">' +
           form('plus','+',!free || stat.value >= trainingRules.maxPerStat,stat.key) + form('minus','−',!stat.value,stat.key) + '</div></li>').join('') + '</ul>'
       trainingSection = '<section class="training"><h2>' + (en ? 'Training points' : 'Puntos de entrenamiento') + '</h2><p aria-live="polite">' +
-        (en ? 'Available ' : 'Disponibles ') + '<span data-training-available>' + free + '</span> · ' + learned.points + '/' + trainingRules.maxPoints + ' · ' +
-        (en ? 'Vitamin Complexes ' : 'Complejos de Vitaminas ') + vitamins + '</p>' +
-        (message ? '<p role="status"' + (pending ? ' data-training-receipt="' + escape(receiptUrl) + '"' : '') + '>' + escape(message) + '</p>' : '') +
-        (batch ? quantity + editor : legacy) + '</section>' + (batch || pending ? '<script src="/assets/training.js?v=2" defer></script>' : '')
+        (en ? 'Available ' : 'Disponibles ') + '<span data-training-available>' + free + '</span> · <span data-training-total>' + learned.points + '</span>/' + trainingRules.maxPoints + ' · ' +
+        (en ? 'Vitamin Complexes ' : 'Complejos de Vitaminas ') + '<span data-vitamin-count>' + vitamins + '</span></p>' +
+        '<p role="status" data-training-feedback data-waiting="' + (en ? 'Applying…' : 'Aplicando…') +
+        '" data-failed="' + (en ? 'Could not confirm the change. Reload to check training.' : 'No se pudo confirmar el cambio. Recarga para revisar el entrenamiento.') +
+        '"' + (pending ? ' data-training-receipt="' + escape(receiptUrl) + '"' : '') + '>' + escape(message) + '</p>' +
+        (batch ? quantity + editor : legacy) + '</section>' + (batch || pending ? '<script src="/assets/training.js?v=3" defer></script>' : '')
     }
     const stats = [['PS', 'HP', 'maxHp'], ['ATK', 'ATK', 'attack'], ['SPA', 'SPA', 'specialAttack'],
       ['DEF', 'DEF', 'defense'], ['SPD', 'SPD', 'specialDefense'], ['SPE', 'SPE', 'speed']]
@@ -1412,7 +1490,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       detail.types.map(type => typeIcon(type, en)).join('') + '</p>' + (description ? '<p>' + escape(description) + '</p>' : '') +
       (detail.form === detail.id ? '' : '<p>' + (en ? 'Battle form · ' : 'Forma en combate · ') + escape(speciesName(detail.form)) + '</p>') +
       abilitySummary(detail.form, en) + xpBar + '</div><div class="summary-equipment">' + itemFrame + '</div></div><dl class="battle-stats">' + stats.map(([es, english, key]) => '<div><dt>' + (en ? english : es) +
-        '</dt><dd>' + Math.round(detail.stats[key]) + '</dd></div>').join('') + '</dl>' + (supportsVitamins ? trainingSection : dnaSection) +
+        '</dt><dd data-trained-stat="' + key + '">' + Math.round(detail.stats[key]) + '</dd></div>').join('') + '</dl>' + (supportsVitamins ? trainingSection : dnaSection) +
       '<div class="section-with-help"><h2>' + (en ? 'Moveset' : 'Ataques activos') + '</h2>' + helpHint(en ? 'About cooldowns and PP' : 'Sobre recarga y PP', en ? 'CD is the cooldown in seconds after the move finishes. PP is how many times the move can be used per battle. Ultimates use a charge meter.' : 'CD es la recarga en segundos después del ataque. PP indica cuántas veces puedes usarlo por batalla. Los ataques definitivos requieren carga.') + '</div><form class="moveset-form" method="post" action="' + escape(action) +
       '"><fieldset><legend>' + (en ? 'Choose up to four' : 'Elige hasta cuatro') + ' · <output>' + active.length + ' / 4</output></legend><div class="move-options">' +
       [...detail.unlockedAt].map(([key, rank]) => moveCard(key, active.includes(key), en, rank > detail.rank ? rank : 0)).join('') +
