@@ -3,8 +3,11 @@
 ## 1.2.5
 
 - Keep gameplay activity in Play on the Web and remove the separate viewer log and bot announcements.
-- Improve tooltips, battle visuals and boss movement. Give Blastoise cannon attacks and a dodgeable geyser line.
-- Add configurable Vitamin Complex purchases and reversible training allocations. Preserve existing DNA training when upgrading.
+- Push wild encounters to the portal over WebSockets, with slower checks while viewers are idle.
+- Show item descriptions on click and ability effects directly on Pokémon cards. Edit movesets from the team page.
+- Improve battle visuals, team collision and boss movement. Give Blastoise cannon attacks and a dodgeable geyser line, and scale boss HP by each participating viewer.
+- Add bulk Vitamin Complex use and reversible training allocations with confirmed saves. Preserve existing DNA training when upgrading.
+- Share levels and training for regional evolutions that start from the same base, including Exeggcute and both Exeggutor forms.
 
 ## 1.2.4
 
