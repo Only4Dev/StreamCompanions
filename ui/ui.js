@@ -48,9 +48,9 @@ Object.assign(labels.en, {
 })
 
 Object.assign(labels.es, { obsTitle: 'Fuentes de navegador para OBS', obsHelp: 'Añade una fuente de navegador por cada enlace. Para compañeros usa 1920 × 550.',
-  obsEncounter: 'Encuentros salvajes', obsCompanions: 'Compañeros invocados', obsCopy: 'Copiar enlace', obsCopied: 'Enlace copiado.', obsCopyError: 'Selecciona el enlace y cópialo manualmente.' })
+  obsEncounter: 'Encuentros salvajes', obsKnockouts: 'Registro de bajas', obsKnockoutScale: 'Tamaño del registro', obsKnockoutPreview: 'Abrir vista previa', obsKnockoutHelp: 'Copia el enlace y usa al menos estas dimensiones en OBS:', obsCompanions: 'Compañeros invocados', obsCopy: 'Copiar enlace', obsCopied: 'Enlace copiado.', obsCopyError: 'Selecciona el enlace y cópialo manualmente.' })
 Object.assign(labels.en, { obsTitle: 'OBS browser sources', obsHelp: 'Add one browser source per link. Set the companions source to 1920 × 550.',
-  obsEncounter: 'Wild encounters', obsCompanions: 'Summoned companions', obsCopy: 'Copy link', obsCopied: 'Link copied.', obsCopyError: 'Select the link and copy it manually.' })
+  obsEncounter: 'Wild encounters', obsKnockouts: 'Knockout feed', obsKnockoutScale: 'Feed size', obsKnockoutPreview: 'Open preview', obsKnockoutHelp: 'Copy the link and use at least these dimensions in OBS:', obsCompanions: 'Summoned companions', obsCopy: 'Copy link', obsCopied: 'Link copied.', obsCopyError: 'Select the link and copy it manually.' })
 
 Object.assign(labels.es, { summonMoneyPerMinute: 'Pokédólares por minuto invocado', summonXpPerSecond: 'XP por segundo invocado', battleXpPercentPerWin: 'XP del siguiente nivel por victoria (%)' })
 Object.assign(labels.en, { summonMoneyPerMinute: 'Pokédollars per summon minute', summonXpPerSecond: 'Summon XP per second', battleXpPercentPerWin: 'XP toward the next level per win (%)' })
@@ -682,7 +682,7 @@ if (panel) {
     })
   }
   translate()
-  for (const [path, name] of [['/encounter', 'obsEncounter'], ['/companions?layout=strip', 'obsCompanions'],
+  for (const [path, name] of [['/encounter', 'obsEncounter'], ['/companions?layout=strip', 'obsCompanions'], ['/knockouts', 'obsKnockouts'],
     ['/companions?layout=strip&preview=summon', 'summonSourcePreview'], ['/companions?layout=strip&preview=battle', 'battleSourcePreview']]) {
     const row = document.createElement('section')
     const label = document.createElement('label')
@@ -707,6 +707,50 @@ if (panel) {
       }
     })
     row.append(label, button)
+    if (name === 'obsKnockouts') {
+      const controls = document.createElement('div')
+      const sliderLabel = document.createElement('label')
+      const caption = document.createElement('strong')
+      caption.dataset.copy = 'obsKnockoutScale'
+      const slider = document.createElement('input')
+      slider.type = 'range'
+      slider.min = 100
+      slider.max = 300
+      slider.step = 5
+      const value = document.createElement('output')
+      sliderLabel.append(caption, slider, value)
+      const details = document.createElement('details')
+      const summary = document.createElement('summary')
+      summary.dataset.copy = 'obsKnockoutPreview'
+      const viewport = document.createElement('div')
+      viewport.className = 'knockout-preview-viewport'
+      const frame = document.createElement('iframe')
+      frame.title = title.textContent || 'Knockout feed preview'
+      viewport.append(frame)
+      details.append(summary, viewport)
+      const help = document.createElement('p')
+      const helpText = document.createElement('span')
+      helpText.dataset.copy = 'obsKnockoutHelp'
+      const dimensions = document.createElement('strong')
+      help.append(helpText, ' ', dimensions)
+      controls.className = 'knockout-source-controls'
+      controls.append(sliderLabel, help, details)
+      row.append(controls)
+      slider.value = localStorage.getItem('knockout-source-scale') || 150
+      function updateSource() {
+        const percent = slider.valueAsNumber
+        address.value = location.origin + path + '?scale=' + percent
+        frame.width = Math.ceil(440 * percent / 100)
+        frame.height = Math.ceil(174 * percent / 100)
+        dimensions.textContent = frame.width + ' × ' + frame.height
+        const preview = address.value + '&preview=1'
+        if (details.open && frame.src !== preview) frame.src = preview
+        localStorage.setItem('knockout-source-scale', String(percent))
+      }
+      slider.addEventListener('input', updateSource)
+      details.addEventListener('toggle', updateSource)
+      updateSource()
+    }
     $('sources').append(row)
   }
   translate()

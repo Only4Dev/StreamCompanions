@@ -381,44 +381,6 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
   let shownEncounterAt = 0
   const captureQueue = createCaptureQueue()
   let encounterOpacity = 0
-  function drawKnockouts(battle, width, time, en) {
-    const rows = (battle.knockouts ?? []).filter(row => time - row.at < 5).slice().reverse()
-    const left = width - Math.min(465, width * .46) - 18
-    const rowWidth = width - left - 18
-    const icon = (fighter, x, y) => {
-      const appearance = fighter.appearance ?? fighter
-      const entry = species.get(appearance.name)
-      const portrait = appearance.shiny ? entry?.shinyPortrait ?? entry?.portrait : entry?.portrait
-      const img = portrait && loadImage({ url: portrait })
-      if (img) context.drawImage(img, x, y, 29, 29)
-      else label(context, appearance.name[0], x + 15, y + 21, 17)
-    }
-    rows.forEach(({ killer, target, at }, index) => {
-      const defeated = battle.actors[target]
-      const victor = battle.actors[killer]
-      if (!defeated || !victor) return
-      const y = 16 + index * 37
-      context.save()
-      context.globalAlpha = Math.min(1, (5 - (time - at)) / .85)
-      context.fillStyle = '#221725df'
-      context.fillRect(left, y, rowWidth, 33)
-      context.fillStyle = victor.boss ? '#ff5176' : '#9c84f6'
-      context.fillRect(left, y, 3, 33)
-      icon(defeated, left + 7, y + 2)
-      icon(victor, left + 115, y + 2)
-      label(context, en ? 'defeated by' : 'derrotado por', left + 75, y + 23, 12, '#f5dde8', 2)
-      context.beginPath()
-      context.rect(left + 146, y, Math.max(0, rowWidth - 151), 33)
-      context.clip()
-      context.font = 'bold 16px sans-serif'
-      context.textAlign = 'left'
-      context.textBaseline = 'middle'
-      context.fillStyle = '#fff6fb'
-      context.fillText(victor.ownerName || victor.name, left + 150, y + 17)
-      context.restore()
-    })
-  }
-
   function draw(time) {
     requestAnimationFrame(draw)
     const elapsed = Math.min(.1, (time - previous) / 1000)
@@ -622,7 +584,6 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           label(context, Math.ceil(boss.hp) + ' / ' + boss.maxHp + ' PS', width / 2, 82, 19, '#ffe5ec')
         }
       }
-      drawKnockouts(battle, width, feedbackTime, state.bot?.language === 'en')
       if (battle.raid && battle.over) label(context, state.battle.actors.some(actor => actor.boss && actor.hp) ?
         (state.bot?.language === 'es' ? 'Incursión terminada' : 'Raid ended') : (state.bot?.language === 'es' ? '¡Jefe derrotado!' : 'Boss defeated!'), width / 2, height * .63, 49, '#ffe7a6')
       else if (state.battle.over && state.battle.winner) label(context, state.battle.winner +

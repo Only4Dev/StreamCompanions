@@ -58,6 +58,7 @@ let queuedRaid
 let lastRaidRoll = 0
 const raidDifficulties = { easy: ['Fácil', 'Easy'], medium: ['Media', 'Medium'], hard: ['Difícil', 'Hard'], expert: ['Experta', 'Expert'] }
 let communityBattle
+let lastTeamWinner
 let previewBattle
 let battleTimer
 let lastBattleEncounter = 0
@@ -264,7 +265,7 @@ let setupComplete = false
 let noticeTimer
 
 function persistGame() {
-  progress.save({ ...game.progress(), kickCursor, activityLog })
+  progress.save({ ...game.progress(), kickCursor, activityLog, lastTeamWinner })
 }
 
 function applyPrivacy(erasures) {
@@ -275,6 +276,7 @@ function applyPrivacy(erasures) {
     if (game.applyErasure(entry)) changed.push(entry.viewer_id)
   }
   if (!changed.length) return
+  if (changed.includes(lastTeamWinner?.id)) lastTeamWinner = undefined
   if (communityBattle?.battle.actors.some(actor => changed.includes(actor.viewerId))) {
     clearInterval(battleTimer)
     game.setBattleActive(false)
@@ -565,8 +567,9 @@ function finishCommunityReset() {
       communityBattle = undefined
       battleDueAt = battleBannerUntil = 0
       game.resetCommunity()
+      lastTeamWinner = undefined
       activityLog.length = 0
-      progress.save({ ...game.progress(), kickCursor, activityLog }, { clearQueue: true })
+      progress.save({ ...game.progress(), kickCursor, activityLog, lastTeamWinner }, { clearQueue: true })
       saveCloudDevice(profile, { ...syncDevice, token: reset.token })
       rmSync(join(profile, 'community-reset.enc'), { force: true })
       pendingReset = undefined
@@ -780,7 +783,7 @@ function launchBattlePreview(mode, species) {
 function publicBattle(battle) {
   const teams = [...new Set(battle.actors.map(actor => actor.team).filter(Boolean))]
   return { over: battle.over, winner: battle.winner?.ownerName || battle.winner?.name,
-    time: battle.time, raid: battle.raid, remaining: battle.remaining, field: battle.field, effects: battle.effects, knockouts: battle.knockouts,
+    time: battle.time, raid: battle.raid, remaining: battle.remaining, field: battle.field, effects: battle.effects,
     projectiles: battle.projectiles.map(({ x, origin, end, move, direction, actor }) => ({ x, origin, end, move: { type: move.type, effect: move.effect, visual: move.visual }, direction, actor: { types: actor.types } })),
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
@@ -915,6 +918,9 @@ async function runCommunityBattle(waitForBanner, raidBoss, manual) {
       persistGame()
       return
     }
+    if (teamMode && battle.winner?.viewerId) {
+      lastTeamWinner = { id: battle.winner.viewerId, name: battle.winner.ownerName || battle.winner.name }
+    }
     const money = game.recordBattle(entries.map(entry => entry.viewerId), battle.winner?.viewerId, battle.winner?.speciesKey, battle.actors)
     logDiagnostic('battle_finished', { winner: Boolean(battle.winner), money })
     persistGame()
@@ -966,6 +972,7 @@ function tickBattleSchedule() {
   announceInLiveChats(message)
 }
 
+const feedSpecies = new Map(manifest.species.map(entry => [entry.name, entry]))
 const routes = new Map([
   ['/', ['index.html', 'text/html']],
   ['/sprites.js', ['sprites.js', 'text/javascript']],
@@ -994,7 +1001,10 @@ const routes = new Map([
   ['/ui.js', ['ui.js', 'text/javascript']],
   ['/style.css', ['style.css', 'text/css']],
   ['/encounter', ['index.html', 'text/html']],
-  ['/companions', ['index.html', 'text/html']]
+  ['/companions', ['index.html', 'text/html']],
+  ['/knockouts', ['knockouts.html', 'text/html']],
+  ['/knockouts.css', ['knockouts.css', 'text/css']],
+  ['/knockouts.js', ['knockouts.js', 'text/javascript']]
 ])
 const server = createServer(async (req, res) => {
   try {
@@ -1012,6 +1022,38 @@ const server = createServer(async (req, res) => {
         })), field: data.field, suddenDeath: data.suddenDeath, ultimate: data.ultimate, over: data.over,
         winner: data.winner ? { name: data.winner.ownerName || data.winner.name } : null
       } : null))
+      return
+    }
+    if (req.method === 'GET' && pathname === '/knockouts/state') {
+      const current = communityBattle
+      const battle = current?.battle
+      const preview = searchParams.get('preview') === '1'
+      const now = Date.now()
+      const clock = battle ? battle.time + (current.finishedAt ? (now - current.finishedAt) / 1000 : 0) : 0
+      const portrait = fighter => {
+        const appearance = fighter.appearance ?? fighter
+        const entry = feedSpecies.get(appearance.name)
+        return {
+          sprite: appearance.shiny ? entry?.shinyPortrait ?? entry?.portrait : entry?.portrait,
+          name: appearance.name, viewer: fighter.ownerName || fighter.name, boss: Boolean(fighter.boss)
+        }
+      }
+      const samples = [
+        [{ name: 'Pikachu' }, { name: 'Blastoise', boss: true }],
+        [{ name: 'Charizard' }, { name: 'Venusaur', ownerName: 'Viewer 1' }],
+        [{ name: 'Blastoise' }, { name: 'Dragonite', ownerName: 'Viewer 2' }]
+      ]
+      const rows = preview ? samples.map(([target, killer], i) => ({
+        id: String(i), target: portrait(target), killer: portrait(killer)
+      })) : (battle?.knockouts ?? []).flatMap(({ killer, target, at }) => {
+        const remaining = 5 - (clock - at)
+        if (remaining <= 0) return []
+        return [{ id: target + ':' + at, target: portrait(battle.actors[target]), killer: portrait(battle.actors[killer]), expiresAt: now + remaining * 1000 }]
+      }).reverse()
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      const active = battleStarting || battleBannerUntil > now || Boolean(battle && !battle.over)
+      res.end(JSON.stringify({ rows, language: bot.language, active,
+        winner: preview ? 'Viewer 1' : active ? undefined : lastTeamWinner?.name }))
       return
     }
     if (req.method === 'GET' && pathname === '/state') {
@@ -1423,6 +1465,7 @@ app.whenReady().then(() => {
   const savedProgress = progress.load()
   activityLog.push(...(savedProgress?.activityLog ?? []).slice(-100))
   kickCursor = savedProgress?.kickCursor ?? 0
+  lastTeamWinner = savedProgress?.lastTeamWinner
   diagnosticsFile = join(profile, 'game-diagnostics.jsonl')
   logDiagnostic('app_started', { version: app.getVersion() })
   game = createGame({ catalog, progress: savedProgress, streamStarters: setup.platform !== 'demo',

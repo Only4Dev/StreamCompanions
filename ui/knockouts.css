@@ -1,0 +1,31 @@
+html, body { margin: 0; overflow: hidden; background: transparent; }
+#source { width: 440px; margin-left: auto; }
+#winner { margin: 4px 6px; padding: 5px 8px; border-inline-start: 4px solid #f6c26f; background: #211823e8; border-radius: 6px; color: #fff5fa; font: 700 19px system-ui, sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#feed {
+  box-sizing: border-box;
+  width: 440px;
+  margin: 0 0 0 auto;
+  padding: 4px 6px;
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  color: #fff5fa;
+  font: 700 19px system-ui, sans-serif;
+}
+#feed li {
+  display: grid;
+  grid-template-columns: 36px max-content 36px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 38px;
+  padding: 0 8px;
+  border-inline-start: 4px solid #a98afa;
+  background: #211823e8;
+  border-radius: 6px;
+}
+#feed li.boss { border-color: #ff5678; }
+#feed li.leaving { opacity: 0; transition: opacity .8s ease; }
+#feed img { width: 34px; height: 34px; object-fit: contain; image-rendering: pixelated; }
+.defeated-by { font-size: 14px; color: #f6dce9; }
+.viewer { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

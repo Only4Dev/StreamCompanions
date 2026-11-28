@@ -4,7 +4,7 @@
 
 - Keep combat and projectiles moving during ultimates and improve motion between overlay updates.
 - Increase boss attack range, prevent boss knockback and show the Dynamax HP total. Raid HP multipliers now extend survival against percentage damage. Large parties deal less damage per hit to the boss.
-- Show the last three knockouts with Pokémon portraits and the winner’s name in the battle overlay.
+- Show the last three knockouts with Pokémon portraits and the winner’s name in a dedicated OBS browser source, with adjustable size and the last team winner shown between battles.
 
 ## 1.2.5
 
