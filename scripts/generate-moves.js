@@ -3,6 +3,7 @@ import { activeLearnsets, battleMovePp, moveBaseReach, moveCooldown, moveDamageC
 import { tmLearn } from '../ui/tm.js'
 import raidBosses from '../ui/raid-bosses.json' with { type: 'json' }
 import combatBalance from '../ui/combat-balance.json' with { type: 'json' }
+import { moveAnimation } from '../ui/move-animation.js'
 
 const techniques = {
   projectile: 'Dispara un proyectil hacia el rival.',
@@ -82,7 +83,7 @@ for (const [id, move] of Object.entries(moves).sort(([a], [b]) => a.localeCompar
     ppJugadorIncursion: move.struggle ? null : battleMovePp(move, true, false),
     alcance: moveBaseReach(move), recargaSegundos: move.ultimate ? null : moveCooldown(move),
     estado: move.effect ?? null, probabilidadEstado: move.effect ? move.chance ?? 0 : 0,
-    etiquetas: move.tags ?? [], niveles: move.stages, duracionSegundos: move.duration
+    etiquetas: move.tags ?? [], animacion: moveAnimation(id, move), niveles: move.stages, duracionSegundos: move.duration
   }
 }
 

@@ -3,6 +3,7 @@ import { drawArea, drawBattleContact, drawChannel, drawClash, drawDigMound, draw
 import { battleFxColor, createBattleParticles, drawBarrier, drawImpact, drawMoveCue, drawPiercingBeam, drawSpellProjectile,
   drawStageAura, drawStageMarks, drawStatusParticles } from './battle-fx.js'
 import { drawEarthImpact, drawElementalUltimate, drawFrozenShell, drawRainLayers, drawWarp } from './battle-elemental.js'
+import { drawSignatureCue, drawSignatureImpact } from './battle-signatures.js'
 
 const images = new Map()
 
@@ -476,6 +477,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         if (battle.field.kind === 'rain') drawRainLayers(context, width, floor, renderTime)
       }
       const hitFeedback = new Map()
+      const agilityPoses = new Map()
       for (const effect of battle.effects) {
         if (effect.expires <= feedbackTime) continue
         if (effect.kind === 'hit' && (effect.damage > 0 || effect.dodged || effect.blocked || effect.immune || effect.absorbed) && Number.isInteger(effect.target)) {
@@ -487,9 +489,15 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         if (effect.kind === 'move-cue') {
           const fighter = battle.actors[effect.source]
           const aroundCaster = effect.stage === 'windup'
-          const x = aroundCaster ? battlePositions.get(effect.source) ?? fighter?.x ?? effect.x : effect.x
-          const y = floor - (fighter?.boss ? 98 : 41)
-          drawMoveCue(context, particles, effect, x, y, renderTime)
+          const falling = effect.animationProfile === 'rockfall' || effect.animationProfile === 'icefall'
+          const subject = falling ? battle.actors[effect.target] : fighter
+          const x = falling && aroundCaster ? subject?.x ?? effect.targetX ?? effect.x :
+            aroundCaster ? battlePositions.get(effect.source) ?? fighter?.x ?? effect.x : effect.x
+          const overhead = effect.animationProfile === 'amnesia' && effect.stage === 'release'
+          const y = floor - (subject?.boss ? 98 : overhead ? 123 : 41)
+          if (effect.animationProfile === 'agility' && !aroundCaster) agilityPoses.set(effect.source, effect)
+          if (effect.animationProfile === 'speed-strike' && aroundCaster && effect.style === 'rush') agilityPoses.set(effect.source, effect)
+          if (!drawSignatureCue(context, particles, effect, x, y, renderTime)) drawMoveCue(context, particles, effect, x, y, renderTime)
         } else if (effect.kind === 'muzzle') drawBattleContact(context, effect.x, floor - 40, effect, renderTime)
         else if (effect.kind === 'geyser') {
           const age = renderTime - effect.at
@@ -653,7 +661,22 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           const poseTime = activeHit ? activeHit.at : renderTime
           const motionTime = fighter.motionSince === undefined ? time : Math.max(0, (poseTime - fighter.motionSince) * 1000)
           const oneShot = !['Idle', 'Walk', 'Run', 'Sleep'].includes(fighter.motion)
-          sprite(context, readyClip(clip, variant?.animations), x + (activeHit ? (activeHit.direction ?? 1) * 4 : 0),
+          const speedPose = agilityPoses.get(index)
+          const phase = speedPose ? Math.max(0, Math.min(1, (renderTime - speedPose.at) / (speedPose.expires - speedPose.at))) : 0
+          const agility = speedPose?.animationProfile === 'agility'
+          const speedShift = agility ? Math.sin(phase * Math.PI * 6) * Math.sin(phase * Math.PI) * 42 : 0
+          if (speedPose && !activeHit) {
+            const ghost = readyClip(battleClip(variant?.animations, 'Run'), variant?.animations)
+            context.save()
+            context.filter = agility ? 'brightness(1.5) sepia(.4) hue-rotate(50deg)' : 'brightness(1.85) saturate(.4)'
+            const trails = agility ? [[-52, .27], [52, .19]] : [[-38 * fighter.direction, .43], [-78 * fighter.direction, .22]]
+            for (const [distance, opacity] of trails) {
+              context.globalAlpha = opacity * Math.sin(phase * Math.PI)
+              sprite(context, ghost, x + distance, y, fighter.direction, time, false, scale, false, true)
+            }
+            context.restore()
+          }
+          sprite(context, readyClip(clip, variant?.animations), x + speedShift + (activeHit ? (activeHit.direction ?? 1) * 4 : 0),
             y, fighter.direction, motionTime, false, scale, oneShot, true)
           context.restore()
           if (fighter.status === 'freeze') drawFrozenShell(context, particles, x, y, top, renderTime)
@@ -662,7 +685,11 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         if (hits) hits.slice(-4).forEach((hit, slot) => {
           const age = Math.max(0, feedbackTime - hit.at)
           const anchor = top > 100 ? top - 28 : Math.min(height - 28, top + 55)
-          if (hit.damage > 0) drawImpact(context, particles, x, y - Math.min(fighter.boss ? 115 : 58, (y - top) * .48), hit, feedbackTime)
+          if (hit.damage > 0) {
+            const impactY = y - Math.min(fighter.boss ? 115 : 58, (y - top) * .48)
+            drawImpact(context, particles, x, impactY, hit, feedbackTime)
+            drawSignatureImpact(particles, x, impactY, hit, feedbackTime)
+          }
           context.save()
           context.globalAlpha = Math.min(1, (hit.expires - feedbackTime) * 5)
           context.lineJoin = 'round'
@@ -705,7 +732,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         }
         if (fighter.evasion || fighter.flinched) label(context, fighter.flinched ? '✦ ✦' : '≋', x + 32, top - 49, 20)
         if (fighter.boss) continue
-        drawStageMarks(context, fighter.stages, x, Math.max(11, top - 37), fighter.intimidated)
+        drawStageMarks(context, fighter.stages, x, Math.max(16, top - 40), fighter.intimidated, fighter.temporaryStats)
         label(context, (fighter.teamIndex ? '#T' + fighter.teamIndex + ' · ' : '') + (fighter.ownerName ? fighter.ownerName + ' | ' : '') + (appearance.disguised ? appearance.name : fighter.name) + ' · Lv. ' + fighter.level, x, top - 14, 21)
         const hp = fighter.hp / fighter.maxHp
         context.fillStyle = '#131b22'

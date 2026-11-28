@@ -378,7 +378,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "acid": {
       "nombre": "Ácido",
@@ -395,7 +396,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "acidspray": {
       "nombre": "Bomba Ácida",
@@ -412,7 +414,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "aeroblast": {
       "nombre": "Aerochorro",
@@ -429,7 +432,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "agility": {
       "nombre": "Agilidad",
@@ -447,7 +451,8 @@
       "recargaSegundos": 4.5,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "agility"
     },
     "air": {
       "nombre": "Tajo Aéreo",
@@ -466,7 +471,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "bolt"
     },
     "aircutter": {
       "nombre": "Aire Afilado",
@@ -485,7 +491,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "claw"
     },
     "ambushgate": {
       "nombre": "Portal de Emboscada",
@@ -502,7 +509,8 @@
       "recargaSegundos": 7,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "mark"
     },
     "amnesia": {
       "nombre": "Amnesia",
@@ -520,7 +528,8 @@
       "recargaSegundos": 4.5,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "amnesia"
     },
     "ancestralmeteor": {
       "nombre": "Cataclismo Ancestral",
@@ -537,7 +546,8 @@
       "recargaSegundos": 17,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "stars"
     },
     "ancestraltempest": {
       "nombre": "Vendaval Ancestral",
@@ -554,7 +564,8 @@
       "recargaSegundos": 17,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "ancientpower": {
       "nombre": "Poder Pasado",
@@ -571,7 +582,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "aquatail": {
       "nombre": "Acua Cola",
@@ -589,7 +601,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "water-tail"
     },
     "astonish": {
       "nombre": "Impresionar",
@@ -606,7 +619,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "astralstrike": {
       "nombre": "Golpe Astral",
@@ -623,7 +637,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "aura": {
       "nombre": "Esfera Aural",
@@ -640,7 +655,8 @@
       "recargaSegundos": 3.6,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "auraburst": {
       "nombre": "Estallido Aura",
@@ -657,7 +673,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "aurorafountain": {
       "nombre": "Géiser Ancestral",
@@ -674,7 +691,8 @@
       "recargaSegundos": 17,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "auroraveil": {
       "nombre": "Velo Aurora",
@@ -696,11 +714,12 @@
       "etiquetas": [
         "support"
       ],
+      "animacion": "ward",
       "duracionSegundos": 6
     },
     "avalanche": {
       "nombre": "Alud",
-      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "descripcion": "Apunta a un rival dentro del alcance.",
       "categorias": [
         "normal"
       ],
@@ -713,7 +732,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "icefall"
     },
     "bite": {
       "nombre": "Mordisco",
@@ -732,7 +752,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "bite"
-      ]
+      ],
+      "animacion": "fangs"
     },
     "blackwave": {
       "nombre": "Onda Abisal",
@@ -749,7 +770,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "blizzard": {
       "nombre": "Ventisca",
@@ -766,7 +788,8 @@
       "recargaSegundos": 3.4,
       "estado": "freeze",
       "probabilidadEstado": 0.1,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "bodypress": {
       "nombre": "Golpe Corporal",
@@ -783,7 +806,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "bonemerang": {
       "nombre": "Huesomerang",
@@ -800,7 +824,8 @@
       "recargaSegundos": 3.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "bravebird": {
       "nombre": "Pájaro Osado",
@@ -817,7 +842,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "brickbreak": {
       "nombre": "Demolición",
@@ -834,7 +860,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "brine": {
       "nombre": "Salmuera",
@@ -851,7 +878,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "bubbles": {
       "nombre": "Rayo Burbuja",
@@ -869,7 +897,8 @@
       "recargaSegundos": 2.2,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "bulldoze": {
       "nombre": "Terratemblor",
@@ -886,7 +915,8 @@
       "recargaSegundos": 3.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "bullet": {
       "nombre": "Semilladora",
@@ -903,7 +933,8 @@
       "recargaSegundos": 3.2,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "bulletpunch": {
       "nombre": "Puño Bala",
@@ -920,7 +951,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "punch"
     },
     "buzz": {
       "nombre": "Zumbido",
@@ -937,7 +969,8 @@
       "recargaSegundos": 3.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "calmmind": {
       "nombre": "Paz Mental",
@@ -956,6 +989,7 @@
       "estado": null,
       "probabilidadEstado": 0,
       "etiquetas": [],
+      "animacion": "meditate",
       "niveles": {
         "specialAttack": 1,
         "specialDefense": 1
@@ -978,7 +1012,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "claw"
     },
     "confusion": {
       "nombre": "Confusión",
@@ -995,7 +1030,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "coreenforcer": {
       "nombre": "Núcleo Castigo",
@@ -1012,7 +1048,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "cosmicpower": {
       "nombre": "Masa Cósmica",
@@ -1031,6 +1068,7 @@
       "estado": null,
       "probabilidadEstado": 0,
       "etiquetas": [],
+      "animacion": "stars",
       "niveles": {
         "defense": 1,
         "specialDefense": 1
@@ -1051,7 +1089,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "punch"
     },
     "crosschop": {
       "nombre": "Tajo Cruzado",
@@ -1070,7 +1109,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "bolt"
     },
     "crosspoison": {
       "nombre": "Veneno X",
@@ -1089,7 +1129,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "tackle"
     },
     "crunch": {
       "nombre": "Triturar",
@@ -1108,7 +1149,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "bite"
-      ]
+      ],
+      "animacion": "fangs"
     },
     "crystalburst": {
       "nombre": "Estallido de Cristal",
@@ -1125,7 +1167,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "darkpulse": {
       "nombre": "Pulso Umbrío",
@@ -1142,7 +1185,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "dazzlinggleam": {
       "nombre": "Brillo Mágico",
@@ -1159,7 +1203,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "dig": {
       "nombre": "Excavar",
@@ -1176,7 +1221,8 @@
       "recargaSegundos": 10,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "speed-strike"
     },
     "discharge": {
       "nombre": "Chispazo",
@@ -1194,7 +1240,8 @@
       "recargaSegundos": 3.4,
       "estado": "paralysis",
       "probabilidadEstado": 0.2,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "speed-strike"
     },
     "double": {
       "nombre": "Doble Equipo",
@@ -1212,7 +1259,8 @@
       "recargaSegundos": 4.5,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "echo"
     },
     "doubleedge": {
       "nombre": "Doble Filo",
@@ -1229,7 +1277,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "dracometeor": {
       "nombre": "Cometa Draco",
@@ -1246,7 +1295,8 @@
       "recargaSegundos": 7,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "stars"
     },
     "dragon": {
       "nombre": "Dragoaliento",
@@ -1263,7 +1313,8 @@
       "recargaSegundos": 1.1,
       "estado": "paralysis",
       "probabilidadEstado": 0.15,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "dragonburst": {
       "nombre": "Estallido Dragón",
@@ -1280,7 +1331,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "dragonclaw": {
       "nombre": "Garra Dragón",
@@ -1300,7 +1352,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "claw"
     },
     "dragondance": {
       "nombre": "Danza Dragón",
@@ -1319,6 +1372,7 @@
       "estado": null,
       "probabilidadEstado": 0,
       "etiquetas": [],
+      "animacion": "dragon-dance",
       "niveles": {
         "attack": 1,
         "speed": 1
@@ -1339,7 +1393,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "darts"
     },
     "dragonpulse": {
       "nombre": "Pulso Dragón",
@@ -1357,7 +1412,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "dragonrush": {
       "nombre": "Carga Dragón",
@@ -1374,7 +1430,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "dragontail": {
       "nombre": "Cola Dragón",
@@ -1391,7 +1448,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tail"
     },
     "drainpunch": {
       "nombre": "Puño Drenaje",
@@ -1408,7 +1466,8 @@
       "recargaSegundos": 3.5,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "punch"
     },
     "dream": {
       "nombre": "Come Sueños",
@@ -1425,7 +1484,8 @@
       "recargaSegundos": 4.8,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "life-drain"
     },
     "drillpeck": {
       "nombre": "Pico Taladro",
@@ -1442,7 +1502,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "horn"
     },
     "drillrun": {
       "nombre": "Taladradora",
@@ -1459,7 +1520,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "horn"
     },
     "dualchop": {
       "nombre": "Golpe Bis",
@@ -1476,7 +1538,8 @@
       "recargaSegundos": 3.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "dualwingbeat": {
       "nombre": "Ala Bis",
@@ -1493,7 +1556,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "earthpower": {
       "nombre": "Tierra Viva",
@@ -1510,7 +1574,8 @@
       "recargaSegundos": 3.6,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "mark"
     },
     "echoedvoice": {
       "nombre": "Eco Voz",
@@ -1527,7 +1592,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "electricField": {
       "nombre": "Campo Eléctrico",
@@ -1544,7 +1610,8 @@
       "recargaSegundos": 15,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ward"
     },
     "electroball": {
       "nombre": "Bola Voltio",
@@ -1561,7 +1628,8 @@
       "recargaSegundos": 3,
       "estado": "paralysis",
       "probabilidadEstado": 0.18,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "ember": {
       "nombre": "Ascuas",
@@ -1578,7 +1646,8 @@
       "recargaSegundos": 1.1,
       "estado": "burn",
       "probabilidadEstado": 0.1,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "energyball": {
       "nombre": "Energibola",
@@ -1595,7 +1664,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "extrasensory": {
       "nombre": "Paranormal",
@@ -1612,7 +1682,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "fairy": {
       "nombre": "Voz Cautivadora",
@@ -1630,7 +1701,8 @@
       "recargaSegundos": 3.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "fairyblade": {
       "nombre": "Espada Feérica",
@@ -1649,7 +1721,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "claw"
     },
     "fakeout": {
       "nombre": "Sorpresa",
@@ -1666,7 +1739,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "fireblast": {
       "nombre": "Llamarada",
@@ -1684,7 +1758,8 @@
       "recargaSegundos": 5,
       "estado": "burn",
       "probabilidadEstado": 0.1,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "firefang": {
       "nombre": "Colmillo Ígneo",
@@ -1703,7 +1778,8 @@
       "probabilidadEstado": 0.18,
       "etiquetas": [
         "bite"
-      ]
+      ],
+      "animacion": "fangs"
     },
     "firepunch": {
       "nombre": "Puño Fuego",
@@ -1720,7 +1796,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "punch"
     },
     "firstimpression": {
       "nombre": "Escaramuza",
@@ -1737,7 +1814,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "flamecharge": {
       "nombre": "Nitrocarga",
@@ -1754,7 +1832,8 @@
       "recargaSegundos": 2.7,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "speed-strike"
     },
     "flamewheel": {
       "nombre": "Rueda Fuego",
@@ -1771,7 +1850,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "flareblitz": {
       "nombre": "Envite Ígneo",
@@ -1788,7 +1868,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "flashcannon": {
       "nombre": "Foco Resplandor",
@@ -1805,7 +1886,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "flipturn": {
       "nombre": "Viraje",
@@ -1822,7 +1904,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "fly": {
       "nombre": "Vuelo",
@@ -1839,7 +1922,8 @@
       "recargaSegundos": 11,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "speed-strike"
     },
     "focus": {
       "nombre": "Puño Certero",
@@ -1856,7 +1940,8 @@
       "recargaSegundos": 6,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "focusblast": {
       "nombre": "Onda Certera",
@@ -1873,7 +1958,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "freezedry": {
       "nombre": "Liofilización",
@@ -1890,7 +1976,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "frost": {
       "nombre": "Vaho Gélido",
@@ -1907,7 +1994,8 @@
       "recargaSegundos": 3.2,
       "estado": "freeze",
       "probabilidadEstado": 0.15,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "mark"
     },
     "giga": {
       "nombre": "Gigadrenado",
@@ -1925,7 +2013,8 @@
       "recargaSegundos": 4.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "life-drain"
     },
     "grassField": {
       "nombre": "Campo de Hierba",
@@ -1942,7 +2031,8 @@
       "recargaSegundos": 15,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ward"
     },
     "gravelwave": {
       "nombre": "Onda de Grava",
@@ -1959,7 +2049,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "growth": {
       "nombre": "Desarrollo",
@@ -1978,6 +2069,7 @@
       "estado": null,
       "probabilidadEstado": 0,
       "etiquetas": [],
+      "animacion": "sprout",
       "niveles": {
         "attack": 1,
         "specialAttack": 1
@@ -1998,7 +2090,8 @@
       "recargaSegundos": 7,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ward"
     },
     "gunkshot": {
       "nombre": "Lanzamugre",
@@ -2015,7 +2108,8 @@
       "recargaSegundos": 2.3,
       "estado": "poison",
       "probabilidadEstado": 0.18,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "gust": {
       "nombre": "Tornado",
@@ -2032,7 +2126,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "hail": {
       "nombre": "Granizo",
@@ -2049,7 +2144,8 @@
       "recargaSegundos": 15,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ward"
     },
     "headbutt": {
       "nombre": "Golpe Cabeza",
@@ -2066,7 +2162,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "slam"
     },
     "healbeam": {
       "nombre": "Rayo Vital",
@@ -2087,7 +2184,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "support"
-      ]
+      ],
+      "animacion": "restore"
     },
     "healcircle": {
       "nombre": "Círculo Curativo",
@@ -2107,7 +2205,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "support"
-      ]
+      ],
+      "animacion": "restore"
     },
     "healpulse": {
       "nombre": "Pulso Cura",
@@ -2127,7 +2226,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "support"
-      ]
+      ],
+      "animacion": "ripple"
     },
     "heat": {
       "nombre": "Onda Ígnea",
@@ -2145,7 +2245,8 @@
       "recargaSegundos": 3.4,
       "estado": "burn",
       "probabilidadEstado": 0.1,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "heatcrash": {
       "nombre": "Golpe Calor",
@@ -2162,7 +2263,8 @@
       "recargaSegundos": 2.3,
       "estado": "burn",
       "probabilidadEstado": 0.18,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "slam"
     },
     "heavyslam": {
       "nombre": "Cuerpo Pesado",
@@ -2179,7 +2281,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "slam"
     },
     "helpinghand": {
       "nombre": "Refuerzo",
@@ -2200,6 +2303,7 @@
       "etiquetas": [
         "support"
       ],
+      "animacion": "ward",
       "duracionSegundos": 6
     },
     "hex": {
@@ -2217,7 +2321,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "highhorsepower": {
       "nombre": "Fuerza Equina",
@@ -2234,7 +2339,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "horn": {
       "nombre": "Cornada",
@@ -2251,7 +2357,8 @@
       "recargaSegundos": 1.8,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "horn"
     },
     "hurricane": {
       "nombre": "Vendaval",
@@ -2268,7 +2375,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "hydro": {
       "nombre": "Hidrobomba",
@@ -2285,7 +2393,8 @@
       "recargaSegundos": 4.5,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "hypnosis": {
       "nombre": "Hipnosis",
@@ -2302,7 +2411,8 @@
       "recargaSegundos": 7,
       "estado": "sleep",
       "probabilidadEstado": 0.6,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "mark"
     },
     "ice": {
       "nombre": "Rayo Hielo",
@@ -2319,7 +2429,8 @@
       "recargaSegundos": 1.1,
       "estado": "freeze",
       "probabilidadEstado": 0.1,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "icefang": {
       "nombre": "Colmillo Hielo",
@@ -2338,7 +2449,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "bite"
-      ]
+      ],
+      "animacion": "fangs"
     },
     "icepunch": {
       "nombre": "Puño Hielo",
@@ -2355,7 +2467,8 @@
       "recargaSegundos": 2.3,
       "estado": "freeze",
       "probabilidadEstado": 0.18,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "punch"
     },
     "iceshard": {
       "nombre": "Canto Helado",
@@ -2372,7 +2485,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "iciclecrash": {
       "nombre": "Chuzos",
@@ -2389,7 +2503,8 @@
       "recargaSegundos": 2.3,
       "estado": "freeze",
       "probabilidadEstado": 0.18,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "slam"
     },
     "icywind": {
       "nombre": "Viento Hielo",
@@ -2406,7 +2521,8 @@
       "recargaSegundos": 3,
       "estado": "freeze",
       "probabilidadEstado": 0.18,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "incinerate": {
       "nombre": "Calcinación",
@@ -2423,7 +2539,8 @@
       "recargaSegundos": 3,
       "estado": "burn",
       "probabilidadEstado": 0.18,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "infestation": {
       "nombre": "Acoso",
@@ -2440,7 +2557,8 @@
       "recargaSegundos": 7,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "mark"
     },
     "ironhead": {
       "nombre": "Cabeza de Hierro",
@@ -2457,7 +2575,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "irontail": {
       "nombre": "Cola Férrea",
@@ -2474,7 +2593,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tail"
     },
     "jab": {
       "nombre": "Puya Nociva",
@@ -2491,7 +2611,8 @@
       "recargaSegundos": 1.1,
       "estado": "poison",
       "probabilidadEstado": 0.25,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "punch"
     },
     "judgment": {
       "nombre": "Sentencia",
@@ -2508,7 +2629,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "mark"
     },
     "kick": {
       "nombre": "Patada Baja",
@@ -2525,7 +2647,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "kick"
     },
     "kiss": {
       "nombre": "Beso Drenaje",
@@ -2543,7 +2666,8 @@
       "recargaSegundos": 4.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "heart-drain"
     },
     "knockoff": {
       "nombre": "Desarme",
@@ -2560,7 +2684,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "lavaplume": {
       "nombre": "Humareda",
@@ -2577,7 +2702,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "leaf": {
       "nombre": "Hoja Afilada",
@@ -2597,7 +2723,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "bolt"
     },
     "leafblade": {
       "nombre": "Hoja Aguda",
@@ -2616,7 +2743,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "claw"
     },
     "leafstorm": {
       "nombre": "Lluevehojas",
@@ -2633,7 +2761,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "lightning": {
       "nombre": "Trueno",
@@ -2651,7 +2780,8 @@
       "recargaSegundos": 4.8,
       "estado": "paralysis",
       "probabilidadEstado": 0.2,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "mark"
     },
     "lightscreen": {
       "nombre": "Pantalla Luz",
@@ -2673,6 +2803,7 @@
       "etiquetas": [
         "support"
       ],
+      "animacion": "ward",
       "duracionSegundos": 6
     },
     "liquidation": {
@@ -2690,7 +2821,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "lunge": {
       "nombre": "Tijera X",
@@ -2707,7 +2839,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "machpunch": {
       "nombre": "Ultrapuño",
@@ -2724,7 +2857,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "punch"
     },
     "magicalwhip": {
       "nombre": "Látigo Feérico",
@@ -2741,7 +2875,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "makeitrain": {
       "nombre": "Fiebre Dorada",
@@ -2758,7 +2893,8 @@
       "recargaSegundos": 3.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "megahorn": {
       "nombre": "Megacuerno",
@@ -2775,7 +2911,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "horn"
     },
     "metalburst": {
       "nombre": "Represión Metal",
@@ -2792,7 +2929,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "metalclaw": {
       "nombre": "Garra Metal",
@@ -2811,7 +2949,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "claw"
     },
     "meteor": {
       "nombre": "Puño Meteoro",
@@ -2829,7 +2968,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "stars"
     },
     "meteorbeam": {
       "nombre": "Rayo Meteórico",
@@ -2846,7 +2986,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "stars"
     },
     "mindblade": {
       "nombre": "Hoja Mental",
@@ -2865,7 +3006,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "claw"
     },
     "mirrorshot": {
       "nombre": "Disparo Espejo",
@@ -2882,7 +3024,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "mistburst": {
       "nombre": "Estallido de Niebla",
@@ -2899,7 +3042,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "moonblast": {
       "nombre": "Fuerza Lunar",
@@ -2916,7 +3060,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "mud": {
       "nombre": "Disparo Lodo",
@@ -2933,7 +3078,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "mudshot": {
       "nombre": "Disparo Lodo",
@@ -2950,7 +3096,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "multiattack": {
       "nombre": "Multiataque",
@@ -2967,7 +3114,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "mysticalfire": {
       "nombre": "Llama Embrujada",
@@ -2984,7 +3132,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "nastyplot": {
       "nombre": "Maquinación",
@@ -3003,6 +3152,7 @@
       "estado": null,
       "probabilidadEstado": 0,
       "etiquetas": [],
+      "animacion": "scheme",
       "niveles": {
         "specialAttack": 2
       }
@@ -3022,7 +3172,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "nightshade": {
       "nombre": "Tinieblas",
@@ -3039,7 +3190,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "nightslash": {
       "nombre": "Tajo Umbrío",
@@ -3058,7 +3210,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "claw"
     },
     "nuzzle": {
       "nombre": "Moflete Estático",
@@ -3075,7 +3228,8 @@
       "recargaSegundos": 2.3,
       "estado": "paralysis",
       "probabilidadEstado": 0.18,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "ominouswind": {
       "nombre": "Viento Aciago",
@@ -3092,7 +3246,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "outrage": {
       "nombre": "Enfado",
@@ -3109,7 +3264,8 @@
       "recargaSegundos": 7,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "overloadcoil": {
       "nombre": "Bobina de Rebote",
@@ -3127,7 +3283,8 @@
       "recargaSegundos": 6,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "mark"
     },
     "payday": {
       "nombre": "Día de Pago",
@@ -3144,7 +3301,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "peck": {
       "nombre": "Picotazo",
@@ -3161,7 +3319,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "horn"
     },
     "petaldance": {
       "nombre": "Danza Pétalo",
@@ -3178,7 +3337,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "phantomforce": {
       "nombre": "Golpe Fantasma",
@@ -3195,7 +3355,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "pin": {
       "nombre": "Pin Misil",
@@ -3212,7 +3373,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "pixiekick": {
       "nombre": "Patada Feérica",
@@ -3229,7 +3391,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "kick"
     },
     "playrough": {
       "nombre": "Carantoña",
@@ -3246,7 +3409,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "poison": {
       "nombre": "Residuos",
@@ -3263,7 +3427,8 @@
       "recargaSegundos": 1.1,
       "estado": "poison",
       "probabilidadEstado": 0.3,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "poisonfang": {
       "nombre": "Colmillo Veneno",
@@ -3282,7 +3447,8 @@
       "probabilidadEstado": 0.18,
       "etiquetas": [
         "bite"
-      ]
+      ],
+      "animacion": "fangs"
     },
     "poisonpowder": {
       "nombre": "Polvo Veneno",
@@ -3299,7 +3465,8 @@
       "recargaSegundos": 10,
       "estado": "poison",
       "probabilidadEstado": 0.65,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "sprout"
     },
     "poisontail": {
       "nombre": "Cola Veneno",
@@ -3316,7 +3483,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tail"
     },
     "pollenblast": {
       "nombre": "Estallido de Polen",
@@ -3333,7 +3501,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "sprout"
     },
     "pollenpuff": {
       "nombre": "Bola de Polen",
@@ -3353,7 +3522,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "support"
-      ]
+      ],
+      "animacion": "sprout"
     },
     "poltergeist": {
       "nombre": "Poltergeist",
@@ -3370,7 +3540,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "powergem": {
       "nombre": "Joya de Luz",
@@ -3387,7 +3558,8 @@
       "recargaSegundos": 3.2,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "powerwhip": {
       "nombre": "Latigazo",
@@ -3404,7 +3576,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "psychic": {
       "nombre": "Psíquico",
@@ -3422,7 +3595,8 @@
       "recargaSegundos": 3.8,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "mark"
     },
     "psychocut": {
       "nombre": "Psicocorte",
@@ -3441,7 +3615,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "claw"
     },
     "psyshock": {
       "nombre": "Psicocarga",
@@ -3458,7 +3633,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "pulse": {
       "nombre": "Pulso",
@@ -3475,7 +3651,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "punch": {
       "nombre": "Puño Dinámico",
@@ -3492,7 +3669,8 @@
       "recargaSegundos": 3.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "punch"
     },
     "purifyingwave": {
       "nombre": "Onda Purificante",
@@ -3512,7 +3690,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "support"
-      ]
+      ],
+      "animacion": "ripple"
     },
     "quake": {
       "nombre": "Terremoto",
@@ -3530,7 +3709,8 @@
       "recargaSegundos": 3.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "quick": {
       "nombre": "Ataque Rápido",
@@ -3547,7 +3727,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "speed-strike"
     },
     "raidcannons": {
       "nombre": "Hidrobomba de Cañones",
@@ -3564,7 +3745,8 @@
       "recargaSegundos": 5.5,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "raidcreamwave": {
       "nombre": "Cascada de Crema Gigamax",
@@ -3581,7 +3763,8 @@
       "recargaSegundos": 6,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "raiddragonstorm": {
       "nombre": "Tempestad Dragón",
@@ -3598,7 +3781,8 @@
       "recargaSegundos": 6.5,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "raidgeysers": {
       "nombre": "Cadena de Géiseres",
@@ -3615,7 +3799,8 @@
       "recargaSegundos": 7,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "raidmeteorcrash": {
       "nombre": "Colisión Meteórica",
@@ -3632,7 +3817,8 @@
       "recargaSegundos": 6.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "slam"
     },
     "raidshellslam": {
       "nombre": "Impacto de Caparazón",
@@ -3649,7 +3835,8 @@
       "recargaSegundos": 6,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "slam"
     },
     "raidthunder": {
       "nombre": "Trueno de la Cumbre",
@@ -3666,7 +3853,8 @@
       "recargaSegundos": 6.5,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "raidtorrent": {
       "nombre": "Marea Dinamax",
@@ -3683,7 +3871,8 @@
       "recargaSegundos": 5.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "raidvinewave": {
       "nombre": "Ola de Enredaderas",
@@ -3700,7 +3889,8 @@
       "recargaSegundos": 5,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "raidwildfire": {
       "nombre": "Llamarada Gigamax",
@@ -3717,7 +3907,8 @@
       "recargaSegundos": 7,
       "estado": "burn",
       "probabilidadEstado": 0.18,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "rain": {
       "nombre": "Danza Lluvia",
@@ -3735,7 +3926,8 @@
       "recargaSegundos": 15,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ward"
     },
     "razorshell": {
       "nombre": "Concha Filo",
@@ -3754,7 +3946,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "tackle"
     },
     "razorwind": {
       "nombre": "Viento Cortante",
@@ -3771,7 +3964,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "recover": {
       "nombre": "Recuperación",
@@ -3788,7 +3982,8 @@
       "recargaSegundos": 10,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "restore"
     },
     "reflect": {
       "nombre": "Reflejo",
@@ -3810,6 +4005,7 @@
       "etiquetas": [
         "support"
       ],
+      "animacion": "ward",
       "duracionSegundos": 6
     },
     "relicsong": {
@@ -3827,7 +4023,8 @@
       "recargaSegundos": 3.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "revivebeam": {
       "nombre": "Última Llama",
@@ -3847,7 +4044,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "support"
-      ]
+      ],
+      "animacion": "restore"
     },
     "riftburst": {
       "nombre": "Estallido Sísmico",
@@ -3864,7 +4062,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "rockblast": {
       "nombre": "Pedrada",
@@ -3881,7 +4080,8 @@
       "recargaSegundos": 3.5,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "rocks": {
       "nombre": "Lanzarrocas",
@@ -3898,11 +4098,12 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "rockslide": {
       "nombre": "Avalancha",
-      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "descripcion": "Apunta a un rival dentro del alcance. Puede amedrentar con probabilidad de 12%.",
       "categorias": [
         "normal"
       ],
@@ -3915,7 +4116,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "rockfall"
     },
     "roll": {
       "nombre": "Desenrollar",
@@ -3932,7 +4134,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "spin"
     },
     "round": {
       "nombre": "Canto",
@@ -3949,7 +4152,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "saltcure": {
       "nombre": "Salazón",
@@ -3966,7 +4170,8 @@
       "recargaSegundos": 7,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "restore"
     },
     "sandsear": {
       "nombre": "Oleada de Arena",
@@ -3983,7 +4188,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "sandstorm": {
       "nombre": "Tormenta de Arena",
@@ -4000,7 +4206,8 @@
       "recargaSegundos": 15,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ward"
     },
     "scorchingsands": {
       "nombre": "Arenas Ardientes",
@@ -4017,7 +4224,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "seed": {
       "nombre": "Drenadoras",
@@ -4034,7 +4242,8 @@
       "recargaSegundos": 9,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "sprout"
     },
     "seedbomb": {
       "nombre": "Bomba Germen",
@@ -4051,7 +4260,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "sprout"
     },
     "shadow": {
       "nombre": "Bola Sombra",
@@ -4068,7 +4278,8 @@
       "recargaSegundos": 2.8,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "shadowclaw": {
       "nombre": "Garra Umbría",
@@ -4087,7 +4298,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "claw"
     },
     "shadowflare": {
       "nombre": "Destello Umbrío",
@@ -4104,7 +4316,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "shadowsneak": {
       "nombre": "Sombra Vil",
@@ -4121,7 +4334,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "silkcatapult": {
       "nombre": "Catapulta de Seda",
@@ -4138,7 +4352,8 @@
       "recargaSegundos": 6,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "mark"
     },
     "silkstorm": {
       "nombre": "Tormenta de Seda",
@@ -4155,7 +4370,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "silverwake": {
       "nombre": "Estela Plateada",
@@ -4172,7 +4388,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "skittersmack": {
       "nombre": "Golpe Rastrero",
@@ -4189,7 +4406,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "slash": {
       "nombre": "Cuchillada",
@@ -4208,7 +4426,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "claw"
     },
     "sludgebomb": {
       "nombre": "Bomba Lodo",
@@ -4225,7 +4444,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "sludgewave": {
       "nombre": "Onda Tóxica",
@@ -4242,7 +4462,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "snarl": {
       "nombre": "Alarido",
@@ -4259,7 +4480,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "solar": {
       "nombre": "Rayo Solar",
@@ -4277,7 +4499,8 @@
       "recargaSegundos": 5,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "soulburst": {
       "nombre": "Estallido de Almas",
@@ -4294,7 +4517,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "spark": {
       "nombre": "Chispa",
@@ -4311,7 +4535,8 @@
       "recargaSegundos": 2.3,
       "estado": "paralysis",
       "probabilidadEstado": 0.18,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "spear": {
       "nombre": "Carámbano",
@@ -4328,7 +4553,8 @@
       "recargaSegundos": 3.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "spectralbeam": {
       "nombre": "Rayo Espectral",
@@ -4345,7 +4571,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "spikes": {
       "nombre": "Espinas",
@@ -4362,7 +4589,8 @@
       "recargaSegundos": 8,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "spin"
     },
     "spiritbreak": {
       "nombre": "Choque Anímico",
@@ -4379,7 +4607,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "spiritwave": {
       "nombre": "Onda de Espíritu",
@@ -4396,7 +4625,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "spores": {
       "nombre": "Somnífero",
@@ -4413,7 +4643,8 @@
       "recargaSegundos": 1.1,
       "estado": "sleep",
       "probabilidadEstado": 0.55,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "sprout"
     },
     "stardustwave": {
       "nombre": "Ola Estelar",
@@ -4430,7 +4661,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "steelbeam": {
       "nombre": "Metaláser",
@@ -4447,7 +4679,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "stickyweb": {
       "nombre": "Red Viscosa",
@@ -4465,6 +4698,7 @@
       "estado": null,
       "probabilidadEstado": 0,
       "etiquetas": [],
+      "animacion": "mark",
       "duracionSegundos": 8
     },
     "sting": {
@@ -4482,7 +4716,8 @@
       "recargaSegundos": 1.4,
       "estado": "poison",
       "probabilidadEstado": 0.22,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "stompingtantrum": {
       "nombre": "Pataleta",
@@ -4499,7 +4734,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "kick"
     },
     "stoneedge": {
       "nombre": "Roca Afilada",
@@ -4516,7 +4752,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "storedpower": {
       "nombre": "Poder Reserva",
@@ -4533,7 +4770,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "string": {
       "nombre": "Disparo Demora",
@@ -4550,7 +4788,8 @@
       "recargaSegundos": 5,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "mark"
     },
     "struggle": {
       "nombre": "Forcejeo",
@@ -4567,7 +4806,8 @@
       "recargaSegundos": 1.15,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "strugglebug": {
       "nombre": "Estoicismo",
@@ -4584,7 +4824,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "stunspore": {
       "nombre": "Paralizador",
@@ -4601,7 +4842,8 @@
       "recargaSegundos": 10,
       "estado": "paralysis",
       "probabilidadEstado": 0.55,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "sprout"
     },
     "suckerpunch": {
       "nombre": "Golpe Bajo",
@@ -4618,7 +4860,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "punch"
     },
     "sun": {
       "nombre": "Día Soleado",
@@ -4635,7 +4878,8 @@
       "recargaSegundos": 15,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ward"
     },
     "surf": {
       "nombre": "Surf",
@@ -4653,7 +4897,8 @@
       "recargaSegundos": 3.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "eruption"
     },
     "swarm": {
       "nombre": "Enjambre de abejas",
@@ -4670,7 +4915,8 @@
       "recargaSegundos": 3.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "swift": {
       "nombre": "Rapidez",
@@ -4687,7 +4933,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "synthesis": {
       "nombre": "Síntesis",
@@ -4704,7 +4951,8 @@
       "recargaSegundos": 10,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "restore"
     },
     "tackle": {
       "nombre": "Placaje",
@@ -4721,7 +4969,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "technoblast": {
       "nombre": "Tecno Shock",
@@ -4738,7 +4987,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "telekineticrush": {
       "nombre": "Embestida Mental",
@@ -4755,7 +5005,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "teleport": {
       "nombre": "Teletransporte",
@@ -4772,7 +5023,8 @@
       "recargaSegundos": 7,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ward"
     },
     "thief": {
       "nombre": "Ladrón",
@@ -4789,7 +5041,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "thunder": {
       "nombre": "Impactrueno",
@@ -4806,7 +5059,8 @@
       "recargaSegundos": 1.1,
       "estado": "paralysis",
       "probabilidadEstado": 0.1,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "thunderfang": {
       "nombre": "Colmillo Rayo",
@@ -4825,7 +5079,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "bite"
-      ]
+      ],
+      "animacion": "fangs"
     },
     "thunderpunch": {
       "nombre": "Puño Trueno",
@@ -4843,7 +5098,8 @@
       "recargaSegundos": 2.8,
       "estado": "paralysis",
       "probabilidadEstado": 0.12,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "punch"
     },
     "twister": {
       "nombre": "Ciclón",
@@ -4860,7 +5116,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "ultimate-bug": {
       "nombre": "Red de Polen",
@@ -4877,7 +5134,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-dark": {
       "nombre": "Pulso Nocturno",
@@ -4894,7 +5152,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-dragon": {
       "nombre": "Cometa Draco",
@@ -4912,7 +5171,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-electric": {
       "nombre": "Tormenta Bifurcada",
@@ -4930,7 +5190,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-fairy": {
       "nombre": "Bruma Explosiva",
@@ -4948,7 +5209,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-fighting": {
       "nombre": "Combate Cercano",
@@ -4965,7 +5227,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-fire": {
       "nombre": "Vórtice de Fuego",
@@ -4983,7 +5246,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-flying": {
       "nombre": "Tornado Ascendente",
@@ -5000,7 +5264,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-ghost": {
       "nombre": "Pesadilla Colectiva",
@@ -5017,7 +5282,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-grass": {
       "nombre": "Rayo Solar Supremo",
@@ -5035,7 +5301,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-ground": {
       "nombre": "Fisura",
@@ -5052,7 +5319,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-ice": {
       "nombre": "Rayo Glacial",
@@ -5069,7 +5337,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-normal": {
       "nombre": "Hiperrayo",
@@ -5086,7 +5355,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-poison": {
       "nombre": "Lanzamugre",
@@ -5103,7 +5373,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-psychic": {
       "nombre": "Caída Telequinética",
@@ -5120,7 +5391,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-rock": {
       "nombre": "Lluvia de Meteoritos",
@@ -5137,7 +5409,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-steel": {
       "nombre": "Viga Colosal",
@@ -5155,7 +5428,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "ultimate-water": {
       "nombre": "Triple Oleaje",
@@ -5173,7 +5447,8 @@
       "recargaSegundos": null,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ultimate"
     },
     "uproar": {
       "nombre": "Alboroto",
@@ -5190,7 +5465,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "vacuumwave": {
       "nombre": "Onda Vacío",
@@ -5207,7 +5483,8 @@
       "recargaSegundos": 4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "ripple"
     },
     "venoshock": {
       "nombre": "Carga Tóxica",
@@ -5224,7 +5501,8 @@
       "recargaSegundos": 3,
       "estado": "poison",
       "probabilidadEstado": 0.18,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "voltswitch": {
       "nombre": "Voltiocambio",
@@ -5241,7 +5519,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "speed-strike"
     },
     "voltTackle": {
       "nombre": "Placaje Eléctrico",
@@ -5258,7 +5537,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "water": {
       "nombre": "Pistola Agua",
@@ -5275,7 +5555,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "waterfall": {
       "nombre": "Cascada",
@@ -5292,7 +5573,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "tackle"
     },
     "watershuriken": {
       "nombre": "Shuriken de Agua",
@@ -5309,7 +5591,8 @@
       "recargaSegundos": 3.4,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "bolt"
     },
     "wildcharge": {
       "nombre": "Voltio Cruel",
@@ -5326,7 +5609,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "speed-strike"
     },
     "wing": {
       "nombre": "Ataque Ala",
@@ -5343,7 +5627,8 @@
       "recargaSegundos": 1.1,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "wing-sweep"
     },
     "wisp": {
       "nombre": "Fuego Fatuo",
@@ -5360,7 +5645,8 @@
       "recargaSegundos": 7,
       "estado": "burn",
       "probabilidadEstado": 0.8,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "mark"
     },
     "woodhammer": {
       "nombre": "Mazazo",
@@ -5377,7 +5663,8 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "punch"
     },
     "wrap": {
       "nombre": "Constricción",
@@ -5394,7 +5681,8 @@
       "recargaSegundos": 6,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "mark"
     },
     "xscissor": {
       "nombre": "Tijera X",
@@ -5413,7 +5701,8 @@
       "probabilidadEstado": 0,
       "etiquetas": [
         "cut"
-      ]
+      ],
+      "animacion": "claw"
     },
     "zenheadbutt": {
       "nombre": "Cabezazo Zen",
@@ -5430,7 +5719,8 @@
       "recargaSegundos": 2.3,
       "estado": null,
       "probabilidadEstado": 0,
-      "etiquetas": []
+      "etiquetas": [],
+      "animacion": "slam"
     }
   }
 }

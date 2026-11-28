@@ -208,6 +208,7 @@ const catalogVersion = createHash('sha256').update(JSON.stringify(manifest.speci
   .update(await readFile(new URL('../ui/sprites.js', import.meta.url)))
   .update(await readFile(new URL('../ui/battle-fx.js', import.meta.url)))
   .update(await readFile(new URL('../ui/battle-elemental.js', import.meta.url)))
+  .update(await readFile(new URL('../ui/battle-signatures.js', import.meta.url)))
   .update(await readFile(new URL('../ui/battle-fx-gpu.js', import.meta.url))).digest('hex').slice(0, 16)
 let game
 let progress
@@ -854,6 +855,11 @@ function publicBattle(battle) {
         motionSince: actor.motionSince, stages: actor.stages, warpAt: actor.warpAt,
         buffed: battle.hasTeamBoost(actor) || Object.values(boosts).some(until => until > battle.time),
         slowed: actor.slowUntil > battle.time, intimidated: actor.intimidated,
+        temporaryStats: [
+          boosts.speed > battle.time ? 'speed' : '',
+          boosts.mind > battle.time ? 'specialDefense' : '',
+          boosts.evasion > battle.time ? 'evasion' : ''
+        ].filter(Boolean),
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
         physicalBarrier: actor.teamShield?.hp > 0 && actor.teamShield.until > battle.time && actor.teamShield.kind !== 'special',
         specialBarrier: actor.teamShield?.hp > 0 && actor.teamShield.until > battle.time && actor.teamShield.kind !== 'physical',
@@ -1051,6 +1057,8 @@ const routes = new Map([
   ['/battle-fx.js', ['battle-fx.js', 'text/javascript']],
   ['/battle-fx-gpu.js', ['battle-fx-gpu.js', 'text/javascript']],
   ['/battle-elemental.js', ['battle-elemental.js', 'text/javascript']],
+  ['/battle-signatures.js', ['battle-signatures.js', 'text/javascript']],
+  ['/battle-signatures.webp', ['battle-signatures.webp', 'image/webp']],
   ['/battle-elements.webp', ['battle-elements.webp', 'image/webp']],
   ['/battle-hud.webp', ['battle-hud.webp', 'image/webp']],
   ['/battle-render-r187.js', ['battle-render-r187.js', 'text/javascript']],

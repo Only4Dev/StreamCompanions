@@ -12,7 +12,7 @@ export const elementTile = {
   normal: 4, fighting: 5, fire: 6, water: 7, electric: 8, ground: 9, rock: 9, steel: 10,
   ghost: 11, dark: 12, fairy: 13, dragon: 14, grass: 15, bug: 16, flying: 17, poison: 18, ice: 19, psychic: 17
 }
-const stageIcons = { attack: 'sword', specialAttack: 'wand', defense: 'shield', specialDefense: 'ward', speed: 'boot' }
+const stageIcons = { attack: 'sword', specialAttack: 'wand', defense: 'shield', specialDefense: 'ward', speed: 'boot', evasion: 'aura' }
 const hudTiles = { sword: 0, wand: 1, shield: 2, ward: 3, boot: 4, aura: 5 }
 const hudCache = new Map()
 let hudAtlas
@@ -354,20 +354,24 @@ function drawStatIcon(context, icon, x, y) {
   context.restore()
 }
 
-export function drawStageMarks(context, stages, x, y, intimidated) {
+export function drawStageMarks(context, stages, x, y, intimidated, temporaryStats = []) {
   const signed = Object.entries(stages ?? {}).filter(([stat, value]) => stageIcons[stat] && value)
   if (intimidated) signed.unshift(['attack', -1])
+  for (const stat of temporaryStats) if (stageIcons[stat]) signed.push([stat, 1, true])
   if (!signed.length) return
   const width = signed.reduce((sum, [, value]) => sum + 22 + 13 * Math.abs(value), 0) - 5
   let left = x - width / 2
   context.save()
-  for (const [stat, value] of signed) {
+  for (const [stat, value, temporary] of signed) {
     const w = 17 + 13 * Math.abs(value)
     context.fillStyle = '#101527e8'
     context.beginPath()
     context.roundRect(left, y - 10, w, 20, 6)
     context.fill()
-    context.fillStyle = context.strokeStyle = value > 0 ? '#aaff99' : '#ff9399'
+    context.strokeStyle = temporary ? '#acdeff' : value > 0 ? '#9fe68f' : '#fc7d8c'
+    context.lineWidth = 1.5
+    context.stroke()
+    context.fillStyle = context.strokeStyle = temporary ? '#bde9ff' : value > 0 ? '#aaff99' : '#ff9399'
     for (let index = 0; index < Math.abs(value); index++) drawStatIcon(context, stageIcons[stat], left + 9 + index * 13, y)
     context.lineWidth = 1.6
     const cx = left + w - 8

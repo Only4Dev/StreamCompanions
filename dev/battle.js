@@ -11,6 +11,7 @@ import { evolutionChildren, evolutionParent, nextEvolutionLevel } from '../ui/ev
 
 import { abilitiesFor, battleFormAssets, hasPoisonHeal } from '../ui/abilities.js'
 import { heldItems } from '../ui/held-items.js'
+import { moveAnimation } from '../ui/move-animation.js'
 
 export const arena = { width: 1920, height: 550, floor: 380 }
 const ultimateSpecs = {
@@ -854,7 +855,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
     const fieldEvasion = field?.kind === 'sandstorm' && defender.abilities.has('sand-veil') ||
       field?.kind === 'hail' && defender.abilities.has('snow-cloak')
-    const accurate = field?.kind === 'rain' && move === moves.lightning || field?.kind === 'hail' && move === moves.blizzard
+    const accurate = field?.kind === 'rain' && move.moveId === 'lightning' || field?.kind === 'hail' && move.moveId === 'blizzard'
     if (!actor.boss && !accurate && !move.ultimate && !move.struggle && matchup &&
         random() < (defender.boosts.evasion > time ? .15 : fieldEvasion ? .10 : .03)) {
       confirmDodge(actor, defender, move, 'evasion')
@@ -983,7 +984,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         defender.knockback = 0
       }
     }
-    effects.push({ kind: 'hit', type, visual: move.visual, x: defender.x, target: defender.index, source: actor.index, direction, damage: dealt,
+    effects.push({ kind: 'hit', type, visual: move.visual, moveId: move.moveId, animationProfile: move.animationProfile,
+      x: defender.x, target: defender.index, source: actor.index, direction, damage: dealt,
       critical: Boolean(dealt && critical), superEffective: Boolean(dealt && !move.struggle && matchup > 1),
       bossImpact: Boolean(actor.boss && dealt), at: time, expires: time + (critical || matchup > 1 ? .95 : .74) })
     return true
@@ -995,7 +997,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       species === typedSignatures[moveId] && actor.equipmentForm ? { ...moves[moveId], type: actor.equipmentForm } : moves[moveId]
     if (!baseMove) return false
     const reach = moveReach(actor, baseMove)
-    const move = reach === baseMove.reach ? baseMove : { ...baseMove, reach }
+    const move = { ...baseMove, reach, moveId, animationProfile: moveAnimation(moveId, baseMove) }
     if ((move.teamBarrier && (actor.team == null || screenBusy(actor))) ||
         (move.teamBoost && (actor.team == null || boostBusy(actor)))) return false
     if (over || ultimate?.actor === actor || (baseMove.ultimate && ultimate) ||
@@ -1010,7 +1012,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     if (!target && move.kind !== 'guard') return false
     if (target) actor.direction = Math.sign(target.x - actor.x) || actor.direction
     const cue = { kind: 'move-cue', source: actor.index, target: target?.index, x: actor.x, origin: actor.x,
-      direction: actor.direction, type: moveElement(move), visual: move.visual, style: move.kind,
+      direction: actor.direction, type: moveElement(move), visual: move.visual, style: move.kind, moveId,
+      animationProfile: move.animationProfile, targetX: target?.x,
       status: move.effect, stage: 'windup', at: time, expires: time + .32 }
     effects.push(cue)
     if (move.ultimate) {
@@ -1048,6 +1051,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
     const duration = moveId === 'solar' && field?.kind === 'sun' ? 0 : (move.channel ?? 0) + (move.kind === 'pierce' ? .85 : move.kind === 'area' ? .75 :
       move.kind === 'maneuver' ? 1.6 : move.kind === 'rush' ? .36 : move.kind === 'target' ? .6 : .42)
+    if (['icefall', 'rockfall'].includes(move.animationProfile)) cue.expires = time + duration
     if (actor.id === 681) {
       actor.stanceBlade = move.kind !== 'guard'
       updateForm(actor)
@@ -1120,7 +1124,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         }
       }
       if (time >= cast.resolve) {
-        effects.push({ ...cast.cue, x: actor.x, stage: 'release', at: time, expires: time + .4 })
+        effects.push({ ...cast.cue, x: target?.x ?? actor.x, target: target?.index, origin: actor.x,
+          stage: 'release', at: time, expires: time + .48 })
         actor.cast = null
       }
       return
@@ -1133,7 +1138,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         enemy.x >= Math.min(prior, actor.x) - 32 - extraReach(enemy) - extraReach(actor) &&
         enemy.x <= Math.max(prior, actor.x) + 32 + extraReach(enemy) + extraReach(actor))
       if (contact) {
-        effects.push({ ...cast.cue, x: actor.x, stage: 'release', at: time, expires: time + .4 })
+        effects.push({ ...cast.cue, x: contact.x, target: contact.index, origin: actor.x,
+          stage: 'release', at: time, expires: time + .52 })
         const rival = contact.cast
         if (!actor.boss && !contact.boss && !move.struggle && !rival?.move.struggle && rival?.move.kind === 'rush' && time >= rival.start + (rival.move.channel ?? 0) &&
             actor.direction !== contact.direction && Math.abs(cast.resolve - rival.resolve) <= .16) {
@@ -1162,7 +1168,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       actor.gulped = true
       updateForm(actor)
     }
-    if (move === moves.relicsong && actor.id === 648) {
+    if (cast.moveId === 'relicsong' && actor.id === 648) {
       actor.signatureChanged = !actor.signatureChanged
       updateForm(actor)
     }

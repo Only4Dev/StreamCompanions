@@ -1326,8 +1326,29 @@ test('every move can emit a typed animation cue through the shared combat engine
     assert.ok(battle.manual(0, id), id)
     const cue = battle.effects.find(effect => effect.kind === 'move-cue')
     assert.equal(cue?.style, move.kind, id)
+    assert.ok(cue?.animationProfile, id)
+    assert.equal(cue?.moveId, id)
     assert.equal(cue?.source, 0, id)
     assert.match(cue?.type ?? '', /^[a-z]+$/, id)
+  }
+})
+
+test('Alud and Avalancha fall over their target without making the attacker charge', () => {
+  for (const [id, profile] of [['avalanche', 'icefall'], ['rockslide', 'rockfall']]) {
+    const battle = createBattle([example(9, 40), example(143, 60)], {auto: false, random: () => .5})
+    const [caster, target] = battle.actors
+    caster.x = 800
+    target.x = 925
+    assert.ok(battle.manual(0, id))
+    run(battle, .4)
+    assert.equal(caster.x, 800)
+    assert.equal(target.hp, target.maxHp)
+    assert.equal(battle.effects.find(effect => effect.stage === 'windup')?.animationProfile, profile)
+    run(battle, .4)
+    assert.equal(target.hp < target.maxHp, true)
+    const hit = battle.effects.find(effect => effect.kind === 'hit' && effect.damage > 0)
+    assert.equal(hit?.animationProfile, profile)
+    assert.equal(hit?.target, 1)
   }
 })
 

@@ -74,7 +74,8 @@ export function createParticleSurface(anchor) {
   for (const [name, attribute] of Object.entries(attributes)) geometry.setAttribute(name, attribute.setUsage(DynamicDrawUsage))
   const uniforms = {
     viewport: { value: new Vector2() }, textureAtlas: { value: null }, atlasReady: { value: false },
-    elementsAtlas: { value: null }, elementsReady: { value: false }, clock: { value: 0 }
+    elementsAtlas: { value: null }, elementsReady: { value: false },
+    signaturesAtlas: { value: null }, signaturesReady: { value: false }, clock: { value: 0 }
   }
   const material = new ShaderMaterial({
     uniforms, transparent: true, depthWrite: false, depthTest: false, side: DoubleSide,
@@ -95,6 +96,8 @@ export function createParticleSurface(anchor) {
       uniform bool atlasReady;
       uniform sampler2D elementsAtlas;
       uniform bool elementsReady;
+      uniform sampler2D signaturesAtlas;
+      uniform bool signaturesReady;
       uniform float clock;
       varying vec4 vTint;
       varying vec2 vUv;
@@ -105,7 +108,14 @@ export function createParticleSurface(anchor) {
         float glow=exp(-r*r*5.5)*(1.-smoothstep(.70,1.,r));
         float sharp=pow(max(0.,1.-abs(p.x)*abs(p.y)*18.-r*.55),6.);
         float core=vTile==2.?glow:sharp;
-        if(vTile>=4. && elementsReady){
+        if(vTile>=20. && signaturesReady){
+          float index=vTile-20.;
+          vec2 cell=vec2(mod(index,4.),3.-floor(index/4.));
+          vec4 art=texture2D(signaturesAtlas,(cell+mix(vec2(.024),vec2(.976),vUv))*.25);
+          gl_FragColor=vec4(mix(art.rgb,vTint.rgb,.14),min(1.,art.a*vTint.a*1.2));
+          return;
+        }
+        if(vTile>=4. && vTile<20. && elementsReady){
           float index=vTile-4.;
           vec2 cell=vec2(mod(index,4.),3.-floor(index/4.));
           vec2 sampleUV=vUv;
@@ -134,6 +144,10 @@ export function createParticleSurface(anchor) {
   const elements = new TextureLoader().load('/battle-elements.webp', loaded => {
     uniforms.elementsAtlas.value = loaded
     uniforms.elementsReady.value = true
+  }, undefined, () => {})
+  const signatures = new TextureLoader().load('/battle-signatures.webp', loaded => {
+    uniforms.signaturesAtlas.value = loaded
+    uniforms.signaturesReady.value = true
   }, undefined, () => {})
   let width = 0, height = 0, lost = false
   let placement = ''
@@ -204,6 +218,7 @@ export function createParticleSurface(anchor) {
     dispose() {
       texture.dispose()
       elements.dispose()
+      signatures.dispose()
       material.dispose()
       geometry.dispose()
       wave.material.dispose()
