@@ -13,7 +13,7 @@ import { battleSpecies } from '../dev/battle.js'
 import { eggRarities } from '../ui/egg-rules.js'
 import { eggRarity, specialEncounterTag } from '../ui/capture-rates.js'
 import { validTraining } from '../ui/training.js'
-import { featuredShopItems, normalizeShopPrices } from '../ui/shop.js'
+import { featuredShopItems, normalizeShopPrices, shopItems, validShopQuantity } from '../ui/shop.js'
 
 const json = (data, status = 200) => Response.json(data, {
   status, headers: { 'Cache-Control': 'no-store' }
@@ -217,11 +217,12 @@ async function deviceShop(request, db, events) {
     }
     const packed = prices ? JSON.stringify(prices) : null
     const familyDna = request.headers.get('X-Shop-Family-Dna')
-    const supportsQuantity = Number(request.headers.get('X-Shop-Quantity') === '1')
+    const quantityVersion = request.headers.get('X-Shop-Quantity')
+    const supportsQuantity = quantityVersion === '2' ? 2 : Number(quantityVersion === '1')
     const dnaLevel = dna ? (familyDna === '3' ? 4 : familyDna === '2' ? 3 : familyDna === '1' ? 2 : 1) : 0
     const now = Date.now()
     const eligible = 'FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
-      'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) AND (? = 1 OR quantity = 1) ' +
+      "AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) AND (quantity = 1 OR ? >= CASE WHEN item = 'poke-egg' THEN 2 ELSE 1 END) " +
       "AND (item NOT IN (SELECT value FROM json_each(?)) OR item IN (SELECT key FROM json_each(?))) " +
       'ORDER BY created_at, id LIMIT 10'
     const queue = [community, packed, dnaLevel, supportsQuantity, JSON.stringify(['master-ball', ...arenaShopItems, ...featuredShopItems]), packed]
@@ -266,7 +267,7 @@ async function deviceShop(request, db, events) {
     if (seenReceipts.has(receipt?.id) || !/^[a-f0-9-]{36}$/.test(receipt?.id ?? '') ||
         !['unavailable', 'owned', 'funds', 'purchased', 'maxed', 'repriced', 'battleLocked'].includes(receipt?.result)) continue
     seenReceipts.add(receipt.id)
-    const order = await db.prepare('SELECT viewer_id, result, item FROM shop_orders WHERE community_id = ? AND id = ?')
+    const order = await db.prepare('SELECT viewer_id, result, item, quantity FROM shop_orders WHERE community_id = ? AND id = ?')
       .bind(community, receipt.id).first()
     const submittedViewer = receipt.viewer?.id
     const linkedOwner = order && submittedViewer && submittedViewer !== order.viewer_id &&
@@ -277,7 +278,14 @@ async function deviceShop(request, db, events) {
     }
     if (order.result !== null && order.result !== 'review') { received.push(receipt.id); continue }
     const hatch = receipt.hatch
-    if (order.item === 'poke-egg' && receipt.result === 'purchased' || hatch !== undefined) {
+    const hatches = Array.isArray(hatch) ? hatch : hatch ? [hatch] : []
+    const expectedCount = receipt.result === 'purchased' && order.item === 'poke-egg' ? Number(order.quantity ?? 1) : 0
+    if (expectedCount !== hatches.length ||
+        (Array.isArray(hatch) && (hatches.length < 2 || !validShopQuantity(shopItems['poke-egg'], hatches.length)))) {
+      reject(receipt, 'hatch quantity')
+      continue
+    }
+    const invalidHatch = hatches.some(hatch => {
       const row = battleSpecies(hatch?.id)
       const special = row && specialEncounterTag(hatch.id, Boolean(row[5]))
       let expected
@@ -289,22 +297,22 @@ async function deviceShop(request, db, events) {
           else if (!special && ['common', 'uncommon', 'rare', 'epic'].includes(hatch.rarity)) expected = hatch.rarity
         }
       } else expected = special === 'legendary' ? 'legendary' : !special && row ? eggRarity(hatch.id) : null
-      if (order.item !== 'poke-egg' || !row || row[0] !== hatch.id || !expected ||
+      return !row || row[0] !== hatch.id || !expected ||
           ((hatch.rules === 2 || special === 'legendary') && !isFirstStage(hatch.id)) ||
           typeof hatch.name !== 'string' || !Object.hasOwn(receipt.viewer?.collection ?? {}, hatch.name) ||
           hatch.rarity !== expected ||
-          typeof hatch.duplicate !== 'boolean' || !Number.isFinite(hatch.xp) || hatch.xp < 0 || hatch.xp > Number.MAX_SAFE_INTEGER) {
-        reject(receipt, 'hatch')
-        continue
-      }
-    }
+          typeof hatch.duplicate !== 'boolean' || !Number.isFinite(hatch.xp) || hatch.xp < 0 || hatch.xp > Number.MAX_SAFE_INTEGER
+    })
+    if (invalidHatch) { reject(receipt, 'hatch'); continue }
+    const results = hatches.map(hatch => ({ id: hatch.id, name: hatch.name, rarity: hatch.rarity,
+      duplicate: hatch.duplicate, xp: Math.floor(hatch.xp), ...(hatch.levelUp === true && hatch.duplicate && hatch.xp > 0 ? { levelUp: true } : {}) }))
     const writes = viewerWrites(db, device, receipt.viewer ? [receipt.viewer] : [])
     if (writes instanceof Response) { reject(receipt, 'progress'); continue }
     const { id, result } = receipt
     await db.batch([...writes, db.prepare(
       "UPDATE shop_orders SET result = ?, hatch = ? WHERE community_id = ? AND id = ? AND (result IS NULL OR result = 'review') AND " +
       'EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
-    ).bind(result, hatch ? JSON.stringify({ id: hatch.id, name: hatch.name, rarity: hatch.rarity, duplicate: hatch.duplicate, xp: Math.floor(hatch.xp), ...(hatch.levelUp === true && hatch.duplicate && hatch.xp > 0 ? { levelUp: true } : {}) }) : null, community, id, device.key_hash)])
+    ).bind(result, results.length ? JSON.stringify(results.length === 1 ? results[0] : results) : null, community, id, device.key_hash)])
     received.push(id)
   }
   return received.length ? json({ received }) : json({ error: 'no valid shop receipts' }, 400)

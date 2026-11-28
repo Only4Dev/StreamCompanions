@@ -484,23 +484,26 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
           else if (item === 'shiny-dust') viewer.shinyDust = (viewer.shinyDust ?? 0) + 1
           else if (item === 'legendary-tracker') viewer.legendaryTrackers = (viewer.legendaryTrackers ?? 0) + 1
           else if (item === 'poke-egg') {
-            let roll = random()
-            const chances = eggProbabilities(eggWeights, viewer.eggPity)
-            const { rarity, pool } = eggChoices.find(choice => (roll -= chances[choice.rarity]) < 0) ??
-              eggChoices.findLast(choice => chances[choice.rarity] > 0)
-            const pokemon = pool[Math.floor(random() * pool.length)]
-            const duplicate = Object.hasOwn(viewer.collection, pokemon.name)
-            const xp = familyXp(viewer, pokemon.name)
-            const rank = level(xp)
-            const bonus = duplicate && rank < maxLevel ? xpAtLevel(rank + 1) - xp : 0
-            const earned = Math.min(bonus, maxXp - xp)
-            if (!duplicate) {
-              viewer.collection[pokemon.name] = xp
-              ;(viewer.dexAcquired ??= {})[pokemon.name] = now()
-            }
-            shareFamily(viewer, pokemon.name, xp + earned)
-            viewer.eggPity = nextEggPity(viewer.eggPity, rarity)
-            hatch = { id: pokemon.id, name: pokemon.name, rarity, duplicate, xp: earned, rules: 5, ...(duplicate && earned > 0 ? { levelUp: true } : {}) }
+            const hatches = Array.from({ length: quantity }, () => {
+              let roll = random()
+              const chances = eggProbabilities(eggWeights, viewer.eggPity)
+              const { rarity, pool } = eggChoices.find(choice => (roll -= chances[choice.rarity]) < 0) ??
+                eggChoices.findLast(choice => chances[choice.rarity] > 0)
+              const pokemon = pool[Math.floor(random() * pool.length)]
+              const duplicate = Object.hasOwn(viewer.collection, pokemon.name)
+              const xp = familyXp(viewer, pokemon.name)
+              const rank = level(xp)
+              const bonus = duplicate && rank < maxLevel ? xpAtLevel(rank + 1) - xp : 0
+              const earned = Math.min(bonus, maxXp - xp)
+              if (!duplicate) {
+                viewer.collection[pokemon.name] = xp
+                ;(viewer.dexAcquired ??= {})[pokemon.name] = now()
+              }
+              shareFamily(viewer, pokemon.name, xp + earned)
+              viewer.eggPity = nextEggPity(viewer.eggPity, rarity)
+              return { id: pokemon.id, name: pokemon.name, rarity, duplicate, xp: earned, rules: 5, ...(duplicate && earned > 0 ? { levelUp: true } : {}) }
+            })
+            hatch = quantity === 1 ? hatches[0] : hatches
           } else (viewer.heldItems ??= []).push(item)
           result = 'purchased'
         }

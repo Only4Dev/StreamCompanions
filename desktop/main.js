@@ -333,7 +333,7 @@ async function pollShop() {
     const request = body => fetch(endpoint, {
       method: body ? 'POST' : 'GET', redirect: 'error',
       headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json',
-        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '3', 'X-Shop-Quantity': '1', 'X-Web-Game': 'v2:' + Buffer.from(JSON.stringify(webGame)).toString('base64url'), 'X-Identity-Orders': '1', ...(publishedEncounter !== encounterSignal ? { 'X-Encounter-Changed': '1' } : {}), ...(fetchAdmin ? { 'X-Admin-Actions': '1' } : {}), ...(fetchLinks ? { 'X-Identity-Links': '1' } : {}) } : {}) },
+        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '3', 'X-Shop-Quantity': '2', 'X-Web-Game': 'v2:' + Buffer.from(JSON.stringify(webGame)).toString('base64url'), 'X-Identity-Orders': '1', ...(publishedEncounter !== encounterSignal ? { 'X-Encounter-Changed': '1' } : {}), ...(fetchAdmin ? { 'X-Admin-Actions': '1' } : {}), ...(fetchLinks ? { 'X-Identity-Links': '1' } : {}) } : {}) },
       body: body && JSON.stringify({ viewers: body }),
       signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(8000)])
     })

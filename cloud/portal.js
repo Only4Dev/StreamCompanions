@@ -491,7 +491,7 @@ function hatchDialog(en) {
     '" data-reveal="' + (en ? 'Your egg hatched!' : '¡Tu huevo eclosionó!') + '"><h2 id="egg-title"></h2>' +
     '<p class="egg-rarity" data-hatch-rarity hidden></p><div class="egg-stage" aria-hidden="true"><div class="egg-aura"></div><div class="egg-rays"></div>' +
     '<div class="egg-waves"><i></i><i></i></div><div class="egg-particles"></div><div class="egg-shell"><i></i><i></i><b></b></div><img width="112" height="112" alt=""></div>' +
-    '<p data-hatch-result aria-live="polite"></p><form method="dialog"><button>' + (en ? 'Close' : 'Cerrar') + '</button></form></dialog>'
+    '<p data-hatch-result aria-live="polite"></p><ol class="egg-summary" data-hatch-summary hidden></ol><form method="dialog"><button>' + (en ? 'Close' : 'Cerrar') + '</button></form></dialog>'
 }
 
 function pendingPurchase(en) {
@@ -536,45 +536,80 @@ export async function portal(request, url, env) {
       }
       const dialog = document.querySelector('[data-hatch]');
       let didHatch = false;
-      function revealHatch(hatch) {
+      async function revealHatch(hatches) {
         if (!dialog || didHatch) return;
         didHatch = true;
+        const batch = Array.isArray(hatches) ? hatches : [hatches];
+        const en = document.documentElement.lang === 'en';
         const title = dialog.querySelector('h2');
         const result = dialog.querySelector('[data-hatch-result]');
-        const sprite = dialog.querySelector('.egg-stage img');
+        const summary = dialog.querySelector('[data-hatch-summary]');
+        let stage = dialog.querySelector('.egg-stage');
+        const template = stage.cloneNode(true);
         const tiers = {
           common: { duration: 1450, particles: 7, names: ['Común', 'Common'] },
           rare: { duration: 1950, particles: 17, names: ['Raro', 'Rare'] },
           epic: { duration: 2320, particles: 25, names: ['Épico', 'Epic'] },
           legendary: { duration: 2900, particles: 38, names: ['Legendario', 'Legendary'] }
         };
-        const rarity = hatch.rarity === 'uncommon' ? 'rare' : Object.hasOwn(tiers, hatch.rarity) ? hatch.rarity : 'common';
-        const tier = tiers[rarity];
         const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-        dialog.dataset.rarity = rarity;
-        dialog.style.setProperty('--hatch-time', tier.duration + 'ms');
         const badge = dialog.querySelector('[data-hatch-rarity]');
-        badge.textContent = tier.names[Number(document.documentElement.lang === 'en')];
-        badge.hidden = false;
-        const particles = dialog.querySelector('.egg-particles');
-        if (!reducedMotion) for (let index = 0; index < tier.particles; index++) {
-          const mote = document.createElement('i');
-          const angle = index * Math.PI * (3 - Math.sqrt(5));
-          const distance = 42 + index % 7 * 11 + (rarity === 'legendary' ? 27 : 0);
-          mote.style.setProperty('--x', Math.round(Math.cos(angle) * distance) + 'px');
-          mote.style.setProperty('--y', Math.round(Math.sin(angle) * distance * .78) + 'px');
-          mote.style.setProperty('--delay', index % 6 * 35 + 'ms');
-          mote.style.setProperty('--size', (3 + index % 4) + 'px');
-          particles.append(mote);
-        }
-        sprite.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' + hatch.id + '.png';
-        title.textContent = dialog.dataset.opening;
+        const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const spriteUrl = id => 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' + id + '.png';
         dialog.showModal();
-        setTimeout(() => {
+        for (const [position, hatch] of batch.entries()) {
+          const rarity = hatch.rarity === 'uncommon' ? 'rare' : Object.hasOwn(tiers, hatch.rarity) ? hatch.rarity : 'common';
+          const tier = tiers[rarity];
+          const suffix = batch.length > 1 ? ' · ' + (position + 1) + '/' + batch.length : '';
+          const name = hatch.name + (hatch.levelUp ? (en ? ' · +1 level' : ' · +1 nivel') : hatch.xp > 0 ? ' · +' + hatch.xp + ' XP' : '');
+          dialog.classList.remove('hatched');
+          dialog.dataset.rarity = rarity;
+          dialog.style.setProperty('--hatch-time', tier.duration + 'ms');
+          title.textContent = dialog.dataset.opening + suffix;
+          badge.hidden = true;
+          result.textContent = '';
+          const nextStage = template.cloneNode(true);
+          nextStage.querySelector('img').src = spriteUrl(hatch.id);
+          const particles = nextStage.querySelector('.egg-particles');
+          if (!reducedMotion) for (let index = 0; index < tier.particles; index++) {
+            const mote = document.createElement('i');
+            const angle = index * Math.PI * (3 - Math.sqrt(5));
+            const distance = 42 + index % 7 * 11 + (rarity === 'legendary' ? 27 : 0);
+            mote.style.setProperty('--x', Math.round(Math.cos(angle) * distance) + 'px');
+            mote.style.setProperty('--y', Math.round(Math.sin(angle) * distance * .78) + 'px');
+            mote.style.setProperty('--delay', index % 6 * 35 + 'ms');
+            mote.style.setProperty('--size', (3 + index % 4) + 'px');
+            particles.append(mote);
+          }
+          stage.replaceWith(nextStage);
+          stage = nextStage;
+          await wait(reducedMotion ? 0 : tier.duration);
+          if (!dialog.open) return;
           dialog.classList.add('hatched');
-          title.textContent = dialog.dataset.reveal;
-          result.textContent = hatch.name + (hatch.levelUp ? (document.documentElement.lang === 'es' ? ' · +1 nivel' : ' · +1 level') : hatch.xp > 0 ? ' · +' + hatch.xp + ' XP' : '');
-        }, reducedMotion ? 0 : tier.duration);
+          title.textContent = dialog.dataset.reveal + suffix;
+          badge.textContent = tier.names[Number(en)];
+          badge.hidden = false;
+          result.textContent = name;
+          const item = document.createElement('li');
+          item.dataset.rarity = rarity;
+          const image = new Image(36, 36);
+          image.src = spriteUrl(hatch.id);
+          image.alt = '';
+          const label = document.createElement('strong');
+          label.textContent = name;
+          const tierLabel = document.createElement('small');
+          tierLabel.textContent = badge.textContent;
+          item.append(image, label, tierLabel);
+          summary.append(item);
+          await wait(1000);
+          if (!dialog.open) return;
+        }
+        delete dialog.dataset.rarity;
+        title.textContent = en ? 'Hatch summary' : 'Resumen de eclosión';
+        stage.remove();
+        badge.hidden = true;
+        result.hidden = true;
+        summary.hidden = false;
       }
       const receipt = document.querySelector('[data-order-pending], [data-order-receipt]');
       const wallet = document.querySelector('[data-shop-wallet]');
@@ -582,7 +617,7 @@ export async function portal(request, url, env) {
       const availability = document.querySelector('[data-shop-availability]');
       let latestState;
       function updateControl(form, state) {
-        const {shopProduct, shopPrice, shopBall} = form.dataset;
+        const {shopProduct, shopPrice, shopBall, eggQuantity} = form.dataset;
         const dna = shopProduct === 'dna-booster';
         const owned = state.heldItems.includes(shopProduct);
         const cap = dna ? (state.dna ? ${maxDnaBoosters} - state.dnaCount : 0) : ${maxShopQuantity};
@@ -591,6 +626,7 @@ export async function portal(request, url, env) {
         if (input) { input.max = Math.max(1, limit); input.readOnly = submitted || state.pending; }
         const button = form.querySelector('button');
         button.disabled = submitted || !state.online || state.pending || owned || limit < 1 ||
+          Boolean(eggQuantity && (limit < Number(eggQuantity) || Number(eggQuantity) > 1 && !state.eggBulk)) ||
           (shopProduct === 'master-ball' && !state.master) ||
           (form.hasAttribute('data-shop-feature') && !state.featured?.includes(shopProduct)) ||
           Boolean(input && (!input.validity.valid || (!state.bulk && input.valueAsNumber > 1)));
@@ -1023,7 +1059,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     const master = Object.hasOwn(prices, 'master-ball')
     const featured = featuredShopItems.filter(id => Object.hasOwn(prices, id))
     const hatch = viewer.hatch ? JSON.parse(viewer.hatch) : null
-    return json({ balance, balls, heldItems, pending, online, ...(master ? { master: true } : {}), ...(featured.length ? { featured } : {}), ...(hatch ? { hatch } : {}), bulk: Boolean(viewer.supports_quantity), dnaCount, ...(dnaCount !== undefined ? { dna: viewer.supports_dna >= 3 } : {}), message })
+    return json({ balance, balls, heldItems, pending, online, ...(master ? { master: true } : {}), ...(featured.length ? { featured } : {}), ...(hatch ? { hatch } : {}), bulk: Boolean(viewer.supports_quantity), ...(viewer.supports_quantity >= 2 ? { eggBulk: true } : {}), dnaCount, ...(dnaCount !== undefined ? { dna: viewer.supports_dna >= 3 } : {}), message })
   }
 
   if (url.pathname === '/live/shiny-cue' && request.method === 'GET') {
@@ -1298,7 +1334,8 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     if (existingOrder?.item === item) return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, purchase: orderId }), [])
     const blocked = !shopOpen ? 'offline' : product.dna && !(online?.supports_dna >= 3) ? 'upgrade' : null
     const returnBlocked = reason => redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, reason }), [])
-    if (blocked || (quantity > 1 && !online.supports_quantity)) return returnBlocked(blocked ?? 'quantity')
+    const quantitySupport = quantity === 1 ? 0 : product.quantities ? 2 : 1
+    if (blocked || (online?.supports_quantity ?? 0) < quantitySupport) return returnBlocked(blocked ?? 'quantity')
     if (item === 'master-ball' && !Object.hasOwn(published ?? {}, item)) return returnBlocked('master')
     if ((arenaShopItems.includes(item) || featuredShopItems.includes(item)) && !Object.hasOwn(published ?? {}, item)) return returnBlocked('feature')
     const price = published?.[item] ?? product.price
@@ -1311,13 +1348,13 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       .bind(orderId, selected.community_id, selected.viewer_id).first()
     const now = Date.now()
     const [, queued] = await env.DB.batch([expireShopOrders(env.DB, selected.community_id, now), env.DB.prepare('INSERT OR IGNORE INTO shop_orders (id, community_id, viewer_id, item, created_at, price, species_key, quantity) ' +
-      'SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM shop_online WHERE community_id = ? AND seen_at > ? AND prices IS ? AND (? IS NULL OR supports_dna >= 3) AND (? = 1 OR supports_quantity = 1)) ' +
+      'SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM shop_online WHERE community_id = ? AND seen_at > ? AND prices IS ? AND (? IS NULL OR supports_dna >= 3) AND supports_quantity >= ?) ' +
       'AND EXISTS (SELECT 1 FROM account_identities WHERE viewer_id = ? AND account_id = ?) AND EXISTS (SELECT 1 FROM web_sessions WHERE id IN (?, ?) AND expires_at > ?) ' +
       'AND NOT EXISTS (SELECT 1 FROM shop_orders o JOIN account_identities i ON i.viewer_id = o.viewer_id WHERE o.community_id = ? AND i.account_id = ? AND o.result IS NULL) ' +
       'AND (SELECT COUNT(*) FROM shop_orders o JOIN account_identities i ON i.viewer_id = o.viewer_id WHERE o.community_id = ? AND i.account_id = ? AND o.created_at > ?) < 8 ' +
       "AND NOT EXISTS (SELECT 1 FROM shop_orders o JOIN account_identities i ON i.viewer_id = o.viewer_id WHERE o.community_id = ? AND i.account_id = ? AND o.item = ? AND o.price IS ? AND o.species_key IS ? AND o.quantity = ? AND o.result = 'purchased' AND o.created_at > ?)")
       .bind(orderId, selected.community_id, selected.viewer_id, item, now, published ? price : null, target, quantity,
-        selected.community_id, now - 70_000, online?.prices ?? null, target, quantity, selected.viewer_id, identity.account_id, session, key, now, selected.community_id, identity.account_id, selected.community_id, identity.account_id, now - 30_000,
+        selected.community_id, now - 70_000, online?.prices ?? null, target, quantitySupport, selected.viewer_id, identity.account_id, session, key, now, selected.community_id, identity.account_id, selected.community_id, identity.account_id, now - 30_000,
         selected.community_id, identity.account_id, item, published ? price : null, target, quantity, now - 3000)])
     return redirect('/?' + new URLSearchParams({ community: selected.community_id, ...destination, ...(queued.meta.changes || await findExistingOrder() ? { purchase: orderId } : { retry: '1' }) }), [])
   }
@@ -1543,6 +1580,21 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
         const price = published?.[id] ?? product.price
         const featured = featuredShopItems.includes(id)
         const needsUpdate = (id === 'master-ball' || featured) && !Object.hasOwn(published ?? {}, id)
+        if (product.quantities) {
+          const options = product.quantities.map(quantity => {
+            const label = (en ? 'Buy ' : 'Comprar ') + quantity + ' · $' + price * quantity
+            const action = '/shop/buy?' + new URLSearchParams({ community: selected.community_id, item: id, order: crypto.randomUUID(), price })
+            const disabled = !available || pending || needsUpdate || pokeDollars < price * quantity ||
+              quantity > 1 && !(online?.supports_quantity >= 2)
+            return '<form method="post" data-shop-buy data-shop-feature data-shop-product="' + id + '" data-shop-price="' + price +
+              '" data-egg-quantity="' + quantity + '" action="' + escape(action) + '"><input type="hidden" name="quantity" value="' +
+              quantity + '"><button data-buy="' + label + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button></form>'
+          }).join('')
+          const graphic = '<img class="bag-icon egg-shop-icon" src="' + shopIconUrl(id) + '" alt="" width="30" height="30">'
+          return '<li>' + itemDescription(id, en, graphic + '<strong>' + escape(product.names[Number(en)]) + '</strong>') +
+            '<div class="egg-purchase-options">' + options + '</div><small data-feature-upgrade' + (needsUpdate ? '' : ' hidden') +
+            '>' + reasons.feature + '</small></li>'
+        }
         const action = '/shop/buy?' + new URLSearchParams({ community: selected.community_id, item: id, order: crypto.randomUUID(), price })
         const button = '<button data-buy="' + (en ? 'Buy' : 'Comprar') + '" data-owned="' + (en ? 'Owned' : 'Ya lo tienes') + '"' + (!available || pending || owned || needsUpdate || pokeDollars < price ? ' disabled' : '') + '>' +
           (owned ? (en ? 'Owned' : 'Ya lo tienes') : (en ? 'Buy' : 'Comprar')) + '</button>'
@@ -1554,7 +1606,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
           (product.ball ? ' data-shop-ball="' + product.ball + '"' : '') + (featured ? ' data-shop-feature' : '') + '>' +
           (product.ball ? '<span class="shop-count">' + (en ? 'In bag' : 'En la bolsa') + ' <strong data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</strong></span>' : '') + quantityInput + button + '</form>' + (featured ? '<small data-feature-upgrade' + (needsUpdate ? '' : ' hidden') + '>' + reasons.feature + '</small>' : '') + (id === 'master-ball' ? '<small data-shop-master-upgrade' + (available && needsUpdate ? '' : ' hidden') + '>' + escape(reasons.master) + '</small>' : '') +
           (available && !needsUpdate && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
-      }).join('') + '</ul>' + eggDialog + '</section><script src="/assets/shop-status.js?v=6" defer></script>'
+      }).join('') + '</ul>' + eggDialog + '</section><script src="/assets/shop-status.js?v=7" defer></script>'
   }
   const overviewLabel = language === 'en' ? 'Overview' : 'Resumen'
   const minutes = metrics.summonMinutes ?? 0
@@ -1599,7 +1651,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
   if (tab === 'dex' && selected.viewer_id) {
     const [seenRows, eggs] = await env.DB.batch([
       env.DB.prepare('SELECT species_id, seen_at FROM dex_seen WHERE account_id = ? AND community_id = ?').bind(identity.account_id, selected.community_id),
-      env.DB.prepare("SELECT CAST(json_extract(o.hatch, '$.id') AS INTEGER) AS dex, MAX(o.created_at) AS acquired FROM shop_orders o JOIN account_identities i ON i.viewer_id = o.viewer_id WHERE o.community_id = ? AND i.account_id = ? AND o.result = 'purchased' AND o.hatch IS NOT NULL AND json_extract(o.hatch, '$.duplicate') = 0 GROUP BY dex").bind(selected.community_id, identity.account_id)
+      env.DB.prepare("SELECT CAST(json_extract(h.value, '$.id') AS INTEGER) AS dex, MAX(o.created_at) AS acquired FROM shop_orders o JOIN account_identities i ON i.viewer_id = o.viewer_id JOIN json_each(CASE json_type(o.hatch) WHEN 'array' THEN o.hatch ELSE json_array(json(o.hatch)) END) h WHERE o.community_id = ? AND i.account_id = ? AND o.result = 'purchased' AND json_extract(h.value, '$.duplicate') = 0 GROUP BY dex").bind(selected.community_id, identity.account_id)
     ])
     for (const row of seenRows.results) seen.set(row.species_id, row.seen_at)
     for (const row of eggs.results) eggAcquired.set(row.dex, row.acquired)

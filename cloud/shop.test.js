@@ -34,7 +34,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   db.prepare('INSERT INTO viewer_progress VALUES (?, ?, ?, ?, ?)').run('stream', 'twitch:1', 1, JSON.stringify({ collection: {}, balls: { normal: 5, great: 0, ultra: 0, master: 0 }, pokeDollars: 500 }), 0)
   const base = 'https://example.test'
   const device = (method, body, prices, bulk = false) => worker.fetch(new Request(base + '/api/shop', {
-    method, headers: { Authorization: 'Bearer ' + token, ...(prices && { 'X-Shop-Prices': JSON.stringify(prices) }), ...(bulk && { 'X-Shop-Quantity': '1' }) }, body: body && JSON.stringify(body)
+    method, headers: { Authorization: 'Bearer ' + token, ...(prices && { 'X-Shop-Prices': JSON.stringify(prices) }), ...(bulk && { 'X-Shop-Quantity': bulk === 2 ? '2' : '1' }) }, body: body && JSON.stringify(body)
   }), { DB: D1 })
   const order = (id, price, quantity, item = 'poke-ball') => worker.fetch(new Request(base + '/shop/buy?community=stream&item=' + item + '&order=' + id + (price ? '&price=' + price : ''), {
     method: 'POST', headers: { Origin: base, Cookie: 'sc_session=' + session },
@@ -288,6 +288,23 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const bag = await consumables.text()
   assert.match(bag, /rare-candy\.png[^]*Caramelo Raro[^]*×3/)
   assert.match(bag, /dowsing-machine\.png[^]*Legendary Tracker[^]*×1/)
+  const eggPrices = { 'poke-egg': 5000, 'legendary-tracker': 100000 }
+  await device('GET', undefined, eggPrices, true)
+  assert.match((await order(crypto.randomUUID(), 5000, 5, 'poke-egg')).headers.get('Location'), /reason=quantity/)
+  await device('GET', undefined, eggPrices, 2)
+  db.prepare("UPDATE viewer_progress SET payload = json_set(payload, '$.pokeDollars', 55000) WHERE viewer_id = 'twitch:1'").run()
+  const batchId = crypto.randomUUID()
+  assert.equal((await order(crypto.randomUUID(), 5000, 2, 'poke-egg')).status, 400)
+  assert.match((await order(batchId, 5000, 5, 'poke-egg')).headers.get('Location'), new RegExp('purchase=' + batchId))
+  assert.ok(!(await (await device('GET', undefined, eggPrices, true)).json()).orders.some(entry => entry.id === batchId))
+  assert.equal((await (await device('GET', undefined, eggPrices, 2)).json()).orders.find(entry => entry.id === batchId).quantity, 5)
+  const batch = Array.from({ length: 5 }, () => ({ ...hatchedLegend, duplicate: true }))
+  const batchViewer = { ...legendaryViewer, revision: 7, pokeDollars: 30000 }
+  const finishBatch = hatch => device('POST', { viewers: [{ id: batchId, result: 'purchased', viewer: batchViewer, hatch }] })
+  assert.equal((await finishBatch(batch.slice(1))).status, 400)
+  assert.equal((await finishBatch(batch)).status, 200)
+  status.searchParams.set('purchase', batchId)
+  assert.deepEqual((await readStatus()).hatch, batch.map(({ rules, ...entry }) => entry))
   db.prepare('UPDATE community_stream_status SET platforms = ? WHERE community_id = ?').run(channels, 'stream')
   const requestTracker = () => worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
     method: 'POST', headers: { ...cookie, Origin: base },

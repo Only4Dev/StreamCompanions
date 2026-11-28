@@ -152,6 +152,13 @@ button.description-trigger[aria-expanded=true]{outline:2px solid var(--line);out
 .egg-dialog::backdrop{background:#100b21d1}
 .egg-dialog h2{margin-bottom:.6rem;color:#fff8ec}
 .egg-dialog [data-hatch-result]{min-height:1.4em;margin:.8rem 0;font-weight:850;color:var(--hatch-name,#FFFFFF)}
+.egg-purchase-options{display:flex;flex-wrap:wrap;gap:.5rem}
+.egg-summary{padding:0;margin:.75rem 0;list-style:none;max-height:54vh;overflow:auto}
+.egg-summary li{display:grid;grid-template-columns:36px 1fr auto;gap:.65rem;align-items:center;text-align:left;padding:.25rem .4rem}
+.egg-summary li strong{color:var(--hatch-name,#FFFFFF)}
+.egg-summary [data-rarity=rare]{--hatch-name:#3B82F6}
+.egg-summary [data-rarity=epic]{--hatch-name:#A855F7}
+.egg-summary [data-rarity=legendary]{--hatch-name:#EAB308}
 .egg-rarity{display:inline-block;margin:0;padding:.28rem .77rem;border-radius:999px;border:1px solid var(--edge);color:var(--glow);background:#151023;font-weight:850;font-size:.77rem;letter-spacing:.08em;text-transform:uppercase}
 .egg-rarity[hidden]{display:none}
 .egg-dialog[data-rarity=rare]{--hatch-name:#3B82F6;--glow:#8edfff;--edge:#489cdb;--beam:.54;--aura:.57;--wave-opacity:.66}

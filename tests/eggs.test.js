@@ -89,3 +89,22 @@ test('SQLite persists player pity, charges and receipts across restart without r
     rmdirSync(directory)
   }
 })
+
+test('egg lots apply pity sequentially and a retry keeps the same ordered receipt', () => {
+  const catalog = [{ id: 19, name: 'Rattata' }, { id: 1, name: 'Bulbasaur' },
+    { id: 984, name: 'Great Tusk' }, { id: 150, name: 'Mewtwo', legendary: true }]
+  const options = { catalog, now: () => 0, random: () => .1 }
+  const game = createGame({ ...options, progress: { viewers: { A: { collection: {}, pokeDollars: 50000 } } } })
+  const order = { id: 'lot', viewerId: 'A', item: 'poke-egg', quantity: 10 }
+  assert.equal(game.fulfillOrder({ ...order, id: 'invalid', quantity: 2 }), 'unavailable')
+  assert.equal(game.fulfillOrder(order), 'purchased')
+  const hatches = game.shopHatch(order.id)
+  assert.deepEqual(hatches.map(hatch => hatch.rarity),
+    ['common', 'common', 'common', 'common', 'rare', 'common', 'common', 'common', 'common', 'rare'])
+  assert.equal(hatches[1].duplicate, true)
+  const restarted = createGame({ ...options, progress: game.progress() })
+  assert.equal(restarted.fulfillOrder(order), 'purchased')
+  assert.deepEqual(restarted.shopHatch(order.id), hatches)
+  assert.equal(restarted.progress().viewers.A.pokeDollars, 0)
+  assert.deepEqual(restarted.progress().viewers.A.eggPity, { rare: 0, epic: 10, legendary: 10 })
+})
