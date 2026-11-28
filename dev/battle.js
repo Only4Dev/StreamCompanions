@@ -515,6 +515,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   const effects = []
   const hazards = []
   const knockouts = []
+  const raidPressure = raid ? Math.max(1, entries.filter(entry => !entry.boss).length / 3) : 1
   const actors = entries.map((entry, index) => {
     const stats = battleStatsAtLevel(entry.id, entry.stats, entry.level, entry.dna, entry.training)
     const raidBaseHp = entry.boss ? stats.maxHp : undefined
@@ -535,7 +536,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     return {
       ...entry, ...stats, raidBaseHp, types, equipmentForm, index, hp: stats.maxHp, abilities: new Set(abilitiesFor(entry.id)),
       margin, x: clamp(150 + index * (arena.width - 300) / Math.max(1, entries.length - 1), margin, arena.width - margin),
-      direction: index < entries.length / 2 ? 1 : -1, next: 0.5 + index * 0.12,
+      direction: index < entries.length / 2 ? 1 : -1, next: entry.boss ? .25 : .5 + index * .12,
       shield: 0, boosts: {}, status: null, knockback: 0, hurtUntil: 0, motion: 'Idle', motionSince: 0,
       cast: null, dashUntil: 0, dashReady: 0, cooldowns: {}, ultimatePp: entry.boss ? entry.bossUltimatePp ?? 4 : movePp({ ultimate: true }), ultimateCharge: 0,
       hasUltimate: Boolean(equippedUltimate), equippedUltimate,
@@ -735,9 +736,10 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const variance = move.power && matchup ? .9 + random() * .2 : 1
     const ultimateDamage = Math.min(move.power, 78) * (.65 + actor.level / 100) * statRatio *
       Math.min(matchup, 2) * stab * fieldMultiplier * itemMultiplier * abilityMultiplier * variance
-    const damage = move.ultimate ? Math.min(Math.round(ultimateDamage * (actor.boss ? 1.28 : 1)), Math.floor(defender.maxHp * .6)) : move.struggle ? Math.ceil(damageHealth(defender) * .2) :
+    const rawDamage = move.ultimate ? Math.min(Math.round(ultimateDamage * (actor.boss ? 1.28 : 1)), Math.floor(defender.maxHp * .6)) : move.struggle ? Math.ceil(damageHealth(defender) * .2) :
       Math.round(move.power * (0.5 + actor.level / 100) * statRatio * reduced * stab *
         (solarCharge ? .7 : 1) * sleepMultiplier * fieldMultiplier * (critical ? 1.45 : 1) * itemMultiplier * abilityMultiplier * variance)
+    const damage = rawDamage && defender.boss ? Math.max(1, Math.round(rawDamage / raidPressure)) : rawDamage
     if (move.struggle) {
       actor.hp = Math.max(0, actor.hp - Math.ceil(damageHealth(actor) * .1))
       if (!actor.hp) actor.faintedAt = time
@@ -1200,11 +1202,12 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
 
   function dealChip(actor, fraction, type, visual, source) {
     if (source && !rivals(source, actor)) return
-    const damage = Math.min(actor.hp, Math.max(1, Math.round(damageHealth(actor) * fraction)))
+    const damage = Math.min(actor.hp, Math.max(1, Math.round(damageHealth(actor) * fraction / (actor.boss ? raidPressure : 1))))
     actor.hp -= damage
     creditDamage(source, actor, damage)
     if (!actor.hp) actor.faintedAt = time
     effects.push({ kind: 'hit', type, visual, x: actor.x, target: actor.index, damage, at: time, expires: time + .55 })
+    return damage
   }
 
   function tickStatus(actor) {
@@ -1231,11 +1234,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       leech.next += 1
       const source = actors[leech.source]
       if (source.hp > 0 && rivals(source, actor)) {
-        const drained = Math.min(actor.hp, Math.max(1, Math.round(damageHealth(actor) * .035)))
-        actor.hp -= drained
-        creditDamage(source, actor, drained)
+        const drained = dealChip(actor, .035, 'grass', 'leech', source)
         source.hp = Math.min(source.maxHp, source.hp + drained)
-        if (!actor.hp) actor.faintedAt = time
       }
     }
     const status = actor.status
@@ -1249,10 +1249,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       }
       status.severity++
       const fraction = status.kind === 'burn' ? .025 : Math.min(.065, .01 + .005 * status.severity)
-      const damage = Math.min(actor.hp, Math.max(1, Math.round(damageHealth(actor) * fraction)))
-      actor.hp -= damage
-      creditDamage(actors[status.source], actor, damage)
-      if (!actor.hp) actor.faintedAt = time
+      dealChip(actor, fraction, status.kind === 'burn' ? 'fire' : 'poison', status.kind, actors[status.source])
     }
   }
 

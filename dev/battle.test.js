@@ -390,7 +390,9 @@ test('a raid boss at the arena edge can fire at extended range while under attac
   const [player, boss] = battle.actors
   player.x = boss.x - 850
   player.next = 10
+  player.dashReady = 10
   boss.dashReady = 10
+  boss.hurtUntil = 10
   run(battle, 1.2)
   assert.equal(boss.lastMove, 'raidcannons')
   assert.ok(battle.projectiles.some(shot => shot.actor === boss))
