@@ -450,6 +450,17 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           if (!hitFeedback.has(effect.target)) hitFeedback.set(effect.target, [])
           hitFeedback.get(effect.target).push(effect)
         }
+        if (effect.bossImpact && !battle.over) {
+          const age = Math.max(0, feedbackTime - effect.at)
+          context.save()
+          context.globalAlpha = Math.max(0, 1 - age / .4)
+          context.strokeStyle = '#ff7195'
+          context.lineWidth = 5
+          context.beginPath()
+          context.ellipse(effect.x, floor - 40, 23 + age * 100, 16 + age * 65, 0, 0, Math.PI * 2)
+          context.stroke()
+          context.restore()
+        }
         if (battle.over) continue
         const color = effect.type === 'fire' ? '#ff8957' : effect.type === 'water' ? '#7bddff' : '#e1c8ff'
         if (effect.kind === 'geyser') {
@@ -563,7 +574,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
               context.restore()
             }
           }
-          if (hits?.some(hit => renderTime - hit.at < .17)) context.filter = 'brightness(0) invert(1)'
+          if (!fighter.boss && hits?.some(hit => renderTime - hit.at < .17)) context.filter = 'brightness(0) invert(1)'
           sprite(context, readyClip(clip, variant?.animations), x, y, fighter.direction, time, false, scale, false, true)
           context.restore()
           if (!clip) label(context, fighter.name[0], x, y, 25)

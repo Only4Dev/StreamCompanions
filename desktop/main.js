@@ -1025,6 +1025,12 @@ const server = createServer(async (req, res) => {
       } : null))
       return
     }
+    if (req.method === 'GET' && pathname === '/ui/learnsets.json') {
+      const data = JSON.parse(await readFile(new URL('../ui/learnsets.json', import.meta.url), 'utf8'))
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      res.end(JSON.stringify({ ...data, raidBosses }))
+      return
+    }
     if (req.method === 'GET' && pathname === '/knockouts/state') {
       const current = communityBattle
       const battle = current?.battle
@@ -1366,8 +1372,13 @@ const server = createServer(async (req, res) => {
         const bytes = await readFile(selection.filePaths[0])
         if (bytes.length > 1_000_000 || simulating || communityBattle && !communityBattle.battle.over) throw new Error('Learnsets unavailable')
         const data = JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, ''))
+        const bosses = data.raidBosses === undefined ? null : validateRaidBosses(data.raidBosses)
         battleRules.applyLearnsets(data)
         writeFileSync(join(app.getPath('userData'), 'learnsets.json'), JSON.stringify(data))
+        if (bosses) {
+          writeFileSync(join(app.getPath('userData'), 'raid-bosses.json'), JSON.stringify(bosses))
+          raidBosses = bosses
+        }
       }
       else if (action.raidBosses === 'choose') {
         const selection = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] })

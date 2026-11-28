@@ -617,6 +617,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   for (const actor of actors) if (actors.some(enemy => rivals(actor, enemy) && enemy.abilities.has('intimidate'))) actor.attack *= .9
 
   function closest(actor, eligible) {
+    const focus = actors[actor.focusIndex]
+    if (actor.boss && !eligible && focus?.hp > 0) return focus
     let target
     let best = Infinity
     for (const enemy of actors) {
@@ -625,6 +627,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       const score = range + (actor.boss ? enemy.hp / enemy.maxHp * 120 : 0)
       if (score < best) { target = enemy; best = score }
     }
+    if (actor.boss && !eligible) actor.focusIndex = target?.index
     return target
   }
 
@@ -804,7 +807,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         defender.knockback = 0
       }
     }
-    effects.push({ kind: 'hit', type, visual: move.visual, x: defender.x, target: defender.index, damage: dealt, critical, at: time, expires: time + .68 })
+    effects.push({ kind: 'hit', type, visual: move.visual, x: defender.x, target: defender.index, damage: dealt, critical,
+      bossImpact: Boolean(actor.boss && dealt), at: time, expires: time + .68 })
   }
 
   function cast(actor, moveId, force = false) {
@@ -963,6 +967,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       }
       else if (move.protect) actor.shield = time + .85
     } else if (move.kind === 'projectile') {
+      if (actor.boss && cast.target?.hp > 0) actor.direction = Math.sign(cast.target.x - actor.x) || actor.direction
       if (move.recoil) actor.knockback = -actor.direction * move.recoil
       launch(actor, move, actor.direction)
       const bonusHit = !move.count && move.power && actor.abilities.has('parental-bond')
@@ -1408,12 +1413,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       else if (cast(actor, best)) return actor.motion
     }
     if (!best && fallback && actor.next <= time && cast(actor, fallback)) return actor.motion
-    if (actor.boss && actor.next > time) {
-      const desired = distance < 125 ? -toward : toward
-      const space = desired < 0 ? actor.x - actor.margin : arena.width - actor.margin - actor.x
-      if (space > 5) return walk(actor, desired, dt)
-    }
-    if (distance > (actor.boss ? 115 : prefersRange ? 365 : 78)) return walk(actor, toward, dt)
+    if (distance > (actor.boss ? 180 : prefersRange ? 365 : 78)) return walk(actor, toward, dt)
     return 'Idle'
   }
 
