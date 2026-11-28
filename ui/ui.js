@@ -934,7 +934,7 @@ async function update() {
   try {
     await refresh()
   } finally {
-    setTimeout(update, !panel && state?.battle && !state.battle.over ? 100 : 500)
+    setTimeout(update, !panel && state?.battle && !state.battle.over ? 50 : 500)
   }
 }
 update()

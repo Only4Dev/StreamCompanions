@@ -433,6 +433,10 @@ const bound = (x, actor) => {
 }
 const bodyGap = 44
 const extraReach = actor => actor.boss ? 42 : 0
+const moveReach = (actor, move) => actor.boss && !move.ultimate && !move.struggle && move.kind !== 'guard' && move.kind !== 'support'
+  ? Math.min(arena.width, Math.round(move.reach * (move.kind === 'rush' ? 1.25 : 1.4))) : move.reach
+const damageHealth = actor => actor.raidBaseHp ?? actor.maxHp
+const isHurt = (actor, time) => !actor.boss && actor.hurtUntil > time
 const bodySpacing = (a, b) => bodyGap + extraReach(a) + extraReach(b)
 const isRanged = move => ['projectile', 'target', 'pierce'].includes(move.kind)
 const effectiveness = (actor, defender, move) => defender.types.reduce((factor, type) =>
@@ -510,8 +514,10 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   const geysers = []
   const effects = []
   const hazards = []
+  const knockouts = []
   const actors = entries.map((entry, index) => {
     const stats = battleStatsAtLevel(entry.id, entry.stats, entry.level, entry.dna, entry.training)
+    const raidBaseHp = entry.boss ? stats.maxHp : undefined
     stats.maxHp = Math.round(stats.maxHp * (entry.boss ? entry.hpBoost ?? 1 : hpMultiplier * (entry.hpBoost ?? 1)))
     if (entry.boss && entry.statBoost !== undefined) {
       for (const key of ['attack', 'defense', 'specialAttack', 'specialDefense', 'speed']) stats[key] *= entry.statBoost
@@ -527,7 +533,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const kit = [...chosen, ...(support ? [support] : []), ...(equippedUltimate ? [equippedUltimate] : [])]
     const margin = clamp(entry.margin ?? 75, 75, arena.width / 2)
     return {
-      ...entry, ...stats, types, equipmentForm, index, hp: stats.maxHp, abilities: new Set(abilitiesFor(entry.id)),
+      ...entry, ...stats, raidBaseHp, types, equipmentForm, index, hp: stats.maxHp, abilities: new Set(abilitiesFor(entry.id)),
       margin, x: clamp(150 + index * (arena.width - 300) / Math.max(1, entries.length - 1), margin, arena.width - margin),
       direction: index < entries.length / 2 ? 1 : -1, next: 0.5 + index * 0.12,
       shield: 0, boosts: {}, status: null, knockback: 0, hurtUntil: 0, motion: 'Idle', motionSince: 0,
@@ -593,7 +599,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     if (actor.heldItem !== 'sitrus-berry' || actor.berryUsed || actor.hp <= 0 || actor.hp > actor.maxHp * .2) return
     const recovery = actor.kit.find(key => moves[key].heal && actor.pp[key] > 0)
     if (actor.cast?.move.heal || recovery && !actor.recovered && !immobilized(actor)) {
-      if (!actor.cast && !ultimate && cast(actor, recovery, true)) actor.pp[recovery] = 0
+      if (!actor.cast && cast(actor, recovery, true)) actor.pp[recovery] = 0
       return
     }
     actor.berryUsed = true
@@ -729,11 +735,11 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const variance = move.power && matchup ? .9 + random() * .2 : 1
     const ultimateDamage = Math.min(move.power, 78) * (.65 + actor.level / 100) * statRatio *
       Math.min(matchup, 2) * stab * fieldMultiplier * itemMultiplier * abilityMultiplier * variance
-    const damage = move.ultimate ? Math.min(Math.round(ultimateDamage * (actor.boss ? 1.28 : 1)), Math.floor(defender.maxHp * .6)) : move.struggle ? Math.ceil(defender.maxHp * .2) :
+    const damage = move.ultimate ? Math.min(Math.round(ultimateDamage * (actor.boss ? 1.28 : 1)), Math.floor(defender.maxHp * .6)) : move.struggle ? Math.ceil(damageHealth(defender) * .2) :
       Math.round(move.power * (0.5 + actor.level / 100) * statRatio * reduced * stab *
         (solarCharge ? .7 : 1) * sleepMultiplier * fieldMultiplier * (critical ? 1.45 : 1) * itemMultiplier * abilityMultiplier * variance)
     if (move.struggle) {
-      actor.hp = Math.max(0, actor.hp - Math.ceil(actor.maxHp * .1))
+      actor.hp = Math.max(0, actor.hp - Math.ceil(damageHealth(actor) * .1))
       if (!actor.hp) actor.faintedAt = time
     }
     if (damage && !move.struggle && ((defender.id === 778 && !defender.disguiseUsed) ||
@@ -759,7 +765,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         actor.hp = Math.min(actor.maxHp, actor.hp + Math.round(inflicted * ((move.drain ?? 0) + (actor.heldItem === 'shell-bell' ? .12 : 0))))
       }
       const channeling = defender.cast?.move.channel && defender.cast.start + defender.cast.move.channel > time
-      if (!immobilized(defender) && !channeling && !solarCharge) {
+      if (!defender.boss && !immobilized(defender) && !channeling && !solarCharge) {
         const push = move.push ?? (move.count ? 95 : move.kind === 'rush' ? 430 : 270)
         defender.knockback = direction * push * (critical ? 1.25 : 1)
       }
@@ -779,7 +785,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       if (!channeling || !defender.hp) defender.cast = null
       defender.next = Math.max(defender.next, time + .42)
       if (defender.hp) updateForm(defender)
-      if (move.flinch && !channeling && random() < move.flinch) defender.flinchUntil = time + 1.5
+      if (!defender.boss && move.flinch && !channeling && random() < move.flinch) defender.flinchUntil = time + 1.5
     }
     if (move.leech && matchup && defender.hp && !defender.types.includes('grass')) {
       defender.leech = { source: actor.index, next: time + 1, ends: time + 7 }
@@ -790,7 +796,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
     if (move.slow && matchup && defender.hp) defender.slowUntil = time + 4
     if (defender.hp && statusLands) {
-      defender.status = { source: actor.index, kind: move.effect, ends: time + statusDuration[move.effect], tick: time + 1, severity: 0 }
+      defender.status = { source: actor.index, kind: move.effect, ends: time + (defender.boss && ['sleep', 'freeze'].includes(move.effect) ? 1 : statusDuration[move.effect]), tick: time + 1, severity: 0 }
       if (move.effect === 'freeze' || move.effect === 'sleep') {
         defender.cast = null
         defender.knockback = 0
@@ -801,9 +807,13 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
 
   function cast(actor, moveId, force = false) {
     const species = actor.copiedSpecies ?? actor.id
-    const move = moveId === 'solar' && field?.kind === 'sun' ? { ...moves.solar, channel: 0 } :
+    const baseMove = moveId === 'solar' && field?.kind === 'sun' ? { ...moves.solar, channel: 0 } :
       species === typedSignatures[moveId] && actor.equipmentForm ? { ...moves[moveId], type: actor.equipmentForm } : moves[moveId]
-    if (!move || over || ultimate || actor.hp <= 0 || actor.cast || actor.hurtUntil > time || immobilized(actor) ||
+    if (!baseMove) return false
+    const reach = moveReach(actor, baseMove)
+    const move = reach === baseMove.reach ? baseMove : { ...baseMove, reach }
+    if (over || ultimate?.actor === actor || (baseMove.ultimate && ultimate) ||
+        actor.hp <= 0 || actor.cast || isHurt(actor, time) || immobilized(actor) ||
         actor.exhaustedUntil > time || actor.flinchUntil > time ||
         (!force && (actor.next > time || actor.cooldowns[moveId] > time)) ||
         (move.ultimate && ((!force && (moveId !== actor.equippedUltimate || actor.ultimateCharge < 100)) ||
@@ -834,10 +844,10 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       else {
         actor.confusion.attempts++
         if (random() < .33) {
-          actor.hp = Math.max(0, actor.hp - Math.ceil(actor.maxHp * .08))
+          actor.hp = Math.max(0, actor.hp - Math.ceil(damageHealth(actor) * .08))
           if (!actor.hp) actor.faintedAt = time
           actor.next = time + .65
-          effects.push({ kind: 'hit', type: 'psychic', x: actor.x, target: actor.index, damage: Math.ceil(actor.maxHp * .08), at: time, expires: time + .6 })
+          effects.push({ kind: 'hit', type: 'psychic', x: actor.x, target: actor.index, damage: Math.ceil(damageHealth(actor) * .08), at: time, expires: time + .6 })
           return true
         }
       }
@@ -848,7 +858,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       actor.stanceBlade = move.kind !== 'guard'
       updateForm(actor)
     }
-    actor.cast = { move, target, start: time, resolve: time + duration, origin: actor.x }
+    actor.cast = { move, moveId, target, start: time, resolve: time + duration, origin: actor.x }
     actor.repeat = moveId === actor.lastMove ? actor.repeat + 1 : 1
     actor.lastMove = moveId
     actor.motionSince = time
@@ -899,13 +909,13 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
     if (move.kind === 'rush') {
       const prior = actor.x
-      actor.x = bound(actor.x + actor.direction * 540 * dt, actor)
+      actor.x = bound(actor.x + actor.direction * (actor.boss ? 680 : 540) * dt, actor)
       const contact = actors.find(enemy => rivals(actor, enemy) && enemy.hp > 0 &&
         enemy.x >= Math.min(prior, actor.x) - 32 - extraReach(enemy) - extraReach(actor) &&
         enemy.x <= Math.max(prior, actor.x) + 32 + extraReach(enemy) + extraReach(actor))
       if (contact) {
         const rival = contact.cast
-        if (!move.struggle && !rival?.move.struggle && rival?.move.kind === 'rush' && time >= rival.start + (rival.move.channel ?? 0) &&
+        if (!actor.boss && !contact.boss && !move.struggle && !rival?.move.struggle && rival?.move.kind === 'rush' && time >= rival.start + (rival.move.channel ?? 0) &&
             actor.direction !== contact.direction && Math.abs(cast.resolve - rival.resolve) <= .16) {
           const direction = actor.direction
           actor.knockback = -direction * 780
@@ -968,7 +978,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       }
     } else if (move.kind === 'target') {
       const target = cast.target
-      if (target.hp > 0 && (move === moves.lightning && field?.kind === 'rain' || Math.abs(target.x - actor.x) <= move.reach + 40 + extraReach(target))) {
+      if (target.hp > 0 && (cast.moveId === 'lightning' && field?.kind === 'rain' || Math.abs(target.x - actor.x) <= move.reach + 40 + extraReach(target))) {
         if (move.hazard) {
           const x = bound(target.x - actor.direction * Math.min(135, Math.abs(target.x - actor.x) * .44))
           placeSpikes(actor, x, 8)
@@ -980,7 +990,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     } else if (move.visual === 'raid-geysers') {
       const struck = new Set()
       for (let index = 0; index < 6; index++) {
-        const x = bound(origin + actor.direction * (75 + index * 88))
+        const x = bound(origin + actor.direction * (75 + index * (move.reach - 75) / 5))
+        if (index && x === geysers.at(-1)?.x) break
         const at = time + .28 + index * .16
         geysers.push({ actor, move, x, at, struck })
         effects.push({ kind: 'geyser', x, at, expires: at + .55 })
@@ -1110,7 +1121,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         anchor = arena.width / 2
         break
       case 'tornado':
-        if (pulse === move.pulses - 1) enemies.forEach(enemy => { enemy.knockback = (random() - .5) * 1600 })
+        if (pulse === move.pulses - 1) enemies.forEach(enemy => { if (!enemy.boss) enemy.knockback = (random() - .5) * 1600 })
         break
       case 'telekinesis':
       case 'web':
@@ -1120,7 +1131,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         if (!pulse) {
           for (const enemy of enemies) {
             if (sleepBlocked()) break
-            enemy.status = { kind: 'sleep', ends: time + 5 }
+            enemy.status = { kind: 'sleep', ends: time + (enemy.boss ? 1 : 5) }
             enemy.ultimateSleep = true
           }
           targets = []
@@ -1167,27 +1178,12 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     scene.next = time + duration
   }
 
-  function advanceSolarThreats(dt) {
-    const { actor } = ultimate
-    for (let i = projectiles.length - 1; i >= 0; i--) {
-      const shot = projectiles[i]
-      const gap = (actor.x - shot.x) * shot.direction
-      if (shot.actor === actor || gap < 0 || gap > shot.move.reach) continue
-      shot.x += shot.direction * 720 * dt
-      if ((actor.x - shot.x) * shot.direction <= 25) {
-        hit(shot.actor, actor, shot.move, shot.direction)
-        projectiles.splice(i, 1)
-        if (!actor.hp) { ultimate = null; return }
-      } else if (time >= shot.end) projectiles.splice(i, 1)
-    }
-  }
-
   function immobilized(actor) {
     return actor.status?.kind === 'freeze' || actor.status?.kind === 'sleep'
   }
 
   function advanceKnockback(actor, dt) {
-    if (!actor.hp || immobilized(actor) || Math.abs(actor.knockback) <= 3) return
+    if (actor.boss || !actor.hp || immobilized(actor) || Math.abs(actor.knockback) <= 3) return
     actor.x = bound(actor.x + actor.knockback * dt, actor)
     actor.knockback *= Math.exp(-8 * dt)
   }
@@ -1195,12 +1191,16 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   function creditDamage(source, target, amount) {
     if (!source || !rivals(source, target) || amount <= 0) return
     source.damageFraction = (source.damageFraction ?? 0) + amount / target.maxHp
-    if (!target.hp) source.knockouts = (source.knockouts ?? 0) + 1
+    if (!target.hp) {
+      source.knockouts = (source.knockouts ?? 0) + 1
+      knockouts.push({ killer: source.index, target: target.index, at: time })
+      if (knockouts.length > 3) knockouts.shift()
+    }
   }
 
   function dealChip(actor, fraction, type, visual, source) {
     if (source && !rivals(source, actor)) return
-    const damage = Math.min(actor.hp, Math.max(1, Math.round(actor.maxHp * fraction)))
+    const damage = Math.min(actor.hp, Math.max(1, Math.round(damageHealth(actor) * fraction)))
     actor.hp -= damage
     creditDamage(source, actor, damage)
     if (!actor.hp) actor.faintedAt = time
@@ -1231,7 +1231,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       leech.next += 1
       const source = actors[leech.source]
       if (source.hp > 0 && rivals(source, actor)) {
-        const drained = Math.min(actor.hp, Math.max(1, Math.round(actor.maxHp * .035)))
+        const drained = Math.min(actor.hp, Math.max(1, Math.round(damageHealth(actor) * .035)))
         actor.hp -= drained
         creditDamage(source, actor, drained)
         source.hp = Math.min(source.maxHp, source.hp + drained)
@@ -1249,7 +1249,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       }
       status.severity++
       const fraction = status.kind === 'burn' ? .025 : Math.min(.065, .01 + .005 * status.severity)
-      const damage = Math.min(actor.hp, Math.max(1, Math.round(actor.maxHp * fraction)))
+      const damage = Math.min(actor.hp, Math.max(1, Math.round(damageHealth(actor) * fraction)))
       actor.hp -= damage
       creditDamage(actors[status.source], actor, damage)
       if (!actor.hp) actor.faintedAt = time
@@ -1309,7 +1309,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         continue
       }
       if (!move.ultimate && !move.heal && !move.protect && !fallback && !(actor.cooldowns[id] > time) &&
-          (distance <= move.reach || move.kind === 'guard')) fallback = id
+          (distance <= moveReach(actor, move) || move.kind === 'guard')) fallback = id
       if (move.kind === 'guard') {
         const active = move.field ? field?.kind === move.field : move.boost ? actor.boosts[move.boost] > time : actor.shield > time
         const score = move.field ? (actor.hp < actor.maxHp * .85 ? 41 : 31) :
@@ -1337,7 +1337,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         if (move.kind === 'rush') meleeReady = Math.max(meleeReady, score)
         if (isRanged(move)) rangedReady = Math.max(rangedReady, score)
       }
-      if (distance <= move.reach && !(actor.cooldowns[id] > time) && score > bestScore) {
+      if (distance <= moveReach(actor, move) && !(actor.cooldowns[id] > time) && score > bestScore) {
         best = id
         bestScore = score
       }
@@ -1356,8 +1356,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const dashDirection = incoming ? (prefersRange ? incoming.direction : -incoming.direction) :
       castArea || (prefersRange && distance < 150 && (threat || !enemyRanged)) ? -toward :
       closeGap || actor.boss && distance > 180 && distance < 580 ? toward : 0
-    const dashSpace = dashDirection < 0 ? actor.x - 75 : arena.width - 75 - actor.x
-    if (dashDirection && dashSpace > 85 && actor.dashReady <= time &&
+    const dashSpace = dashDirection < 0 ? actor.x - actor.margin : arena.width - actor.margin - actor.x
+    if (dashDirection && (!actor.boss || !best || actor.next > time) && dashSpace > 85 && actor.dashReady <= time &&
         actor.status?.kind !== 'paralysis' && (actor.boss || incoming || castArea || threat || !best || actor.next > time)) {
       actor.dashReady = time + (actor.boss ? 3.6 : 5)
       actor.dashUntil = time + .24
@@ -1366,9 +1366,9 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       actor.direction = dashDirection
       return 'Run'
     }
-    if (prefersRange && distance < 265 && (actor.next > time || distance < 125 && !best)) {
+    if (!actor.boss && prefersRange && distance < 265 && (actor.next > time || distance < 125 && !best)) {
       const away = -toward
-      const space = away < 0 ? actor.x - 75 : arena.width - 75 - actor.x
+      const space = away < 0 ? actor.x - actor.margin : arena.width - actor.margin - actor.x
       if (space > 4) return walk(actor, away, dt)
     }
     if (best && actor.next <= time) {
@@ -1377,11 +1377,16 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
     if (!best && fallback && actor.next <= time && cast(actor, fallback)) return actor.motion
     if (distance > (actor.boss ? 115 : prefersRange ? 365 : 78)) return walk(actor, toward, dt)
+    if (actor.boss && actor.next > time && distance < 80) {
+      const away = -toward
+      const space = away < 0 ? actor.x - actor.margin : arena.width - actor.margin - actor.x
+      if (space > 4) return walk(actor, away, dt)
+    }
     return 'Idle'
   }
 
   return {
-    actors, projectiles, effects,
+    actors, projectiles, effects, knockouts,
     get time() { return time },
     raid,
     get remaining() { return Math.max(0, roundEnd - time) },
@@ -1400,15 +1405,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       tickField()
       for (let i = effects.length - 1; i >= 0; i--) if (effects[i].expires <= time) effects.splice(i, 1)
       if (ultimate) {
-        if (ultimate.move.type === 'grass' && ultimate.pulse === 0) advanceSolarThreats(dt)
-        if (ultimate) advanceUltimate()
-        if (ultimate) {
-          if (ultimate.pulse > 0) {
-            for (const actor of actors) advanceKnockback(actor, dt)
-            separateBodies()
-          }
-          return
-        }
+        if (ultimate.actor.hp) advanceUltimate()
+        else ultimate = null
       }
       for (const actor of actors) {
         if (actor.hp <= 0) continue
@@ -1428,21 +1426,21 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         updateForm(actor)
         const locked = immobilized(actor)
         advanceKnockback(actor, dt)
+        if (ultimate?.actor === actor) continue
         if (actor.cast) {
           resolve(actor, dt)
           continue
         }
         const exhausted = actor.exhaustedUntil > time
         const enemy = auto && !locked && !exhausted && !(actor.flinchUntil > time) && closest(actor)
-        const dashing = enemy && actor.hurtUntil <= time && actor.dashUntil > time
+        const dashing = enemy && !isHurt(actor, time) && actor.dashUntil > time
         if (dashing) actor.x = bound(actor.x + actor.dashDirection * 850 * dt, actor)
         const motion = dashing ? 'Run' : exhausted || locked && actor.status.kind === 'sleep' ? 'Sleep' :
-          enemy && actor.hurtUntil <= time ? act(actor, enemy, dt) : 'Idle'
+          enemy && !isHurt(actor, time) ? act(actor, enemy, dt) : 'Idle'
         if (motion !== actor.motion) {
           actor.motion = motion
           actor.motionSince = time
         }
-        if (ultimate) return
       }
       separateBodies()
       for (let index = geysers.length - 1; index >= 0; index--) {
@@ -1482,9 +1480,18 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         if (destroyed.has(shot)) { projectiles.splice(i, 1); continue }
         const prior = shot.x
         shot.x += shot.direction * 720 * dt
-        const enemy = actors.filter(actor => rivals(shot.actor, actor) && actor.hp > 0 && !(actor.dodgeUntil > time) &&
-          actor.x >= Math.min(prior, shot.x) - 25 - extraReach(actor) && actor.x <= Math.max(prior, shot.x) + 25 + extraReach(actor))
-          .sort((a, b) => Math.abs(a.x - prior) - Math.abs(b.x - prior))[0]
+        let enemy
+        let nearest = Infinity
+        const left = Math.min(prior, shot.x) - 25
+        const right = Math.max(prior, shot.x) + 25
+        for (const actor of actors) {
+          if (!actor.hp || !rivals(shot.actor, actor) || actor.dodgeUntil > time ||
+              actor.x < left - extraReach(actor) || actor.x > right + extraReach(actor)) continue
+          const distance = Math.abs(actor.x - prior)
+          if (distance >= nearest) continue
+          nearest = distance
+          enemy = actor
+        }
         if (enemy) hit(shot.actor, enemy, shot.move, shot.direction)
         if (enemy || time >= shot.end || shot.x < 0 || shot.x > arena.width) projectiles.splice(i, 1)
       }
@@ -1515,6 +1522,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
           actor.hp = 0
           actor.faintedAt = time
         }
+        ultimate = null
+        geysers.length = 0
         projectiles.length = 0
         queuedShots.length = 0
         effects.length = 0

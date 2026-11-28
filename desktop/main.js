@@ -724,6 +724,22 @@ async function pollKick() {
     if (!kickAbort.signal.aborted) kickTimer = setTimeout(pollKick, next)
   }
 }
+function battleTicker(battle, onFrame) {
+  const step = 1 / 60
+  let previous = performance.now()
+  let pending = 0
+  return setInterval(() => {
+    const now = performance.now()
+    pending = Math.min(.25, pending + (now - previous) / 1000)
+    previous = now
+    while (!battle.over && pending >= step) {
+      battle.step(step)
+      pending -= step
+    }
+    onFrame()
+  }, 1000 / 60)
+}
+
 function makeRaidBoss(boss, party) {
   const config = game.config
   const levels = party.map(entry => entry.level)
@@ -752,21 +768,20 @@ function launchBattlePreview(mode, species) {
   const battle = battleRules.createBattle(entries, { raid: mode === 'raid', duration: mode === 'raid' ? game.config.raidDuration : 60 })
   const current = { battle, finishedAt: 0 }
   communityBattle = current
-  battleTimer = setInterval(() => {
+  battleTimer = battleTicker(battle, () => {
     if (communityBattle !== current) { clearInterval(battleTimer); return }
-    battle.step(1 / 30)
     if (!battle.over) return
     clearInterval(battleTimer)
     current.finishedAt = Date.now()
-  }, 1000 / 30)
+  })
   return 204
 }
 
 function publicBattle(battle) {
   const teams = [...new Set(battle.actors.map(actor => actor.team).filter(Boolean))]
   return { over: battle.over, winner: battle.winner?.ownerName || battle.winner?.name,
-    time: battle.time, raid: battle.raid, remaining: battle.remaining, field: battle.field, effects: battle.effects,
-    projectiles: battle.projectiles.map(({ x, move, direction, actor }) => ({ x, move, direction, actor: { types: actor.types } })),
+    time: battle.time, raid: battle.raid, remaining: battle.remaining, field: battle.field, effects: battle.effects, knockouts: battle.knockouts,
+    projectiles: battle.projectiles.map(({ x, origin, end, move, direction, actor }) => ({ x, origin, end, move: { type: move.type, effect: move.effect, visual: move.visual }, direction, actor: { types: actor.types } })),
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
       return { name, ownerName, shiny, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, bossHop: actor.boss && actor.dashUntil > battle.time ? Math.sin(Math.PI * Math.min(1, (actor.dashUntil - battle.time) / .24)) * 62 : 0, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
@@ -872,10 +887,13 @@ async function runCommunityBattle(waitForBanner, raidBoss, manual) {
     }
   })
   game.setBattleActive(true)
-  logDiagnostic('battle_started', { participants: entries.length })
+  const boss = battle.actors.find(actor => actor.boss)
+  const viewerCount = new Set(entries.filter(entry => !entry.boss).map(entry => entry.viewerId)).size
+  logDiagnostic('battle_started', { participants: entries.length - Number(Boolean(boss)), viewers: viewerCount,
+    ...(boss ? { boss: boss.id, baseHp: boss.raidBaseHp, maxHp: boss.maxHp, hpMultiplier: boss.hpBoost,
+      duration: game.config.raidDuration } : {}) })
   communityBattle = { battle, finishedAt: 0 }
-  battleTimer = setInterval(() => {
-    battle.step(1 / 30)
+  battleTimer = battleTicker(battle, () => {
     if (!battle.over || communityBattle.finishedAt) return
     communityBattle.finishedAt = Date.now()
     clearInterval(battleTimer)
@@ -900,7 +918,7 @@ async function runCommunityBattle(waitForBanner, raidBoss, manual) {
     const money = game.recordBattle(entries.map(entry => entry.viewerId), battle.winner?.viewerId, battle.winner?.speciesKey, battle.actors)
     logDiagnostic('battle_finished', { winner: Boolean(battle.winner), money })
     persistGame()
-  }, 1000 / 30)
+  })
   lastBattleEncounter = game.encounterCount()
   return 204
 }

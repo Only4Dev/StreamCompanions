@@ -373,12 +373,52 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
   const battlePositions = new Map()
   const defeats = new Map()
   let battleEndedAt
+  let battleSnapshot
+  let snapshotAt
   const species = new Map(catalog.map(entry => [entry.name, entry]))
   let previous = 0
   let shownEncounter
   let shownEncounterAt = 0
   const captureQueue = createCaptureQueue()
   let encounterOpacity = 0
+  function drawKnockouts(battle, width, time, en) {
+    const rows = (battle.knockouts ?? []).filter(row => time - row.at < 5).slice().reverse()
+    const left = width - Math.min(465, width * .46) - 18
+    const rowWidth = width - left - 18
+    const icon = (fighter, x, y) => {
+      const appearance = fighter.appearance ?? fighter
+      const entry = species.get(appearance.name)
+      const portrait = appearance.shiny ? entry?.shinyPortrait ?? entry?.portrait : entry?.portrait
+      const img = portrait && loadImage({ url: portrait })
+      if (img) context.drawImage(img, x, y, 29, 29)
+      else label(context, appearance.name[0], x + 15, y + 21, 17)
+    }
+    rows.forEach(({ killer, target, at }, index) => {
+      const defeated = battle.actors[target]
+      const victor = battle.actors[killer]
+      if (!defeated || !victor) return
+      const y = 16 + index * 37
+      context.save()
+      context.globalAlpha = Math.min(1, (5 - (time - at)) / .85)
+      context.fillStyle = '#221725df'
+      context.fillRect(left, y, rowWidth, 33)
+      context.fillStyle = victor.boss ? '#ff5176' : '#9c84f6'
+      context.fillRect(left, y, 3, 33)
+      icon(defeated, left + 7, y + 2)
+      icon(victor, left + 115, y + 2)
+      label(context, en ? 'defeated by' : 'derrotado por', left + 75, y + 23, 12, '#f5dde8', 2)
+      context.beginPath()
+      context.rect(left + 146, y, Math.max(0, rowWidth - 151), 33)
+      context.clip()
+      context.font = 'bold 16px sans-serif'
+      context.textAlign = 'left'
+      context.textBaseline = 'middle'
+      context.fillStyle = '#fff6fb'
+      context.fillText(victor.ownerName || victor.name, left + 150, y + 17)
+      context.restore()
+    })
+  }
+
   function draw(time) {
     requestAnimationFrame(draw)
     const elapsed = Math.min(.1, (time - previous) / 1000)
@@ -419,11 +459,21 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
     if (state.battle && !state.battleStart) {
       const floor = height - 2
       const battle = state.battle
+      if (battleSnapshot !== battle) {
+        if (battleSnapshot && battle.time < battleSnapshot.time) {
+          battlePositions.clear()
+          defeats.clear()
+        }
+        battleSnapshot = battle
+        snapshotAt = time
+      }
       if (battle.over) battleEndedAt ??= time
       else battleEndedAt = undefined
-      const feedbackTime = battle.time + (battleEndedAt === undefined ? 0 : (time - battleEndedAt) / 1000)
+      const ahead = battle.over ? 0 : Math.min(.10, (time - snapshotAt) / 1000)
+      const renderTime = battle.time + ahead
+      const feedbackTime = renderTime + (battleEndedAt === undefined ? 0 : (time - battleEndedAt) / 1000)
       actors.clear()
-      if (battle.field && !battle.over) drawField(context, battle.field, width, height, floor, battle.time)
+      if (battle.field && !battle.over) drawField(context, battle.field, width, height, floor, renderTime)
       const hitFeedback = new Map()
       for (const effect of battle.effects) {
         if (effect.expires <= feedbackTime) continue
@@ -434,7 +484,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         if (battle.over) continue
         const color = effect.type === 'fire' ? '#ff8957' : effect.type === 'water' ? '#7bddff' : '#e1c8ff'
         if (effect.kind === 'geyser') {
-          const age = battle.time - effect.at
+          const age = renderTime - effect.at
           context.save()
           context.shadowColor = '#66eaff'
           context.shadowBlur = 20
@@ -458,14 +508,26 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
             }
           }
           context.restore()
-        } else if (effect.kind === 'ultimate') drawUltimate(context, effect, width, floor, battle.time, color)
-        else if (effect.visual === 'hyper') drawHyper(context, effect, width, floor, battle.time)
-        else if (effect.kind === 'clash') drawClash(context, effect.x, floor, battle.time - effect.at)
-        else if (effect.kind === 'hazard') drawPoisonHazard(context, effect, floor, battle.time)
-        else if (effect.kind === 'target') drawTarget(context, effect, floor - 38, battle.time)
-        else if (effect.kind === 'area') drawArea(context, effect, floor, color, battle.time)
+        } else if (effect.kind === 'warning') {
+          context.save()
+          context.globalAlpha = .55
+          context.strokeStyle = color
+          context.lineWidth = 3
+          context.beginPath()
+          context.ellipse(effect.x, floor - 10, effect.reach, 11, 0, 0, Math.PI * 2)
+          context.stroke()
+          context.restore()
+        } else if (effect.kind === 'ultimate') drawUltimate(context, effect, width, floor, renderTime, color)
+        else if (effect.visual === 'hyper') drawHyper(context, effect, width, floor, renderTime)
+        else if (effect.kind === 'clash') drawClash(context, effect.x, floor, renderTime - effect.at)
+        else if (effect.kind === 'hazard') drawPoisonHazard(context, effect, floor, renderTime)
+        else if (effect.kind === 'target') drawTarget(context, effect, floor - 38, renderTime)
+        else if (effect.kind === 'area') drawArea(context, effect, floor, color, renderTime)
       }
-      if (!battle.over) for (const shot of battle.projectiles) drawProjectile(context, shot, floor - 40, battle.time)
+      if (!battle.over) for (const shot of battle.projectiles) {
+        const x = shot.x + shot.direction * 720 * ahead
+        if (renderTime < shot.end && x >= 0 && x <= width) drawProjectile(context, { ...shot, x }, floor - 40, renderTime)
+      }
       for (const [index, fighter] of state.battle.actors.entries()) {
         const hits = hitFeedback.get(index)
         if (fighter.hp) defeats.delete(index)
@@ -491,11 +553,11 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           scale *= Math.min(1, Math.max(80, floor - 60) / tallest)
         }
         const top = Math.max(28, y - Math.max(38, (clip?.height ?? 0) * spriteScale(clip, scale)))
-        if (fighter.hp && fighter.maneuver?.kind === 'dig') drawDigMound(context, x, y, battle.time)
+        if (fighter.hp && fighter.maneuver?.kind === 'dig') drawDigMound(context, x, y, renderTime)
         else if (fighter.hp) {
           context.save()
           if (fighter.boss) {
-            dynamaxAura(context, x, y, top, time, battle.time)
+            dynamaxAura(context, x, y, top, time, renderTime)
             context.shadowColor = '#ff315e'
             context.shadowBlur = 18
             if (fighter.motion === 'Run') {
@@ -506,7 +568,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
               context.restore()
             }
           }
-          if (hits?.some(hit => battle.time - hit.at < .17)) context.filter = 'brightness(0) invert(1)'
+          if (hits?.some(hit => renderTime - hit.at < .17)) context.filter = 'brightness(0) invert(1)'
           sprite(context, readyClip(clip, variant?.animations), x, y, fighter.direction, time, false, scale, false, true)
           context.restore()
           if (!clip) label(context, fighter.name[0], x, y, 25)
@@ -536,8 +598,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           context.restore()
           continue
         }
-        if (fighter.ongoing) drawOngoing(context, fighter.ongoing, x, y, battle.time)
-        if (fighter.status) drawStatus(context, fighter.status, x, top - 55, battle.time, 26, 24)
+        if (fighter.ongoing) drawOngoing(context, fighter.ongoing, x, y, renderTime)
+        if (fighter.status) drawStatus(context, fighter.status, x, top - 55, renderTime, 26, 24)
         if (fighter.evasion || fighter.flinched) label(context, fighter.flinched ? '✦ ✦' : '≋', x + 32, top - 49, 20)
         label(context, (fighter.teamIndex ? '#T' + fighter.teamIndex + ' · ' : '') + (fighter.ownerName ? fighter.ownerName + ' | ' : '') + (appearance.disguised ? appearance.name : fighter.name) + ' · Lv. ' + fighter.level, x, top - 14, 21)
         const hp = fighter.hp / fighter.maxHp
@@ -546,13 +608,28 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         context.fillStyle = hp <= .2 ? '#ed5863' : hp <= .5 ? '#ffce66' : '#65e595'
         context.fillRect(x - 44, top - 6, 88 * hp, 5)
       }
-      if (battle.raid && !battle.over) label(context, 'Dynamax · ' + formatTime(Date.now() + battle.remaining * 1000), width / 2, 48, 32, '#ffc0cc')
+      if (battle.raid && !battle.over) {
+        const boss = battle.actors.find(actor => actor.boss)
+        const remaining = Math.max(0, battle.remaining - ahead)
+        label(context, 'Dynamax · ' + formatTime(Date.now() + remaining * 1000), width / 2, 40, 32, '#ffc0cc')
+        if (boss) {
+          const barWidth = Math.min(440, width * .38)
+          const left = (width - barWidth) / 2
+          context.fillStyle = '#2a1623'
+          context.fillRect(left, 51, barWidth, 12)
+          context.fillStyle = '#ff557a'
+          context.fillRect(left + 2, 53, (barWidth - 4) * boss.hp / boss.maxHp, 8)
+          label(context, Math.ceil(boss.hp) + ' / ' + boss.maxHp + ' PS', width / 2, 82, 19, '#ffe5ec')
+        }
+      }
+      drawKnockouts(battle, width, feedbackTime, state.bot?.language === 'en')
       if (battle.raid && battle.over) label(context, state.battle.actors.some(actor => actor.boss && actor.hp) ?
         (state.bot?.language === 'es' ? 'Incursión terminada' : 'Raid ended') : (state.bot?.language === 'es' ? '¡Jefe derrotado!' : 'Boss defeated!'), width / 2, height * .63, 49, '#ffe7a6')
       else if (state.battle.over && state.battle.winner) label(context, state.battle.winner +
         (state.bot?.language === 'es' ? ' gana la batalla' : ' wins the battle'), width / 2, height * .63, 49, '#ffe7a6')
       return
     }
+    battleSnapshot = undefined
     battlePositions.clear()
     defeats.clear()
     battleEndedAt = undefined

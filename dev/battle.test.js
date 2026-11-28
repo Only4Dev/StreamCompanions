@@ -343,6 +343,75 @@ test('a normal attack applies type immunity and an active ultimate blocks a seco
   assert.deepEqual(movesFor(2, ['grass'], false), ['tackle', 'leaf', 'spores', 'solar', 'ultimate-grass'])
 })
 
+test('projectiles, damage and other fighters keep moving during an ultimate', () => {
+  const battle = createBattle([example(3, 45), example(9, 45), example(6, 45)], { auto: false, random: () => .5 })
+  const [caster, shooter, target] = battle.actors
+  caster.x = 150
+  shooter.x = 850
+  target.x = 1350
+  assert.ok(battle.manual(1, 'hydro'))
+  run(battle, .45)
+  assert.equal(battle.projectiles.length, 1)
+  const shot = battle.projectiles[0]
+  const origin = shot.x
+  assert.ok(battle.manual(0, 'ultimate-grass'))
+  assert.ok(battle.manual(2, 'ember'))
+  run(battle, .25)
+  assert.ok(shot.x > origin)
+  run(battle, .54)
+  assert.ok(battle.ultimate?.charging)
+  assert.ok(target.hp < target.maxHp)
+  assert.ok(!battle.projectiles.includes(shot))
+})
+
+test('raid HP extends survival against percentage damage and bosses ignore knockback', () => {
+  const damageAgainst = hpBoost => {
+    const battle = createBattle([{ ...example(25, 45), team: 'players' },
+      { ...example(9, 45), team: 'boss', boss: true, hpBoost }], { auto: false, raid: true, random: () => .5 })
+    const [viewer, boss] = battle.actors
+    viewer.x = 900
+    boss.x = 975
+    assert.ok(battle.manual(0, 'struggle'))
+    run(battle, .5)
+    assert.equal(boss.x, 975)
+    assert.ok(boss.hp < boss.maxHp)
+    return { hp: boss.maxHp, damage: boss.maxHp - boss.hp }
+  }
+  const normal = damageAgainst(1)
+  const boosted = damageAgainst(5.3)
+  assert.equal(boosted.hp, Math.round(normal.hp * 5.3))
+  assert.equal(boosted.damage, normal.damage)
+})
+
+test('a raid boss at the arena edge can fire at extended range while under attack', () => {
+  const battle = createBattle([{ ...example(6, 45), team: 'players' },
+    { ...example(9, 45), team: 'boss', boss: true, margin: 230, hpBoost: 5, bossMoves: ['raidcannons'] }],
+  { raid: true, random: () => .5 })
+  const [player, boss] = battle.actors
+  player.x = boss.x - 850
+  player.next = 10
+  boss.dashReady = 10
+  run(battle, 1.2)
+  assert.equal(boss.lastMove, 'raidcannons')
+  assert.ok(battle.projectiles.some(shot => shot.actor === boss))
+  run(battle, 1.3)
+  assert.ok(player.hp < player.maxHp)
+})
+
+test('the knockout feed keeps only the last three rival defeats with the responsible fighter', () => {
+  const battle = createBattle([{ ...example(9, 45), team: 'boss', boss: true, bossMoves: ['raidshellslam'] },
+    ...Array.from({ length: 4 }, () => ({ ...example(19), team: 'viewers' }))],
+  { auto: false, raid: true, random: () => .5 })
+  battle.actors[0].x = 700
+  battle.actors.slice(1).forEach((actor, index) => {
+    actor.x = 760 + index * 35
+    actor.hp = 1
+  })
+  assert.ok(battle.manual(0, 'raidshellslam'))
+  run(battle, 1)
+  assert.deepEqual(battle.knockouts.map(({ killer, target }) => [killer, target]), [[0, 2], [0, 3], [0, 4]])
+})
+
 test('level increases stats, and the HP colors change at the intended thresholds', () => {
   const battle = createBattle([example(1, 10), example(1, 30)], { auto: false })
   assert.ok(battle.actors[1].maxHp > battle.actors[0].maxHp)

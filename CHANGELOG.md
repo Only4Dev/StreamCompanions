@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.6
+
+- Keep combat and projectiles moving during ultimates and improve motion between overlay updates.
+- Increase boss attack range, prevent boss knockback and show the Dynamax HP total. Raid HP multipliers now extend survival against percentage damage.
+- Show the last three knockouts with Pokémon portraits and the winner’s name in the battle overlay.
+
 ## 1.2.5
 
 - Keep gameplay activity in Play on the Web and remove the separate viewer log and bot announcements.
