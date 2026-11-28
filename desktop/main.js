@@ -846,7 +846,10 @@ function publicBattle(battle) {
   const ultimate = battle.ultimate
   return { over: battle.over, winner: battle.winner?.ownerName || battle.winner?.name,
     time: battle.time, raid: battle.raid, remaining: battle.remaining, field: battle.field, effects: battle.effects,
-    projectiles: battle.projectiles.map(({ x, origin, at, end, move, direction, actor }) => ({ x, origin, at, end, move: { type: move.type, effect: move.effect, visual: move.visual }, direction, actor: { types: actor.types } })),
+    projectiles: battle.projectiles.map(({ x, origin, at, end, move, direction, actor }) => ({
+      x, origin, at, end, move: { type: move.type, effect: move.effect, visual: move.visual, animationProfile: move.animationProfile },
+      direction, actor: { types: actor.types }
+    })),
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
       return { name, ownerName, shiny, ulting: ultimate?.index === actor.index, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, bossHop: actor.boss && actor.dashUntil > battle.time ? Math.sin(Math.PI * Math.min(1, (actor.dashUntil - battle.time) / .24)) * 62 : 0, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying') || actor.abilities.has('levitate'), status: status?.kind,

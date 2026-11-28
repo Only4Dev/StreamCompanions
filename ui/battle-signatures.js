@@ -128,3 +128,13 @@ export function drawSignatureImpact(fx, x, y, hit, time) {
     }
   }
 }
+
+export function drawSignatureProjectile(fx, shot, x, y, time) {
+  const profile = shot.move.animationProfile
+  if (!['ripple', 'sprout', 'claw', 'fangs', 'stars', 'speed-strike'].includes(profile)) return
+  const tile = signatureTiles[profile] ?? contactTiles[profile]
+  const wave = (time - (shot.at ?? time)) * 15
+  const direction = shot.direction || 1
+  fx.add(x + direction * 6, y + Math.sin(wave) * 5, 28 + Math.sin(wave) * 4, shot.move.type, .87,
+    tile, direction < 0 ? Math.PI : 0)
+}

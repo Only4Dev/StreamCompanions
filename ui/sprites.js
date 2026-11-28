@@ -3,7 +3,7 @@ import { drawArea, drawBattleContact, drawChannel, drawClash, drawDigMound, draw
 import { battleFxColor, createBattleParticles, drawBarrier, drawImpact, drawMoveCue, drawPiercingBeam, drawSpellProjectile,
   drawStageAura, drawStageMarks, drawStatusParticles } from './battle-fx.js'
 import { drawEarthImpact, drawElementalUltimate, drawFrozenShell, drawRainLayers, drawWarp } from './battle-elemental.js'
-import { drawSignatureCue, drawSignatureImpact } from './battle-signatures.js'
+import { drawSignatureCue, drawSignatureImpact, drawSignatureProjectile } from './battle-signatures.js'
 
 const images = new Map()
 
@@ -478,6 +478,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       }
       const hitFeedback = new Map()
       const agilityPoses = new Map()
+      const overheadCues = new Map()
       for (const effect of battle.effects) {
         if (effect.expires <= feedbackTime) continue
         if (effect.kind === 'hit' && (effect.damage > 0 || effect.dodged || effect.blocked || effect.immune || effect.absorbed) && Number.isInteger(effect.target)) {
@@ -493,8 +494,11 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           const subject = falling ? battle.actors[effect.target] : fighter
           const x = falling && aroundCaster ? subject?.x ?? effect.targetX ?? effect.x :
             aroundCaster ? battlePositions.get(effect.source) ?? fighter?.x ?? effect.x : effect.x
-          const overhead = effect.animationProfile === 'amnesia' && effect.stage === 'release'
-          const y = floor - (subject?.boss ? 98 : overhead ? 123 : 41)
+          if (effect.animationProfile === 'amnesia' && !aroundCaster) {
+            overheadCues.set(effect.source, effect)
+            continue
+          }
+          const y = floor - (subject?.boss ? 98 : 41)
           if (effect.animationProfile === 'agility' && !aroundCaster) agilityPoses.set(effect.source, effect)
           if (effect.animationProfile === 'speed-strike' && aroundCaster && effect.style === 'rush') agilityPoses.set(effect.source, effect)
           if (!drawSignatureCue(context, particles, effect, x, y, renderTime)) drawMoveCue(context, particles, effect, x, y, renderTime)
@@ -573,6 +577,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         if (renderTime >= shot.end || x < 0 || x > width) continue
         const y = floor - 40 - (shot.move.visual === 'dreepy' ? 7 * Math.sin((renderTime - (shot.at ?? renderTime)) * 24) : 0)
         const styled = drawSpellProjectile(context, particles, { ...shot, x }, y, renderTime)
+        drawSignatureProjectile(particles, shot, x, y, renderTime)
         if (shot.move.visual === 'dreepy' && sprite(context, battleClip(dreepy, 'Walk'), x, y, shot.direction, time, false, 2.1)) continue
         if (!styled) drawProjectile(context, { ...shot, x }, y, renderTime)
       }
@@ -726,6 +731,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           continue
         }
         if (fighter.ongoing) drawOngoing(context, fighter.ongoing, x, y, renderTime)
+        const overhead = overheadCues.get(index)
+        if (overhead) drawSignatureCue(context, particles, overhead, x, Math.max(86, top - 29), renderTime)
         if (fighter.status) {
           drawStatus(context, fighter.status, x, top - 56, renderTime, 26, 24)
           drawStatusParticles(particles, fighter.status, x, y - 35, renderTime)
