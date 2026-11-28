@@ -573,7 +573,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         const variant = appearance.shiny ? form?.shiny ?? entry?.shiny ?? form?.normal ?? entry?.normal : form?.normal ?? entry?.normal
         const clip = battleClip(variant?.animations, fighter.motion)
         const start = battlePositions.get(index) ?? fighter.x
-        const x = start + (fighter.x - start) * Math.min(1, elapsed * 13)
+        const warped = renderTime - fighter.warpAt < .24
+        const x = warped ? fighter.x : start + (fighter.x - start) * Math.min(1, elapsed * 13)
         battlePositions.set(index, x)
         const laneLift = battle.raid && !fighter.boss ? (index % 4) * 9 : 0
         const baseY = floor - laneLift - (fighter.flying && !fighter.boss ? 28 - Math.sin(time / 280 + index) * 5 : 0)

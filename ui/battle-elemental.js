@@ -318,13 +318,14 @@ export function drawFrozenShell(ctx, fx, x, y, top, time) {
 
 export function drawWarp(ctx, fx, effect, y, time) {
   const t = limit((time - effect.at) / (effect.expires - effect.at))
+  const type = effect.type ?? 'psychic'
   ctx.save()
   for (const [x, phase] of [[effect.origin, t], [effect.x, 1 - t]]) {
     const rim = 13 + 53 * phase
-    glow(ctx, x, y, rim * 1.5, '#d877ff', .58 * (1 - t * .8))
-    ctx.strokeStyle = '#efd2ff'; ctx.lineWidth = 3
+    glow(ctx, x, y, rim * 1.5, battleFxColor(type), .58 * (1 - t * .8))
+    ctx.strokeStyle = type === 'fighting' ? '#ffe3b8' : '#efd2ff'; ctx.lineWidth = 3
     ctx.beginPath(); ctx.ellipse(x, y, rim * .51, rim, phase * .52, 0, tau); ctx.stroke()
-    fx.burst(x, y, 'psychic', t, .94, true)
+    fx.burst(x, y, type, t, .94, true)
   }
   ctx.restore()
 }

@@ -1180,6 +1180,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       } else if (move.blink && cast.target) {
         const away = -Math.sign(cast.target.x - actor.x) || -actor.direction
         actor.x = bound(actor.x + (Math.abs(bound(actor.x + away * 250, actor) - actor.x) >= 100 ? away : -away) * 250, actor)
+        actor.warpAt = time
         effects.push({ kind: 'warp', origin, x: actor.x, at: time, expires: time + .58 })
       } else if (move.field) field = { kind: move.field, owner: actor.index, start: time,
         ends: time + (['grass', 'electric'].includes(move.field) ? 10 : 9) +
@@ -1387,7 +1388,14 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       case 'orbs':
         targets = enemies.length ? [enemies[pulse % enemies.length]] : []
         anchor = targets[0]?.x ?? origin
-        if (move.visual === 'combo' && targets.length) actor.x = bound(anchor - direction * 65, actor)
+        if (move.visual === 'combo' && targets.length) {
+          const from = actor.x
+          actor.x = bound(anchor - direction * 65, actor)
+          if (Math.abs(actor.x - from) > 22) {
+            actor.warpAt = time
+            effects.push({ kind: 'warp', type: 'fighting', origin: from, x: actor.x, at: time, expires: time + .25 })
+          }
+        }
         break
       case 'fissure':
         anchor = arena.width / 2

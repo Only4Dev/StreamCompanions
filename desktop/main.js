@@ -851,7 +851,7 @@ function publicBattle(battle) {
       return { name, ownerName, shiny, ulting: ultimate?.index === actor.index, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, bossHop: actor.boss && actor.dashUntil > battle.time ? Math.sin(Math.PI * Math.min(1, (actor.dashUntil - battle.time) / .24)) * 62 : 0, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying') || actor.abilities.has('levitate'), status: status?.kind,
         dragonChannel: ultimate?.index === actor.index && ultimate.type === 'dragon',
         ultimateCharge: actor.hasUltimate && actor.ultimatePp > 0 ? actor.ultimateCharge : undefined,
-        motionSince: actor.motionSince, stages: actor.stages,
+        motionSince: actor.motionSince, stages: actor.stages, warpAt: actor.warpAt,
         buffed: battle.hasTeamBoost(actor) || Object.values(boosts).some(until => until > battle.time),
         slowed: actor.slowUntil > battle.time, intimidated: actor.intimidated,
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
