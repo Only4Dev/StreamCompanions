@@ -591,6 +591,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         if (fighter.ongoing) drawOngoing(context, fighter.ongoing, x, y, renderTime)
         if (fighter.status) drawStatus(context, fighter.status, x, top - 55, renderTime, 26, 24)
         if (fighter.evasion || fighter.flinched) label(context, fighter.flinched ? '✦ ✦' : '≋', x + 32, top - 49, 20)
+        if (fighter.boss) continue
         label(context, (fighter.teamIndex ? '#T' + fighter.teamIndex + ' · ' : '') + (fighter.ownerName ? fighter.ownerName + ' | ' : '') + (appearance.disguised ? appearance.name : fighter.name) + ' · Lv. ' + fighter.level, x, top - 14, 21)
         const hp = fighter.hp / fighter.maxHp
         context.fillStyle = '#131b22'

@@ -1053,7 +1053,7 @@ const server = createServer(async (req, res) => {
       }).reverse()
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
       const active = battleStarting || battleBannerUntil > now || Boolean(battle && !battle.over)
-      const raidBoss = active && battle?.raid ? battle.actors.find(actor => actor.boss) : undefined
+      const raidBoss = battle?.raid && !battle.over ? battle.actors.find(actor => actor.boss) : undefined
       const boss = preview ? { name: 'Blastoise', hp: 1474, maxHp: 2100, remaining: 89 } :
         raidBoss ? { name: raidBoss.name, hp: Math.ceil(raidBoss.hp), maxHp: raidBoss.maxHp, remaining: battle.remaining } : undefined
       res.end(JSON.stringify({ rows, boss, language: bot.language, active,
