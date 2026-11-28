@@ -125,6 +125,20 @@ test('regional forms evolve within their own line and do not unlock from the ori
   assert.equal(collection.Raticate, undefined)
 })
 
+test('raid reward odds roll independently for each distinct viewer and default to guaranteed', () => {
+  const draws = [.2, .8]
+  const game = createGame({ random: () => draws.shift(), progress: { viewers: { A: { collection: {} }, B: { collection: {} } } } })
+  game.setRaidRewards([{ kind: 'money', amount: 100 }, { kind: 'candy', amount: 2, chance: 50 }, { kind: 'dust', amount: 1, chance: 0 }])
+  game.grantRaidRewards(['A', 'A', 'B'])
+  const { A, B } = game.progress().viewers
+  assert.equal(A.pokeDollars, 100)
+  assert.equal(B.pokeDollars, 100)
+  assert.equal(A.rareCandies, 2)
+  assert.equal(B.rareCandies ?? 0, 0)
+  assert.equal(A.shinyDust ?? 0, 0)
+  assert.throws(() => game.setRaidRewards([{ kind: 'candy', amount: 1, chance: 101 }]), /Invalid raid rewards/)
+})
+
 test('streamer grants persist with inventory and reject invalid changes', () => {
   const catalog = [{ id: 19, name: 'Rattata', shiny: true }]
   const game = createGame({ catalog, progress: { viewers: { A: { collection: {} } } } })

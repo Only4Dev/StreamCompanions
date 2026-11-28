@@ -80,6 +80,7 @@ body:has(#overlay:not([hidden])) { overflow: hidden; }
 #statistics-status:empty { display: none; }
 .raid-reward{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-bottom:.5rem}
 .raid-reward input{width:8rem}
+.raid-drop-chance{display:flex;align-items:center;gap:.4rem}.raid-drop-chance input{width:5rem}
 .event-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,215px),1fr));gap:12px}
 .event-actions article{min-width:0;border:1px solid #45606a;border-radius:12px;padding:14px}
 .event-actions article p:empty{display:none}

@@ -437,12 +437,19 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     },
     setEggPool: input => updateEggPool(input, true),
     setRaidRewards(rewards) {
-      if (!Array.isArray(rewards) || rewards.length > 10 || rewards.some(({kind, item, amount}) =>
+      if (!Array.isArray(rewards) || rewards.length > 10 || rewards.some(({kind, item, amount, chance = 100}) =>
+        !Number.isFinite(chance) || chance < 0 || chance > 100 ||
         !['money', 'candy', 'tracker', 'balls', 'held', 'dust'].includes(kind) || !Number.isSafeInteger(amount) || amount < 1 ||
         amount > (kind === 'money' ? 1_000_000 : 999) ||
         kind === 'balls' && !['normal', 'great', 'ultra', 'master'].includes(item) ||
         kind === 'held' && (!Object.hasOwn(heldItems, item) || amount !== 1))) throw new Error('Invalid raid rewards')
-      config.raidRewards = rewards
+      config.raidRewards = rewards.map(reward => ({ ...reward, chance: reward.chance ?? 100 }))
+    },
+    grantRaidRewards(viewerIds) {
+      for (const viewerId of new Set(viewerIds)) for (const reward of config.raidRewards) {
+        const chance = reward.chance ?? 100
+        if (chance === 100 || chance > 0 && random() * 100 < chance) this.grantAdmin({ ...reward, viewerId })
+      }
     },
     setShopPrices(values) {
       const prices = normalizeShopPrices(values)

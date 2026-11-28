@@ -5,6 +5,13 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
 <title>Stream Companions · Knockouts</title>
 <link rel="stylesheet" href="/knockouts.css">
-<main id="source"><ol id="feed"></ol><p id="winner" hidden></p></main>
+<main id="source">
+  <section id="raid" hidden>
+    <div class="raid-heading"><strong id="boss-name"></strong><span id="raid-time"></span></div>
+    <progress id="boss-health"></progress>
+    <strong id="boss-points"></strong>
+  </section>
+  <aside><ol id="feed"></ol><p id="winner" hidden></p></aside>
+</main>
 <script type="module" src="/knockouts.js"></script>
 </html>

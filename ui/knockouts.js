@@ -4,6 +4,23 @@ const scale = Math.min(300, Math.max(100, Number(params.get('scale')) || 150))
 const feed = document.querySelector('#feed')
 document.querySelector('#source').style.zoom = scale / 100
 const winner = document.querySelector('#winner')
+const raid = document.querySelector('#raid')
+const bossName = document.querySelector('#boss-name')
+const bossHealth = document.querySelector('#boss-health')
+const bossPoints = document.querySelector('#boss-points')
+const raidTime = document.querySelector('#raid-time')
+
+function renderBoss(boss, language) {
+  raid.hidden = !boss
+  if (!boss) return
+  bossName.textContent = boss.name + ' · Dynamax'
+  bossHealth.setAttribute('aria-label', boss.name)
+  bossHealth.max = boss.maxHp
+  bossHealth.value = boss.hp
+  bossPoints.textContent = boss.hp + ' / ' + boss.maxHp + (language === 'en' ? ' HP' : ' PS')
+  const seconds = Math.ceil(boss.remaining)
+  raidTime.textContent = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0')
+}
 
 const entries = new Map()
 const portrait = fighter => {
@@ -54,10 +71,12 @@ async function refresh() {
     const state = await response.json()
     active = state.active || state.rows.length > 0
     render(state.rows, state.language)
+    renderBoss(state.boss, state.language)
     winner.hidden = !state.winner
     winner.textContent = state.winner ? (state.language === 'en' ? 'Last Winner: ' : 'Último ganador: ') + state.winner : ''
   } catch {
     render([], 'es')
+    renderBoss(null, 'es')
     winner.hidden = true
   }
   if (!preview || !entries.size) setTimeout(refresh, active ? 180 : 600)

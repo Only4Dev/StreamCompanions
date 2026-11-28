@@ -1287,9 +1287,49 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
   }
 
+  function startDash(actor, direction, dodging = false) {
+    actor.dashReady = time + (actor.boss ? 3.6 : 5)
+    actor.dashUntil = time + .24
+    actor.dodgeUntil = dodging ? actor.dashUntil : 0
+    actor.dashDirection = direction
+    actor.direction = direction
+    return 'Run'
+  }
+
+  function spaceRaidParty(dt) {
+    if (!raid || !auto) return
+    const party = actors.filter(actor => !actor.boss && actor.hp > 0 && actor.dashUntil <= time)
+      .sort((a, b) => a.x - b.x || a.index - b.index)
+    for (let i = 1; i < party.length; i++) {
+      const left = party[i - 1]
+      const right = party[i]
+      const overlap = 53 - (right.x - left.x)
+      if (overlap <= 0) continue
+      const correction = Math.min(overlap / 2, dt * 165)
+      if (!left.cast) left.x = bound(left.x - correction, left)
+      if (!right.cast) right.x = bound(right.x + correction, right)
+    }
+  }
+
   function act(actor, enemy, dt) {
     const distance = Math.max(0, Math.abs(enemy.x - actor.x) - extraReach(enemy))
     const toward = Math.sign(enemy.x - actor.x) || actor.direction
+    if (actor.boss) {
+      const rivalsNear = actors.filter(other => other.hp > 0 && rivals(actor, other) && Math.abs(other.x - actor.x) < 205).length
+      const edge = Math.min(actor.x - actor.margin, arena.width - actor.margin - actor.x) < 105
+      const inward = actor.x < arena.width / 2 ? 1 : -1
+      if (edge && rivalsNear >= 3 && time >= (actor.blinkReady ?? 4)) {
+        const from = actor.x
+        actor.x = bound(actor.x + inward * 550, actor)
+        actor.blinkReady = time + 9
+        actor.next = Math.max(actor.next, time + .38)
+        effects.push({ kind: 'boss-blink', origin: from, x: actor.x, at: time, expires: time + .65 })
+        return 'Special0'
+      }
+      if (edge && rivalsNear >= 2 && actor.next > time && actor.dashReady <= time) {
+        return startDash(actor, inward)
+      }
+    }
     let best
     let bestScore = 0
     let rangedScore = 0
@@ -1356,12 +1396,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const dashSpace = dashDirection < 0 ? actor.x - actor.margin : arena.width - actor.margin - actor.x
     if (dashDirection && (!actor.boss || !best || actor.next > time) && dashSpace > 85 && actor.dashReady <= time &&
         actor.status?.kind !== 'paralysis' && (actor.boss || incoming || castArea || threat || !best || actor.next > time)) {
-      actor.dashReady = time + (actor.boss ? 3.6 : 5)
-      actor.dashUntil = time + .24
-      actor.dodgeUntil = incoming ? actor.dashUntil : 0
-      actor.dashDirection = dashDirection
-      actor.direction = dashDirection
-      return 'Run'
+      return startDash(actor, dashDirection, Boolean(incoming))
     }
     if (!actor.boss && prefersRange && distance < 265 && (actor.next > time || distance < 125 && !best)) {
       const away = -toward
@@ -1373,12 +1408,12 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       else if (cast(actor, best)) return actor.motion
     }
     if (!best && fallback && actor.next <= time && cast(actor, fallback)) return actor.motion
-    if (distance > (actor.boss ? 115 : prefersRange ? 365 : 78)) return walk(actor, toward, dt)
-    if (actor.boss && actor.next > time && distance < 80) {
-      const away = -toward
-      const space = away < 0 ? actor.x - actor.margin : arena.width - actor.margin - actor.x
-      if (space > 4) return walk(actor, away, dt)
+    if (actor.boss && actor.next > time) {
+      const desired = distance < 125 ? -toward : toward
+      const space = desired < 0 ? actor.x - actor.margin : arena.width - actor.margin - actor.x
+      if (space > 5) return walk(actor, desired, dt)
     }
+    if (distance > (actor.boss ? 115 : prefersRange ? 365 : 78)) return walk(actor, toward, dt)
     return 'Idle'
   }
 
@@ -1440,6 +1475,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         }
       }
       separateBodies()
+      spaceRaidParty(dt)
       for (let index = geysers.length - 1; index >= 0; index--) {
         const wave = geysers[index]
         if (wave.at > time) continue

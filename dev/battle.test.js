@@ -400,6 +400,26 @@ test('a raid boss at the arena edge can fire at extended range while under attac
   assert.ok(player.hp < player.maxHp)
 })
 
+test('a cornered Alcremie relocates and raid allies separate without blocking dash movement', () => {
+  const battle = createBattle([
+    ...[6, 9, 25].map(id => ({ ...example(id, 45), team: 'party' })),
+    { ...example(869, 45), team: 'boss', boss: true, margin: 230, hpBoost: 10 }
+  ], { raid: true, random: () => .5 })
+  const boss = battle.actors.at(-1)
+  const corner = boss.x
+  boss.blinkReady = 0
+  boss.dashReady = 30
+  battle.actors.slice(0, -1).forEach(actor => {
+    actor.x = corner - 4
+    actor.next = 20
+    actor.dashReady = 20
+  })
+  battle.step(1 / 60)
+  assert.equal(boss.x, corner - 550)
+  assert.ok(battle.effects.some(effect => effect.kind === 'boss-blink'))
+  assert.ok(new Set(battle.actors.slice(0, -1).map(actor => actor.x)).size > 1)
+})
+
 test('the knockout feed keeps only the last three rival defeats with the responsible fighter', () => {
   const battle = createBattle([{ ...example(9, 45), team: 'boss', boss: true, bossMoves: ['raidshellslam'] },
     ...Array.from({ length: 4 }, () => ({ ...example(19), team: 'viewers' }))],

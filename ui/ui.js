@@ -76,7 +76,7 @@ Object.assign(labels.en, { shopTab: 'Shop', shopPricesHelp: 'Edit prices in Pok�
 
 Object.assign(labels.es, { homeTab: 'Inicio', sourcesTab: 'Fuentes', next: 'Próximo encuentro', wildCount: 'Encuentros de esta sesión', caughtCount: 'Capturas de esta sesión',
   encounterSettings: 'Encuentros salvajes', companionSettings: 'Compañeros en pantalla', battleSettings: 'Batallas por equipos', teamBattleHelp: 'Cada viewer participa con su equipo guardado. Con el equipo vacío entra su Pokémon invocado.', raidHelp: 'Inicia una incursión con uno o más compañeros invocados o lanza una prueba sin premios. Ambas se ven en la fuente Compañeros de OBS o Streamlabs.', startRaidNow: 'Iniciar incursión ahora', interval: 'Cada cuántos minutos aparece un salvaje', duration: 'Minutos para capturar', catchGraceSeconds: 'Margen por retraso (s)',
-  eventsTab: 'Eventos', dataTab: 'Data Config', liveEvents: 'Controles en directo', startBattleNow: 'Iniciar batalla ahora', saveEvents: 'Guardar programación y premios', wildEnabled: 'Apariciones automáticas', raidEnabled: 'Incursiones automáticas', dataHelp: 'Descarga una plantilla, edítala y cárgala para aplicar los cambios en esta app.', balanceLab: 'Pruebas y balance', forceRaid: 'Probar jefe en la fuente', forceTeam: 'Probar equipos en la fuente', simulationRounds: 'Simulaciones', runSimulation: 'Simular y descargar informe', raidSizePercent: 'Tamaño del jefe (%)', raidHpMultiplier: 'Multiplicador de PS del jefe', raidViewerHpPercent: 'PS extra por viewer (%)', raidStatMultiplier: 'Multiplicador de otros stats', raidLevelMode: 'Nivel del jefe', raidHighestLevel: 'Igual al Pokémon de mayor nivel', raidAverageLevel: 'Promedio del equipo', raidTitle: 'Jefes Dinamax', raidChance: 'Probabilidad por encuentro (%)', raidDuration: 'Tiempo límite (s)', raidCatch: 'Permitir capturar al jefe vencido', teamBattles: 'Activar equipos de tres en batalla', raidRewards: 'Premios por vencer al jefe', speciesRules: 'Reglas por Pokémon', importRules: 'Cargar JSON', showPokemonName: 'Mostrar nombre del Pokémon', showViewerName: 'Mostrar nombre del viewer', nameLimit: 'Ocultar nombres a partir de', visibleLimit: 'Compañeros visibles', battleEveryEncounters: 'Encuentros entre batallas', previewEncounter: 'Probar encuentro salvaje', previewLocal: 'Simular en la app', spawn: 'Lanzar en directo',
+  eventsTab: 'Eventos', dataTab: 'Data Config', liveEvents: 'Controles en directo', startBattleNow: 'Iniciar batalla ahora', saveEvents: 'Guardar programación y premios', wildEnabled: 'Apariciones automáticas', raidEnabled: 'Incursiones automáticas', dataHelp: 'Descarga una plantilla, edítala y cárgala para aplicar los cambios en esta app.', balanceLab: 'Pruebas y balance', forceRaid: 'Probar jefe en la fuente', forceTeam: 'Probar equipos en la fuente', simulationRounds: 'Simulaciones', runSimulation: 'Simular y descargar informe', raidSizePercent: 'Tamaño del jefe (%)', raidHpMultiplier: 'Multiplicador de PS del jefe', raidViewerHpPercent: 'PS extra por viewer (%)', raidStatMultiplier: 'Multiplicador de otros stats', raidLevelMode: 'Nivel del jefe', raidHighestLevel: 'Igual al Pokémon de mayor nivel', raidAverageLevel: 'Promedio del equipo', raidTitle: 'Jefes Dinamax', raidChance: 'Probabilidad por encuentro (%)', raidDuration: 'Tiempo límite (s)', raidCatch: 'Permitir capturar al jefe vencido', teamBattles: 'Activar equipos de tres en batalla', raidRewards: 'Drops por vencer al jefe', raidDropsHelp: 'Cada premio se sortea por separado para cada viewer. Con 100% está garantizado.', speciesRules: 'Reglas por Pokémon', importRules: 'Cargar JSON', showPokemonName: 'Mostrar nombre del Pokémon', showViewerName: 'Mostrar nombre del viewer', nameLimit: 'Ocultar nombres a partir de', visibleLimit: 'Compañeros visibles', battleEveryEncounters: 'Encuentros entre batallas', previewEncounter: 'Probar encuentro salvaje', previewLocal: 'Simular en la app', spawn: 'Lanzar en directo',
   obsTitle: 'Fuentes de navegador', obsHelp: 'Copia cada enlace a una fuente de navegador en OBS, Streamlabs o tu programa de directo. Usa 1920 × 550 para compañeros y batallas. Redimensiona la fuente en la escena desde una esquina para mantener la proporción.',
   connectionHelp: 'Conecta Twitch primero para activar tu comunidad. Después puedes añadir Kick. El portal de viewers se configura automáticamente.', connected: 'Conectado', disconnected: 'Desconectado', editBotReplies: 'Personalizar respuestas del chat' })
 Object.assign(labels.en, { homeTab: 'Home', sourcesTab: 'Sources', next: 'Next encounter', wildCount: 'Encounters this session', caughtCount: 'Catches this session',
@@ -740,7 +740,7 @@ if (panel) {
       function updateSource() {
         const percent = slider.valueAsNumber
         address.value = location.origin + path + '?scale=' + percent
-        frame.width = Math.ceil(440 * percent / 100)
+        frame.width = Math.ceil(620 * percent / 100)
         frame.height = Math.ceil(174 * percent / 100)
         dimensions.textContent = frame.width + ' × ' + frame.height
         const preview = address.value + '&preview=1'
@@ -916,7 +916,7 @@ if (panel) {
       const action = configForm ? { config } :
         id === 'spawn' ? { spawn: form.creature } : id === 'legendary-event' ? { queueLegendary: form.creature } : form
       if (id === 'event-settings') action.raidRewards = Array.from($('raid-rewards').children, row => ({
-        kind: row.querySelector('[data-kind]').value, item: row.querySelector('[data-item]').value, amount: row.querySelector('input').valueAsNumber
+        kind: row.querySelector('[data-kind]').value, item: row.querySelector('[data-item]').value, amount: row.querySelector('[data-amount]').valueAsNumber, chance: row.querySelector('[data-drop-chance]').valueAsNumber
       }))
       if (id === 'chat') viewer = form.viewer
       const result = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(action) })
@@ -950,6 +950,14 @@ function addRaidReward(reward) {
   const item = document.createElement('select')
   item.dataset.item = ''
   const amount = Object.assign(document.createElement('input'), { type: 'number', min: 1, required: true })
+  amount.dataset.amount = ''
+  const chanceLabel = document.createElement('label')
+  chanceLabel.className = 'raid-drop-chance'
+  const chance = Object.assign(document.createElement('input'), {
+    type: 'number', min: 0, max: 100, step: 'any', required: true, value: reward.chance ?? 100
+  })
+  chance.dataset.dropChance = ''
+  chanceLabel.append(english ? 'Drop %' : 'Probabilidad %', chance)
   const remove = Object.assign(document.createElement('button'), { type: 'button', textContent: '−' })
   kind.setAttribute('aria-label', english ? 'Reward' : 'Premio')
   amount.setAttribute('aria-label', english ? 'Amount' : 'Cantidad')
@@ -971,7 +979,7 @@ function addRaidReward(reward) {
   amount.value = reward.amount
   kind.addEventListener('change', updateItems)
   remove.addEventListener('click', () => row.remove())
-  row.append(kind, item, amount, remove)
+  row.append(kind, item, amount, chanceLabel, remove)
   list.append(row)
 }
 async function update() {

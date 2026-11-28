@@ -470,6 +470,20 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
             }
           }
           context.restore()
+        } else if (effect.kind === 'boss-blink') {
+          const phase = Math.max(0, Math.min(1, (renderTime - effect.at) / .65))
+          context.save()
+          context.globalAlpha = 1 - phase
+          context.shadowBlur = 19
+          context.shadowColor = '#f4588c'
+          context.strokeStyle = '#ff85b5'
+          context.lineWidth = 4
+          for (const x of [effect.origin, effect.x]) {
+            context.beginPath()
+            context.ellipse(x, floor - 35, 22 + phase * 74, 12 + phase * 47, 0, 0, Math.PI * 2)
+            context.stroke()
+          }
+          context.restore()
         } else if (effect.kind === 'warning') {
           context.save()
           context.globalAlpha = .55
@@ -504,7 +518,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         const start = battlePositions.get(index) ?? fighter.x
         const x = start + (fighter.x - start) * Math.min(1, elapsed * 13)
         battlePositions.set(index, x)
-        const baseY = fighter.flying && !fighter.boss ? floor - 28 + Math.sin(time / 280 + index) * 5 : floor
+        const laneLift = battle.raid && !fighter.boss ? (index % 4) * 9 : 0
+        const baseY = floor - laneLift - (fighter.flying && !fighter.boss ? 28 - Math.sin(time / 280 + index) * 5 : 0)
         const y = (fighter.maneuver?.kind === 'fly' ? baseY - Math.sin(Math.PI * fighter.maneuver.phase) * 130 : baseY) - (fighter.bossHop ?? 0)
         let scale = 3 * zoom * (fighter.boss ? fighter.bossScale ?? 4 : 1)
         if (fighter.boss && clip) {
@@ -527,6 +542,19 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
               context.save()
               context.globalAlpha = .24
               for (const distance of [36, 18]) sprite(context, ghost, x - fighter.direction * distance, y, fighter.direction, time, false, scale, false, true)
+              context.restore()
+            }
+          }
+          if (fighter.ulting) {
+            const charged = readyClip(clip, variant?.animations)
+            if (charged) {
+              context.save()
+              context.filter = 'brightness(0) saturate(100%) invert(86%) sepia(71%) saturate(2736%) hue-rotate(151deg)'
+              context.shadowBlur = 18 + Math.sin(time / 73) * 5
+              context.shadowColor = '#50d8ff'
+              for (const [dx, dy] of [[-4, 0], [4, 0], [0, -4], [0, 4]]) {
+                sprite(context, charged, x + dx, y + dy, fighter.direction, time, false, scale, false, true)
+              }
               context.restore()
             }
           }

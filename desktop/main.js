@@ -782,12 +782,13 @@ function launchBattlePreview(mode, species) {
 
 function publicBattle(battle) {
   const teams = [...new Set(battle.actors.map(actor => actor.team).filter(Boolean))]
+  const ultimate = battle.ultimate
   return { over: battle.over, winner: battle.winner?.ownerName || battle.winner?.name,
     time: battle.time, raid: battle.raid, remaining: battle.remaining, field: battle.field, effects: battle.effects,
     projectiles: battle.projectiles.map(({ x, origin, end, move, direction, actor }) => ({ x, origin, end, move: { type: move.type, effect: move.effect, visual: move.visual }, direction, actor: { types: actor.types } })),
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
-      return { name, ownerName, shiny, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, bossHop: actor.boss && actor.dashUntil > battle.time ? Math.sin(Math.PI * Math.min(1, (actor.dashUntil - battle.time) / .24)) * 62 : 0, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
+      return { name, ownerName, shiny, ulting: ultimate?.index === actor.index, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, bossHop: actor.boss && actor.dashUntil > battle.time ? Math.sin(Math.PI * Math.min(1, (actor.dashUntil - battle.time) / .24)) * 62 : 0, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
         evasion: boosts.evasion > battle.time, flinched: flinchUntil > battle.time }
     }) }
@@ -905,7 +906,7 @@ async function runCommunityBattle(waitForBanner, raidBoss, manual) {
       const boss = entries.find(entry => entry.boss)
       if (battle.winner && !battle.winner.boss) {
         const participants = [...new Set(entries.filter(entry => !entry.boss).map(entry => entry.viewerId))]
-        for (const viewerId of participants) for (const reward of game.config.raidRewards) game.grantAdmin({ ...reward, viewerId })
+        game.grantRaidRewards(participants)
         if (game.config.raidCatch) {
           game.setWildPaused(false)
           game.spawnRaidPrize(boss.name, participants)
@@ -1052,7 +1053,10 @@ const server = createServer(async (req, res) => {
       }).reverse()
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
       const active = battleStarting || battleBannerUntil > now || Boolean(battle && !battle.over)
-      res.end(JSON.stringify({ rows, language: bot.language, active,
+      const raidBoss = active && battle?.raid ? battle.actors.find(actor => actor.boss) : undefined
+      const boss = preview ? { name: 'Blastoise', hp: 1474, maxHp: 2100, remaining: 89 } :
+        raidBoss ? { name: raidBoss.name, hp: Math.ceil(raidBoss.hp), maxHp: raidBoss.maxHp, remaining: battle.remaining } : undefined
+      res.end(JSON.stringify({ rows, boss, language: bot.language, active,
         winner: preview ? 'Viewer 1' : active ? undefined : lastTeamWinner?.name }))
       return
     }
