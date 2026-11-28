@@ -4,12 +4,92 @@ import { battleSpecies, arenaBaseStats, createBattle, formAtLevel, moveOptions, 
 import { nationalStats } from './national-stats.js'
 
 const example = (id, level = 20) => {
-  const [, stats, types, final] = nationalStats[id - 1]
+  const [, stats, types, final] = battleSpecies(id)
   return { id, stats, types, final, level }
 }
 const run = (battle, seconds) => {
   for (let i = 0; i < seconds * 30; i++) battle.step(1 / 30)
 }
+
+test('a team’s damaging weather cannot hurt its own side', () => {
+  for (const weather of ['hail', 'sandstorm']) {
+    const battle = createBattle([{ ...example(6), team: 'a' }, { ...example(19), team: 'a' },
+      { ...example(52), team: 'b' }], { auto:false, random: () => .5 })
+    assert.ok(battle.manual(0, weather))
+    run(battle, 4)
+    const [caster, ally, rival] = battle.actors
+    assert.equal(caster.hp, caster.maxHp)
+    assert.equal(ally.hp, ally.maxHp)
+    assert.ok(rival.hp < rival.maxHp)
+  }
+})
+
+test('team support heals allies and area attacks cannot hurt them', () => {
+  const battle = createBattle([{ ...example(6), team: 'a', support: 'healpulse' }, { ...example(7), team: 'a' },
+    { ...example(19), team: 'b' }], { auto:false, random: () => .5 })
+  const [healer, ally, enemy] = battle.actors
+  healer.x = 500
+  ally.x = 580
+  enemy.x = 650
+  ally.hp = Math.floor(ally.maxHp / 2)
+  const hp = ally.hp
+  assert.equal(healer.pp.healpulse, 2)
+  assert.ok(battle.manual(0, 'healpulse'))
+  run(battle, 1)
+  assert.ok(ally.hp > hp)
+  const healed = ally.hp
+  assert.ok(battle.manual(0, 'quake'))
+  run(battle, 1)
+  assert.equal(ally.hp, healed)
+  assert.ok(enemy.hp < enemy.maxHp)
+})
+
+test('boss-specific moves can hit a group and have their own ultimate PP', () => {
+  const battle = createBattle([{...example(9, 22), boss:true, team:'boss', bossMoves:['raidshellslam'], bossUltimate:'ultimate-water', bossUltimatePp:4},
+    {...example(19),team:'party'},{...example(20),team:'party'}], {auto:false,raid:true,random:()=>.5})
+  const [boss, ...party] = battle.actors
+  assert.deepEqual(boss.kit,['raidshellslam','ultimate-water'])
+  assert.equal(boss.ultimatePp,4)
+  boss.x = 500
+  party[0].x = 650
+  party[1].x = 740
+  assert.ok(battle.manual(0,'raidshellslam'))
+  run(battle,1)
+  assert.ok(party.every(actor=>actor.hp < actor.maxHp))
+})
+
+test('boss health and other stats scale independently from the global battle HP setting', () => {
+  const normal = createBattle([example(9)], {auto:false}).actors[0]
+  const boss = createBattle([{...example(9), boss:true, hpBoost:5, statBoost:1.2}], {auto:false,hpMultiplier:2}).actors[0]
+  assert.equal(boss.maxHp, normal.maxHp * 5)
+  for (const key of ['attack','defense','specialAttack','specialDefense','speed']) assert.equal(boss[key], normal[key] * 1.2)
+})
+
+test('raid HP multiplier and timeout yield a boss win without sudden death', () => {
+  const bossEntry = {...example(9), team: 'boss', boss: true, hpBoost: 8}
+  const battle = createBattle([{ ...example(19), team: 'party' }, bossEntry], { raid: true, duration: 1 })
+  const [,boss] = battle.actors
+  assert.ok(boss.maxHp > 500)
+  run(battle, 1.1)
+  assert.equal(battle.over, true)
+  assert.equal(battle.winner, boss)
+  assert.equal(battle.suddenDeath, false)
+})
+
+test('Intimidate reduces physical Attack once and Skill Link fires twice as many shots', () => {
+  const entries = [example(90), example(23), example(24)]
+  const battle = createBattle(entries, { auto:false, random: () => .5 })
+  const [shellder] = battle.actors
+  const base = createBattle([example(90), example(19)], {auto:false}).actors[0].attack
+  assert.equal(shellder.attack, base * .9)
+  assert.ok(battle.manual(0, 'spear'))
+  const shots = new Set()
+  for (let step = 0; step < 160; step++) {
+    battle.step(1 / 120)
+    for (const projectile of battle.projectiles) shots.add(projectile)
+  }
+  assert.equal(shots.size, 6)
+})
 
 test('Toxic Orb poisons eligible holders and Poison Heal restores HP on its ticks', () => {
   const entries = [285, 19, 81].map(id => ({ ...example(id), heldItem: 'toxic-orb' }))
@@ -44,28 +124,28 @@ test('regional forms have independent types, stats and battle kits', () => {
   assert.equal(battleSpecies(862)[4], 10175)
 })
 
-test('Ditto copies the nearest eligible rival in place with its own HP and five PP at most', () => {
+test('Ditto copies the strongest eligible rival in place with its own HP and five PP at most', () => {
   const entries = [example(132), example(570), example(52), example(6, 31)]
   const battle = createBattle(entries, { auto: false })
-  const [ditto, zorua, meowth] = battle.actors
+  const [ditto, zorua, , charizard] = battle.actors
   const original = createBattle([example(132), example(132)], { auto: false }).actors[0]
   assert.equal(ditto.id, 132)
   assert.equal(ditto.maxHp, original.maxHp)
   assert.equal(ditto.x, original.x)
-  assert.equal(ditto.appearance.id, 52)
-  assert.equal(ditto.attack, meowth.attack)
-  assert.deepEqual(ditto.types, meowth.types)
-  assert.notEqual(ditto.pp, meowth.pp)
-  assert.ok(ditto.kit.includes('payday'))
-  assert.equal(ditto.pp.payday, 5)
-  assert.equal(zorua.appearance.disguised, true)
+  assert.equal(ditto.appearance.id, 6)
+  assert.equal(ditto.attack, charizard.attack)
+  assert.deepEqual(ditto.types, charizard.types)
+  assert.notEqual(ditto.pp, charizard.pp)
+  assert.ok(Object.values(ditto.pp).every(pp => pp <= 5))
+  assert.equal(zorua.appearance, undefined)
+  assert.ok(zorua.abilities.has('ambush'))
 })
 
-test('Illusion breaks on damage while equipment changes the form and signature type', () => {
+test('Zorua keeps its appearance while equipment changes the form and signature type', () => {
   const battle = createBattle([example(570), { ...example(649), heldItem: 'burn-drive' },
     { ...example(493), heldItem: 'mystic-water' }, { ...example(888), heldItem: 'rusted-sword' }], { auto: false, random: () => .5 })
   const [zorua, genesect, arceus, zacian] = battle.actors
-  assert.equal(zorua.appearance.id, 649)
+  assert.equal(zorua.appearance, undefined)
   assert.equal(genesect.form, 'fire')
   assert.deepEqual(arceus.types, ['water'])
   assert.ok(zacian.types.includes('steel'))
@@ -104,6 +184,35 @@ test('Dragon Darts emits two separate Dreepy shots', () => {
   run(battle, .2)
   assert.equal(battle.projectiles.length, 2)
   assert.ok(battle.projectiles.every(shot => shot.move.visual === 'dreepy'))
+})
+
+test('Mimikyu and Eiscue absorb their first five qualifying attacks', () => {
+  for (const [id, form] of [[778, 'busted'], [875, 'noice']]) {
+    const battle = createBattle([example(130), example(id)], { auto: false, random: () => .5 })
+    const [attacker, defender] = battle.actors
+    for (let hit = 1; hit <= 6; hit++) {
+      attacker.x = 500
+      defender.x = 700
+      assert.ok(battle.manual(0, 'rocks'))
+      run(battle, 1)
+      assert.equal(defender.form, hit >= 5 ? form : null)
+      if (hit <= 5) assert.equal(defender.hp, defender.maxHp)
+      else assert.ok(defender.hp < defender.maxHp)
+    }
+  }
+})
+
+test('Palafin changes at ten seconds and Galarian Darmanitan enters Zen Mode below half HP', () => {
+  const battle = createBattle([example(964), example(10177)], { auto: false })
+  const [palafin, darmanitan] = battle.actors
+  palafin.hp = 1
+  darmanitan.hp = 1
+  run(battle, 9.9)
+  assert.equal(palafin.form, null)
+  assert.equal(darmanitan.form, 'zen')
+  assert.deepEqual(darmanitan.types, ['ice', 'fire'])
+  run(battle, .2)
+  assert.equal(palafin.form, 'hero')
 })
 
 test('Minior switches in place at half HP and Castform follows changing weather', () => {

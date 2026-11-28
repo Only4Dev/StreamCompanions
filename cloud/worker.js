@@ -4,11 +4,12 @@ import { deviceWebGame, finishWebGame } from './web-game.js'
 import { expireShopOrders } from './shop-queue.js'
 import { finishAdminActions, pendingAdminActions } from './admin.js'
 import { portal } from './portal.js'
-import { readMovesets } from './movesets.js'
+import { readBattleTeams, readMovesets } from './movesets.js'
 import { completeKickLink, kickDevice, kickWebhook, seal, startKickLink } from './kick.js'
 import { arenaShopItems, heldItems } from '../ui/held-items.js'
 import { isFirstStage } from '../ui/evolution.js'
 import { battleSpecies } from '../dev/battle.js'
+import { eggPoolTier } from '../ui/egg-rules.js'
 import { eggRarity, specialEncounterTag } from '../ui/capture-rates.js'
 import { featuredShopItems, normalizeShopPrices } from '../ui/shop.js'
 
@@ -115,6 +116,7 @@ function viewerWrites(db, device, viewers) {
     const items = viewer.heldItems ?? []
     const rareCandies = viewer.rareCandies ?? 0
     const legendaryTrackers = viewer.legendaryTrackers ?? 0
+    const shinyDust = viewer.shinyDust ?? 0
     const pokeDollars = viewer.pokeDollars ?? 0
     const dnaBoosters = viewer.dnaBoosters ?? {}
     const dexAcquired = viewer.dexAcquired ?? {}
@@ -122,7 +124,7 @@ function viewerWrites(db, device, viewers) {
       !Object.hasOwn(viewer.collection, name) || !Number.isSafeInteger(at) || at < 0)) return json({ error: 'invalid dex acquisitions' }, 400)
     if (typeof dnaBoosters !== 'object' || Array.isArray(dnaBoosters) || Object.entries(dnaBoosters).some(([key, count]) =>
       !Object.hasOwn(viewer.collection, key) || !Number.isInteger(count) || count < 0 || count > 10)) return json({ error: 'invalid DNA boosters' }, 400)
-    if (![rareCandies, legendaryTrackers, pokeDollars].every(value => Number.isSafeInteger(value) && value >= 0)) return json({ error: 'invalid rewards' }, 400)
+    if (![rareCandies, legendaryTrackers, shinyDust, pokeDollars].every(value => Number.isSafeInteger(value) && value >= 0)) return json({ error: 'invalid rewards' }, 400)
     if (!Array.isArray(items) || items.length > Object.keys(heldItems).length ||
         items.some(item => typeof item !== 'string' || !Object.hasOwn(heldItems, item))) return json({ error: 'invalid items' }, 400)
     const generation = viewer.generation ?? 0
@@ -148,7 +150,7 @@ function viewerWrites(db, device, viewers) {
       'ON CONFLICT(community_id, viewer_id) DO UPDATE SET revision = excluded.revision, payload = excluded.payload, updated_at = excluded.updated_at ' +
       'WHERE excluded.revision > viewer_progress.revision'
     ).bind(device.community_id, viewer.id, viewer.revision,
-        JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters, ...(legendaryTrackers ? { legendaryTrackers } : {}),
+        JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters, ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(shinyDust ? { shinyDust } : {}),
           ...(Object.keys(dexAcquired).length ? { dexAcquired } : {}), log: log.map(({ at, platform, action, result, capture }) => ({
             at, platform, action, result, ...(capture ? { capture: { ball: capture.ball, remaining: capture.remaining, pokemon: capture.pokemon } } : {})
           })), metrics: { wins: metrics.wins, losses: metrics.losses, summonMinutes: metrics.summonMinutes } }), Date.now(), viewer.id, generation, generation, viewer.id, device.key_hash))
@@ -173,10 +175,12 @@ async function movesets(request, db) {
   let candidates
   try {
     const body = await request.text()
-    if (body.length > 2500) return json({ error: 'invalid roster' }, 400)
+    if (body.length > 6000) return json({ error: 'invalid roster' }, 400)
     candidates = JSON.parse(body)
   } catch { return json({ error: 'invalid roster' }, 400) }
-  if (!Array.isArray(candidates) || !candidates.length || candidates.length > 12 || candidates.some(entry =>
+  if (Array.isArray(candidates?.teams) && candidates.teams.length >= 1 && candidates.teams.length <= 12 &&
+      candidates.teams.every(id => /^(twitch|kick):\d{1,24}$/.test(id))) return json(await readBattleTeams(db, device.community_id, candidates.teams))
+  if (!Array.isArray(candidates) || !candidates.length || candidates.length > 36 || candidates.some(entry =>
     !/^(twitch|kick):\d{1,24}$/.test(entry?.viewerId ?? '') || typeof entry.speciesKey !== 'string' ||
     !entry.speciesKey.length || entry.speciesKey.length > 64)) return json({ error: 'invalid roster' }, 400)
   return json(await readMovesets(db, device.community_id, candidates))
@@ -257,7 +261,8 @@ async function deviceShop(request, db) {
     if (order.item === 'poke-egg' && receipt.result === 'purchased' || hatch !== undefined) {
       const row = battleSpecies(hatch?.id)
       const special = row && specialEncounterTag(hatch.id, Boolean(row[5]))
-      const expected = special === 'legendary' ? 'legendary' : !special && row ? eggRarity(hatch.id) : null
+      const customized = hatch?.rules === 4 && row && isFirstStage(hatch.id) && (special === 'legendary' ? hatch.rarity === 'legendary' : !special && ['common','uncommon','rare','epic'].includes(hatch.rarity))
+      const expected = customized ? hatch.rarity : hatch?.rules === 4 ? null : hatch?.rules === 3 ? eggPoolTier(hatch.id, special) : special === 'legendary' ? 'legendary' : !special && row ? eggRarity(hatch.id) : null
       if (order.item !== 'poke-egg' || !row || row[0] !== hatch.id || !expected ||
           ((hatch.rules === 2 || special === 'legendary') && !isFirstStage(hatch.id)) ||
           typeof hatch.name !== 'string' || !Object.hasOwn(receipt.viewer?.collection ?? {}, hatch.name) ||
@@ -273,7 +278,7 @@ async function deviceShop(request, db) {
     await db.batch([...writes, db.prepare(
       "UPDATE shop_orders SET result = ?, hatch = ? WHERE community_id = ? AND id = ? AND (result IS NULL OR result = 'review') AND " +
       'EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
-    ).bind(result, hatch ? JSON.stringify({ id: hatch.id, name: hatch.name, rarity: hatch.rarity, duplicate: hatch.duplicate, xp: Math.floor(hatch.xp) }) : null, community, id, device.key_hash)])
+    ).bind(result, hatch ? JSON.stringify({ id: hatch.id, name: hatch.name, rarity: hatch.rarity, duplicate: hatch.duplicate, xp: Math.floor(hatch.xp), ...(hatch.levelUp === true && hatch.duplicate && hatch.xp > 0 ? { levelUp: true } : {}) }) : null, community, id, device.key_hash)])
     received.push(id)
   }
   return received.length ? json({ received }) : json({ error: 'no valid shop receipts' }, 400)
@@ -309,7 +314,7 @@ export default {
       const statements = [
         db.prepare('INSERT INTO devices (key_hash, community_id) SELECT ?, ? WHERE ' + active)
           .bind(replacement, device.community_id, device.key_hash),
-        ...['viewer_progress', 'viewer_movesets', 'viewer_held_items', 'shop_orders', 'kick_messages', 'shop_online', 'community_stream_status', 'web_game_runtime', 'web_game_actions', 'portal_announcements']
+        ...['viewer_progress', 'viewer_movesets', 'viewer_held_items', 'viewer_battle_teams', 'shop_orders', 'kick_messages', 'shop_online', 'community_stream_status', 'web_game_runtime', 'web_game_actions', 'portal_announcements']
           .map(table => db.prepare('DELETE FROM ' + table + ' WHERE community_id = ? AND ' + active).bind(device.community_id, device.key_hash)),
         db.prepare('UPDATE community_owners SET key_hash = ? WHERE key_hash = ? AND ' + active).bind(replacement, device.key_hash, device.key_hash),
         db.prepare('UPDATE devices SET revoked_at = ? WHERE key_hash = ? AND revoked_at IS NULL').bind(Date.now(), device.key_hash)

@@ -9,8 +9,8 @@ const panel = location.pathname === '/'
 const botActions = Object.keys(botCopy.es).filter(action =>
   !['noEncounter', 'noBalls', 'invalidBall', 'alreadyCaught', 'escaped'].includes(action))
 const labels = {
-  es: { duplicateMode: 'Capturas repetidas', duplicateXpPercent: 'XP del siguiente nivel (%)', duplicateOff: 'Desactivado', duplicateReward: 'Captura repetida. El compañero ganó XP.', config: 'Configuración', interval: 'Intervalo (min)', duration: 'Duración (min)', catchGraceSeconds: 'Compensar delay (s)', invalidBall: 'Tipo de bola desconocido', shiny: 'Shiny (1 entre)', nameLimit: 'Ocultar nombres sobre', visibleLimit: 'Máx. en pantalla', spriteScale: 'Tamaño de sprites', testSummon: 'Probar invocación', clearPreview: 'Quitar prueba', save: 'Guardar', preview: 'Vista previa', spawn: 'Aparición manual', viewer: 'Probar como viewer', send: 'Enviar', next: 'Próxima aparición', joined: 'Registro listo. Recibiste 5 Poké Balls.', caught: 'Captura exitosa', escaped: 'Se escapó', summoned: 'Compañero invocado', removed: 'Compañero retirado', alreadyJoined: 'Ya estás registrado', alreadyCaught: 'Ya tienes esta captura', joinFirst: 'Escribe !poke join', noBalls: 'Sin bolas de ese tipo', noEncounter: 'Sin encuentro activo', missingCreature: 'No tienes esa variante' },
-  en: { duplicateMode: 'Repeat catches', duplicateXpPercent: 'XP toward next level (%)', duplicateOff: 'Off', duplicateReward: 'Repeat catch. The companion gained XP.', config: 'Settings', interval: 'Interval (min)', duration: 'Duration (min)', catchGraceSeconds: 'Stream delay grace (s)', invalidBall: 'Unknown ball type', shiny: 'Shiny (1 in)', nameLimit: 'Hide names above', visibleLimit: 'Max on screen', spriteScale: 'Sprite size', testSummon: 'Test summon', clearPreview: 'Clear preview', save: 'Save', preview: 'Preview', spawn: 'Spawn manually', viewer: 'Test as viewer', send: 'Send', next: 'Next encounter', joined: 'Joined. You received 5 Poké Balls.', caught: 'Caught', escaped: 'Escaped', summoned: 'Companion summoned', removed: 'Companion removed', alreadyJoined: 'Already joined', alreadyCaught: 'Already caught', joinFirst: 'Type !poke join', noBalls: 'No balls of that type', noEncounter: 'No active encounter', missingCreature: 'You do not own that variant' }
+  es: { duplicateMode: 'Capturas repetidas', duplicateXpPercent: 'XP del siguiente nivel (%)', duplicateOff: 'Desactivado', duplicateReward: 'Captura repetida. El compañero subió un nivel.', config: 'Configuración', interval: 'Intervalo (min)', duration: 'Duración (min)', catchGraceSeconds: 'Compensar delay (s)', invalidBall: 'Tipo de bola desconocido', shiny: 'Shiny (1 entre)', nameLimit: 'Ocultar nombres sobre', visibleLimit: 'Máx. en pantalla', spriteScale: 'Tamaño de sprites', testSummon: 'Probar invocación', clearPreview: 'Quitar prueba', save: 'Guardar', preview: 'Vista previa', spawn: 'Aparición manual', viewer: 'Probar como viewer', send: 'Enviar', next: 'Próxima aparición', joined: 'Registro listo. Recibiste 5 Poké Balls.', caught: 'Captura exitosa', escaped: 'Se escapó', summoned: 'Compañero invocado', removed: 'Compañero retirado', alreadyJoined: 'Ya estás registrado', alreadyCaught: 'Ya tienes esta captura', joinFirst: 'Escribe !poke join', noBalls: 'Sin bolas de ese tipo', noEncounter: 'Sin encuentro activo', missingCreature: 'No tienes esa variante' },
+  en: { duplicateMode: 'Repeat catches', duplicateXpPercent: 'XP toward next level (%)', duplicateOff: 'Off', duplicateReward: 'Repeat catch. The companion gained one level.', config: 'Settings', interval: 'Interval (min)', duration: 'Duration (min)', catchGraceSeconds: 'Stream delay grace (s)', invalidBall: 'Unknown ball type', shiny: 'Shiny (1 in)', nameLimit: 'Hide names above', visibleLimit: 'Max on screen', spriteScale: 'Sprite size', testSummon: 'Test summon', clearPreview: 'Clear preview', save: 'Save', preview: 'Preview', spawn: 'Spawn manually', viewer: 'Test as viewer', send: 'Send', next: 'Next encounter', joined: 'Joined. You received 5 Poké Balls.', caught: 'Caught', escaped: 'Escaped', summoned: 'Companion summoned', removed: 'Companion removed', alreadyJoined: 'Already joined', alreadyCaught: 'Already caught', joinFirst: 'Type !poke join', noBalls: 'No balls of that type', noEncounter: 'No active encounter', missingCreature: 'You do not own that variant' }
 }
 Object.assign(labels.es, {
   language: 'Idioma', gameTab: 'Juego', previewTab: 'Pruebas', botTab: 'Bot', connectionsTab: 'Conexiones',
@@ -57,8 +57,8 @@ Object.assign(labels.en, { summonMoneyPerMinute: 'Pokédollars per summon minute
 Object.assign(labels.es, { battleEveryEncounters: 'Salvajes por batalla (0 = manual)', startBattle: 'Iniciar batalla', battleNeedsPlayers: 'Necesitas dos compañeros activos.', battleUnavailable: 'Inicia el juego y espera a que termine la batalla anterior.', battleStarted: 'Batalla programada. Se esperará a que termine cualquier encuentro activo.' })
 Object.assign(labels.en, { battleEveryEncounters: 'Wild encounters per battle (0 = manual)', startBattle: 'Start battle', battleNeedsPlayers: 'At least two companions must be active.', battleUnavailable: 'Start the game and wait for the current battle to finish.', battleStarted: 'Battle queued. Any active encounter will finish first.' })
 
-Object.assign(labels.es, { battleEnabled: 'Batallas', battleOff: 'Deshabilitadas', battleOn: 'Habilitadas', battleHpMultiplier: 'Multiplicador de PS', battleMoneyPerWin: 'Pokédólares por victoria', battleUnavailable: 'Habilita las batallas, inicia el juego y espera a que termine la ronda anterior.' })
-Object.assign(labels.en, { battleEnabled: 'Battles', battleOff: 'Disabled', battleOn: 'Enabled', battleHpMultiplier: 'HP multiplier', battleMoneyPerWin: 'Pokédollars per win', battleUnavailable: 'Enable battles, start the game, and wait for the previous round to finish.' })
+Object.assign(labels.es, { battleEnabled: 'Batallas automáticas', battleOff: 'Deshabilitadas', battleOn: 'Habilitadas', battleHpMultiplier: 'Multiplicador de PS', battleMoneyPerWin: 'Pokédólares por victoria', battleUnavailable: 'Habilita las batallas, inicia el juego y espera a que termine la ronda anterior.' })
+Object.assign(labels.en, { battleEnabled: 'Automatic battles', battleOff: 'Disabled', battleOn: 'Enabled', battleHpMultiplier: 'HP multiplier', battleMoneyPerWin: 'Pokédollars per win', battleUnavailable: 'Enable battles, start the game, and wait for the previous round to finish.' })
 
 Object.assign(labels.es, { queueLegendary: 'Programar próxima aparición especial', queuedLegendary: 'Próxima aparición especial', demoMaster: 'Dar Master Ball de prueba', candyUsed: 'Caramelo usado. El Pokémon subió un nivel.', noCandy: 'No tienes Caramelos Raros.', candyMaxLevel: 'Ese Pokémon alcanzó el nivel máximo.' })
 Object.assign(labels.en, { queueLegendary: 'Queue next special encounter', queuedLegendary: 'Next special encounter', demoMaster: 'Give test Master Ball', candyUsed: 'Candy used. The Pokémon gained a level.', noCandy: 'You have no Rare Candies.', candyMaxLevel: 'That Pokémon is already at the level cap.' })
@@ -75,13 +75,13 @@ Object.assign(labels.es, { shopTab: 'Tienda', shopPricesHelp: 'Edita los precios
 Object.assign(labels.en, { shopTab: 'Shop', shopPricesHelp: 'Edit prices in Pokédollars. They go live on the next shop sync while the game is running.', publishShopPrices: 'Save and publish prices', shopPricesSaved: 'Prices saved. They will go live on the next shop sync.' })
 
 Object.assign(labels.es, { homeTab: 'Inicio', sourcesTab: 'Fuentes', next: 'Próximo encuentro', wildCount: 'Encuentros de esta sesión', caughtCount: 'Capturas de esta sesión',
-  encounterSettings: 'Encuentros salvajes', companionSettings: 'Compañeros en pantalla', battleSettings: 'Batallas', interval: 'Cada cuántos minutos aparece un salvaje', duration: 'Minutos para capturar', catchGraceSeconds: 'Margen por retraso (s)',
-  nameLimit: 'Ocultar nombres a partir de', visibleLimit: 'Compañeros visibles', battleEveryEncounters: 'Encuentros entre batallas', previewEncounter: 'Probar encuentro salvaje', previewLocal: 'Simular en la app', spawn: 'Lanzar en directo',
+  encounterSettings: 'Encuentros salvajes', companionSettings: 'Compañeros en pantalla', battleSettings: 'Batallas por equipos', teamBattleHelp: 'Cada viewer participa con su equipo guardado. Con el equipo vacío entra su Pokémon invocado.', raidHelp: 'Inicia una incursión con uno o más compañeros invocados o lanza una prueba sin premios. Ambas se ven en la fuente Compañeros de OBS o Streamlabs.', startRaidNow: 'Iniciar incursión ahora', interval: 'Cada cuántos minutos aparece un salvaje', duration: 'Minutos para capturar', catchGraceSeconds: 'Margen por retraso (s)',
+  eventsTab: 'Eventos', dataTab: 'Data Config', liveEvents: 'Controles en directo', startBattleNow: 'Iniciar batalla ahora', saveEvents: 'Guardar programación y premios', wildEnabled: 'Apariciones automáticas', raidEnabled: 'Incursiones automáticas', dataHelp: 'Descarga una plantilla, edítala y cárgala para aplicar los cambios en esta app.', balanceLab: 'Pruebas y balance', forceRaid: 'Probar jefe en la fuente', forceTeam: 'Probar equipos en la fuente', simulationRounds: 'Simulaciones', runSimulation: 'Simular y descargar informe', raidSizePercent: 'Tamaño del jefe (%)', raidHpMultiplier: 'Multiplicador de PS del jefe', raidStatMultiplier: 'Multiplicador de otros stats', raidLevelMode: 'Nivel del jefe', raidHighestLevel: 'Igual al Pokémon de mayor nivel', raidAverageLevel: 'Promedio del equipo', raidTitle: 'Jefes Dinamax', raidChance: 'Probabilidad por encuentro (%)', raidDuration: 'Tiempo límite (s)', raidCatch: 'Permitir capturar al jefe vencido', teamBattles: 'Activar equipos de tres en batalla', raidRewards: 'Premios por vencer al jefe', speciesRules: 'Reglas por Pokémon', importRules: 'Cargar JSON', showPokemonName: 'Mostrar nombre del Pokémon', showViewerName: 'Mostrar nombre del viewer', nameLimit: 'Ocultar nombres a partir de', visibleLimit: 'Compañeros visibles', battleEveryEncounters: 'Encuentros entre batallas', previewEncounter: 'Probar encuentro salvaje', previewLocal: 'Simular en la app', spawn: 'Lanzar en directo',
   obsTitle: 'Fuentes de navegador', obsHelp: 'Copia cada enlace a una fuente de navegador en OBS, Streamlabs o tu programa de directo. Usa 1920 × 550 para compañeros y batallas. Redimensiona la fuente en la escena desde una esquina para mantener la proporción.',
   connectionHelp: 'Conecta Twitch primero para activar tu comunidad. Después puedes añadir Kick. El portal de viewers se configura automáticamente.', connected: 'Conectado', disconnected: 'Desconectado', editBotReplies: 'Personalizar respuestas del chat' })
 Object.assign(labels.en, { homeTab: 'Home', sourcesTab: 'Sources', next: 'Next encounter', wildCount: 'Encounters this session', caughtCount: 'Catches this session',
-  encounterSettings: 'Wild encounters', companionSettings: 'On-screen companions', battleSettings: 'Battles', interval: 'Minutes between wild encounters', duration: 'Minutes to catch', catchGraceSeconds: 'Stream delay grace (s)',
-  nameLimit: 'Hide names above this count', visibleLimit: 'Visible companions', battleEveryEncounters: 'Encounters between battles', previewEncounter: 'Wild encounter preview', previewLocal: 'Simulate in app', spawn: 'Spawn on stream',
+  encounterSettings: 'Wild encounters', companionSettings: 'On-screen companions', battleSettings: 'Team Battles', teamBattleHelp: 'Each viewer fights with their saved team. An empty team uses their summoned Pokémon.', raidHelp: 'Start a raid with one or more summoned companions or run a test without rewards. Both appear in the Companions source in OBS or Streamlabs.', startRaidNow: 'Start raid now', interval: 'Minutes between wild encounters', duration: 'Minutes to catch', catchGraceSeconds: 'Stream delay grace (s)',
+  eventsTab: 'Events', dataTab: 'Data Config', liveEvents: 'Live controls', startBattleNow: 'Start battle now', saveEvents: 'Save scheduling and rewards', wildEnabled: 'Automatic wild encounters', raidEnabled: 'Automatic raids', dataHelp: 'Download a template, edit it, and load it to apply the changes in this app.', balanceLab: 'Testing and balance', forceRaid: 'Force a test raid', forceTeam: 'Force a team test', simulationRounds: 'Simulations', runSimulation: 'Simulate and download report', raidSizePercent: 'Boss size (%)', raidHpMultiplier: 'Boss HP multiplier', raidStatMultiplier: 'Other stat multiplier', raidLevelMode: 'Boss level', raidHighestLevel: 'Match the highest-level Pokémon', raidAverageLevel: 'Team average level', raidTitle: 'Dynamax bosses', raidChance: 'Chance per encounter (%)', raidDuration: 'Time limit (sec)', raidCatch: 'Open a catch after defeating a boss', teamBattles: 'Enable three-slot battle teams', raidRewards: 'Rewards for defeating a boss', speciesRules: 'Rules by Pokémon', importRules: 'Load JSON', showPokemonName: 'Show Pokémon name', showViewerName: 'Show viewer name', nameLimit: 'Hide names above this count', visibleLimit: 'Visible companions', battleEveryEncounters: 'Encounters between battles', previewEncounter: 'Wild encounter preview', previewLocal: 'Simulate in app', spawn: 'Spawn on stream',
   obsTitle: 'Browser sources', obsHelp: 'Copy each link into a browser source in OBS, Streamlabs, or your streaming software. Set the companion and battle source to 1920 × 550. Resize it from a corner in your scene to keep its proportions.',
   connectionHelp: 'Connect Twitch first to activate your community. Then you can add Kick. The viewer portal is set automatically.', connected: 'Connected', disconnected: 'Disconnected', editBotReplies: 'Customize chat replies' })
 
@@ -103,7 +103,7 @@ const tips = {
   summonXpPerSecond: ['XP por segundo de invocación activa.', 'XP per second while summoned and active.'],
   battleXpPercentPerWin: ['El ganador recibe este porcentaje del tramo al siguiente nivel. 0 desactiva la XP de victoria.', 'The winner receives this percentage of the XP needed for their next level. Set to 0 to disable.'],
   battleEveryEncounters: ['Intenta iniciar tras este número de encuentros si hay dos compañeros. Usa 0 para inicio manual.', 'Tries to start after this many encounters with two companions. Use 0 for manual only.'],
-  battleEnabled: ['Habilita el inicio manual y la programación de batallas.', 'Enables manual and scheduled battles.'],
+  battleEnabled: ['Programa batallas según el número de encuentros indicado.', 'Schedules battles based on the configured encounter count.'],
   battleMoneyPerWin: ['Premio para el ganador al cerrar la batalla. 0 desactiva el premio.', 'Paid to the winner when the battle ends. Set to 0 to disable.'],
   battleHpMultiplier: ['Multiplica los PS iniciales de todos los participantes.', 'Multiplies starting HP for all fighters.'],
   gameToggle: ['Activa encuentros automáticos y comandos del chat. Al detenerlo se limpian los overlays.', 'Enables automatic encounters and gameplay chat. Stopping clears the overlays.'],
@@ -257,14 +257,14 @@ if (panel) {
     legendary.elements.creature.add(new Option(entry.name, entry.name))
   }
   legendary.hidden = !legendary.elements.creature.options.length
-  for (const form of ['spawn', 'summon-preview']) {
+  for (const form of ['spawn', 'encounter-preview-form', 'summon-preview']) {
     const select = $(form).elements.namedItem('creature')
-    for (const entry of catalog) if (form !== 'spawn' || entry.wildEligible) select.add(new Option(entry.name, entry.name))
+    for (const entry of catalog) if (form === 'summon-preview' || entry.wildEligible) select.add(new Option(entry.name, entry.name))
   }
   let preview
   let encounterPreview
   $('preview-encounter').addEventListener('click', () => {
-    const name = $('spawn').elements.creature.value
+    const name = $('encounter-preview-form').elements.creature.value
     if (name) encounterPreview = { id: 'preview:' + Date.now(), name, level: 1, endsAt: Date.now() + 12_000 }
   })
   let previewLayer = 0
@@ -353,12 +353,15 @@ async function refresh() {
     }
     translate()
   }
+  updateBossChoices(state.raidBosses)
   if (!settingsLoaded) {
+    for (const reward of state.config.raidRewards ?? []) addRaidReward(reward)
     loadCapturePercentages(state.config.capturePercentages)
     for (const [id, price] of Object.entries(state.config.shopPrices ?? {})) $('shop-prices').elements.namedItem(id).value = price
     for (const [name, value] of Object.entries(state.config)) {
-      const field = document.getElementById("settings").elements.namedItem(name)
-      if (field) field.value = value
+      const field = $('settings').elements.namedItem(name) ?? $('event-settings').elements.namedItem(name)
+      if (field?.type === 'checkbox') field.checked = value
+      else if (field) field.value = value
     }
     updateScaleLabel()
     settingsLoaded = true
@@ -623,6 +626,19 @@ if (panel) {
     loadCapturePercentages()
     $('capture-status').textContent = ''
   })
+  for (const button of document.querySelectorAll('[data-species-rules]')) button.addEventListener('click', async () => {
+    const status = $('species-rules-status')
+    button.disabled = true
+    try {
+      const response = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ speciesRules: button.dataset.speciesRules, reset: button.hasAttribute('data-reset') }) })
+      status.textContent = response.ok ? ($('language').value === 'en' ? 'Rules updated or file selection closed.' : 'Reglas actualizadas o selección cerrada.') : copy.invalidSettings
+    } catch {
+      status.textContent = copy.invalidSettings
+    } finally {
+      button.disabled = false
+    }
+  })
   $('capture-settings').addEventListener('submit', async event => {
     event.preventDefault()
     const copy = labels[$('language').value]
@@ -781,20 +797,138 @@ if (panel) {
     if (result.ok) await refresh()
     else $('notice').textContent = labels[$('language').value].joinFirst
   })
-  for (const id of ['settings', 'spawn', 'chat', 'legendary-event']) {
+  for (const [index, id, rank, dna] of [[0, 42, 22, 0], [1, 384, 25, 0]]) {
+    const field = document.createElement('fieldset')
+    const selector = document.createElement('select')
+    selector.name = 'species' + index
+    selector.setAttribute('aria-label', 'Pokémon ' + (index + 1))
+    selector.replaceChildren(...catalog.filter(entry => Number(entry.id))
+      .map(entry => new Option(entry.name, Number(entry.id))))
+    selector.value = id
+    field.append(selector)
+    for (const [key, label, value, maximum] of [['level','Lv.',rank,100], ['dna','DNA',dna,10]]) {
+      const wrapper = document.createElement('label')
+      wrapper.textContent = label
+      wrapper.append(Object.assign(document.createElement('input'), { name:key + index, type:'number', min:key === 'dna' ? 0 : 1, max:maximum, value, required:true }))
+      field.append(wrapper)
+    }
+    $('simulation-fighters').append(field)
+  }
+  function testAction(action) {
+    return fetch('/demo', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(action) })
+  }
+  for (const button of document.querySelectorAll('[data-force-battle], [data-balance-data], #start-raid-now, #start-event-battle')) button.addEventListener('click', async () => {
+    button.disabled = true
+    const english = $('language').value === 'en'
+    try {
+      const mode = button.dataset.forceBattle
+      const species = Number($(mode === 'raid' ? 'preview-only-raid-species' : 'preview-raid-species').value)
+      const real = button.id === 'start-raid-now'
+      const team = button.id === 'start-event-battle'
+      const status = $(team ? 'event-battle-status' : mode === 'team' ? 'team-test-status' : mode === 'raid' ? 'raid-preview-status' : real ? 'raid-test-status' : 'balance-status')
+      const response = await testAction(team ? {startEventBattle:true} : real ? {startRaid:species} : mode ? {forceBattle:mode, species} : {balanceData:button.dataset.balanceData})
+      status.textContent = response.ok ? (real || team || mode ? (english ? 'Started in the Companions source.' : 'Inició en la fuente Compañeros.') : (english ? 'Ready.' : 'Listo.')) :
+        response.status === 422 ? team ? labels[$('language').value].battleNeedsPlayers : (english ? 'Summon a Pokémon to start a raid.' : 'Invoca un Pokémon para iniciar la incursión.') :
+        response.status === 409 ? (english ? 'Wait for the current battle or start the game.' : 'Espera la batalla actual o inicia el juego.') :
+        (english ? 'Could not start or import.' : 'No se pudo iniciar o importar.')
+    } finally { button.disabled = false }
+  })
+  $('balance-simulation').addEventListener('submit', async event => {
+    event.preventDefault()
+    const form = event.currentTarget
+    const values = new FormData(form)
+    const button = form.querySelector('button')
+    const english = $('language').value === 'en'
+    button.disabled = true
+    $('balance-status').textContent = english ? 'Simulating…' : 'Simulando…'
+    try {
+      const fighters = [0,1].map(index => ({id:Number(values.get('species'+index)), level:Number(values.get('level'+index)), dna:Number(values.get('dna'+index))}))
+      const response = await testAction({balanceSimulation:{fighters, rounds:Number(values.get('rounds'))}})
+      if (!response.ok) throw new Error('Simulation failed')
+      const report = await response.json()
+      const output = $('simulation-result')
+      output.textContent = JSON.stringify(report, null, 2)
+      output.hidden = false
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(new Blob([output.textContent], {type:'application/json'}))
+      link.download = 'balance-simulation.json'
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+      $('balance-status').textContent = english ? 'Simulation complete.' : 'Simulación completa.'
+    } catch { $('balance-status').textContent = english ? 'Simulation failed.' : 'No se pudo simular.' }
+    finally { button.disabled = false }
+  })
+  $('add-raid-reward').addEventListener('click', () => addRaidReward({kind: 'money', amount: 2500}))
+  for (const [button, key] of [['load-raid-bosses', 'raidBosses'], ['load-learnsets', 'learnsets']]) $(button).addEventListener('click', async () => {
+    const result = await fetch('/demo', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({[key]:'choose'})})
+    $('balance-status').textContent = result.ok ? labels[$('language').value].saved : labels[$('language').value].invalidSettings
+  })
+  for (const id of ['settings', 'event-settings', 'spawn', 'chat', 'legendary-event']) {
     $(id).addEventListener('submit', async event => {
       event.preventDefault()
       const form = Object.fromEntries(new FormData(event.target))
-      const action = id === 'settings' ? { config: Object.fromEntries(Object.entries(form).map(([key, value]) => [key, Number(value)])) } :
+      const configForm = id === 'settings' || id === 'event-settings'
+      const config = configForm ? Object.fromEntries([...event.target.elements].filter(field => field.name).map(field => [field.name, field.type === 'checkbox' ? field.checked : field.name === 'raidLevelMode' ? field.value : Number(field.value)])) : null
+      const action = configForm ? { config } :
         id === 'spawn' ? { spawn: form.creature } : id === 'legendary-event' ? { queueLegendary: form.creature } : form
+      if (id === 'event-settings') action.raidRewards = Array.from($('raid-rewards').children, row => ({
+        kind: row.querySelector('[data-kind]').value, item: row.querySelector('[data-item]').value, amount: row.querySelector('input').valueAsNumber
+      }))
       if (id === 'chat') viewer = form.viewer
       const result = await fetch('/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(action) })
       const copy = labels[$('language').value]
       if (result.ok) await refresh()
-      if (id === 'settings') $('settings-status').textContent = result.ok ? copy.saved : copy.invalidSettings
+      if (configForm) $(id === 'settings' ? 'settings-status' : 'event-settings-status').textContent = result.ok ? copy.saved : copy.invalidSettings
+      else if (id === 'spawn') $('event-wild-status').textContent = result.ok ? copy.adminSpawned : copy.unavailable
       else if (!result.ok) $(id === 'chat' ? 'notice' : 'legendary-status').textContent = copy.invalidSettings
     })
   }
+}
+function updateBossChoices(roster = []) {
+  const version = JSON.stringify(roster)
+  for (const id of ['preview-raid-species', 'preview-only-raid-species']) {
+    const field = $(id)
+    if (version === field.dataset.version) continue
+    const selected = field.value || '9'
+    field.replaceChildren(...roster.map(boss => new Option(boss.name, boss.species)))
+    if ([...field.options].some(option => option.value === selected)) field.value = selected
+    field.dataset.version = version
+  }
+}
+function addRaidReward(reward) {
+  const list = $('raid-rewards')
+  if (list.children.length >= 10) return
+  const english = $('language').value === 'en'
+  const row = document.createElement('div')
+  row.className = 'raid-reward'
+  const kind = document.createElement('select')
+  kind.dataset.kind = ''
+  const item = document.createElement('select')
+  item.dataset.item = ''
+  const amount = Object.assign(document.createElement('input'), { type: 'number', min: 1, required: true })
+  const remove = Object.assign(document.createElement('button'), { type: 'button', textContent: '−' })
+  kind.setAttribute('aria-label', english ? 'Reward' : 'Premio')
+  amount.setAttribute('aria-label', english ? 'Amount' : 'Cantidad')
+  item.setAttribute('aria-label', english ? 'Item' : 'Objeto')
+  remove.setAttribute('aria-label', english ? 'Remove reward' : 'Quitar premio')
+  for (const [id, es, en] of [['money','Pokédólares','Pokédollars'],['candy','Caramelo Raro','Rare Candy'],['tracker','Legendary Tracker','Legendary Tracker'],
+    ['dust','Shiny Dust','Shiny Dust'],['balls','Poké Balls','Poké Balls'],['held','Objeto equipable','Held item']]) kind.add(new Option(english ? en : es, id))
+  kind.value = reward.kind
+  const updateItems = () => {
+    const options = kind.value === 'held' ? Object.entries(shopItems).filter(([, product]) => product.held).map(([id, product]) => [id, product.names[Number(english)]]) :
+      kind.value === 'balls' ? Object.values(shopItems).filter(product => product.ball).map(product => [product.ball, product.names[Number(english)]]) : []
+    item.replaceChildren(...options.map(([id, name]) => new Option(name, id)))
+    item.hidden = !options.length
+    amount.max = kind.value === 'held' ? 1 : kind.value === 'money' ? 1000000 : 999
+    if (amount.valueAsNumber > Number(amount.max)) amount.value = amount.max
+  }
+  updateItems()
+  if (reward.item) item.value = reward.item
+  amount.value = reward.amount
+  kind.addEventListener('change', updateItems)
+  remove.addEventListener('click', () => row.remove())
+  row.append(kind, item, amount, remove)
+  list.append(row)
 }
 async function update() {
   try {

@@ -74,7 +74,29 @@ export function spriteScale(animation, scale) {
   return scale * Math.min(1, 40 / Math.max(animation.width, animation.height))
 }
 
-export function sprite(context, animation, x, y, direction, elapsed, still = false, scale = 2, once = false) {
+const frameBounds = new WeakMap()
+function visibleFrame(image, frame, row, width, height) {
+  let frames = frameBounds.get(image)
+  if (!frames) { frames = new Map(); frameBounds.set(image, frames) }
+  const key = [frame, row, width, height].join(':')
+  if (frames.has(key)) return frames.get(key)
+  const sample = document.createElement('canvas')
+  sample.width = width
+  sample.height = height
+  const context = sample.getContext('2d', { willReadFrequently: true })
+  context.drawImage(image, frame * width, row * height, width, height, 0, 0, width, height)
+  const pixels = context.getImageData(0, 0, width, height).data
+  let bottom = height
+  for (let scan = height - 1; scan >= 0; scan--) {
+    let opaque = false
+    for (let x = 0; x < width; x++) if (pixels[(scan * width + x) * 4 + 3]) { opaque = true; break }
+    if (opaque) { bottom = scan + 1; break }
+  }
+  frames.set(key, bottom)
+  return bottom
+}
+
+export function sprite(context, animation, x, y, direction, elapsed, still = false, scale = 2, once = false, grounded = false) {
   if (!animation) return false
   const image = loadImage(animation)
   if (!image) return false
@@ -90,15 +112,16 @@ export function sprite(context, animation, x, y, direction, elapsed, still = fal
   }
   const row = rows === 1 ? 0 : direction < 0 ? 6 : direction > 0 ? 2 : 0
 
+  const anchor = grounded ? visibleFrame(image, frame, row, width, height) : height / 2
   context.drawImage(image, frame * width, row * height, width, height,
-    Math.round(x - width * drawScale / 2), Math.round(y - height * drawScale / 2), width * drawScale, height * drawScale)
+    Math.round(x - width * drawScale / 2), Math.round(y - anchor * drawScale), width * drawScale, height * drawScale)
   return true
 }
 
-function label(context, text, x, y, size = 15, color = '#fff') {
+function label(context, text, x, y, size = 15, color = '#fff', outline = 3) {
   context.font = 'bold ' + size + 'px system-ui'
   context.textAlign = 'center'
-  context.lineWidth = 3
+  context.lineWidth = outline
   context.strokeStyle = '#101719'
   context.fillStyle = color
   context.strokeText(text, x, y)
@@ -292,6 +315,54 @@ export function chooseBehavior(actor, animations, time, random = Math.random) {
   actor.until = time + duration
 }
 
+function dynamaxAura(context, x, y, top, time, age) {
+  const height = Math.max(90, y - top)
+  const radius = Math.min(170, height * .64)
+  const pulse = .82 + Math.sin(time / 220) * .18
+  context.save()
+  const glow = context.createRadialGradient(x, y - height * .36, 7, x, y - height * .36, radius)
+  glow.addColorStop(0, '#e044803d')
+  glow.addColorStop(.55, '#f434656b')
+  glow.addColorStop(1, '#f4346500')
+  context.fillStyle = glow
+  context.fillRect(x - radius, y - height * .36 - radius, radius * 2, radius * 2)
+  context.globalAlpha = pulse
+  context.lineWidth = 2
+  context.strokeStyle = '#ff557b'
+  context.shadowColor = '#ff003f'
+  context.shadowBlur = 13
+  for (let arc = 0; arc < 3; arc++) {
+    context.beginPath()
+    context.ellipse(x, y + 6 + arc * 4, radius * (.56 + arc * .12), 8 + arc * 3, 0, time / 480 + arc * 2, time / 480 + arc * 2 + 1.8)
+    context.stroke()
+  }
+  context.shadowBlur = 0
+  for (let i = 0; i < 14; i++) {
+    const drift = (time / (24 + i) + i * 13) % 100 / 100
+    context.globalAlpha = Math.sin(drift * Math.PI) * .85
+    context.fillStyle = i % 3 === 0 ? '#ffd2df' : '#ff4e78'
+    context.fillRect(x + Math.sin(i * 8.1 + drift * 2) * radius * .8, y - drift * (height + 32), 3, 4)
+  }
+  if (age < 11) {
+    context.globalAlpha = Math.min(1, age * 2 + .25, (11 - age) / 2)
+    for (let i = 0; i < 5; i++) {
+      const cx = x + (i - 2) * radius * .28 + Math.sin(time / 460 + i * 1.1) * 12
+      const cy = Math.max(28, top - 24) - Math.sin(i * 1.8 + time / 610) * 10
+      const w = radius * (.22 + i % 2 * .09)
+      const mist = context.createRadialGradient(cx, cy, 1, cx, cy, w)
+      mist.addColorStop(0, '#ffadcbe8')
+      mist.addColorStop(.4, '#c43f79db')
+      mist.addColorStop(.75, '#8628579c')
+      mist.addColorStop(1, '#5c214e00')
+      context.fillStyle = mist
+      context.beginPath()
+      context.ellipse(cx, cy, w, w * .47, Math.sin(i) * .16, 0, Math.PI * 2)
+      context.fill()
+    }
+  }
+  context.restore()
+}
+
 export function showScene(canvas, kind, catalog, getState, formatTime, { strip = false } = {}) {
   if (kind === 'companions') {
     canvas.width = companionWidth
@@ -344,12 +415,17 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
     }
 
     if (state.battle && !state.battleStart) {
-      const floor = height * .83
+      const floor = height - 2
       const battle = state.battle
       actors.clear()
       if (battle.field && !battle.over) drawField(context, battle.field, width, height, floor, battle.time)
+      const hitFeedback = new Map()
       if (!battle.over) for (const effect of battle.effects) {
         if (effect.expires <= battle.time) continue
+        if (effect.kind === 'hit' && effect.damage > 0 && Number.isInteger(effect.target)) {
+          if (!hitFeedback.has(effect.target)) hitFeedback.set(effect.target, [])
+          hitFeedback.get(effect.target).push(effect)
+        }
         const color = effect.type === 'fire' ? '#ff8957' : effect.type === 'water' ? '#7bddff' : '#e1c8ff'
         if (effect.kind === 'ultimate') drawUltimate(context, effect, width, floor, battle.time, color)
         else if (effect.visual === 'hyper') drawHyper(context, effect, width, floor, battle.time)
@@ -360,7 +436,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       }
       if (!battle.over) for (const shot of battle.projectiles) drawProjectile(context, shot, floor - 12, battle.time)
       for (const [index, fighter] of state.battle.actors.entries()) {
-        if (!fighter.hp) continue
+        const hits = hitFeedback.get(index)
+        if (!fighter.hp && !hits) continue
         const appearance = fighter.appearance ?? fighter
         const entry = species.get(appearance.name)
         const form = entry?.battleForms?.[appearance.form]
@@ -369,14 +446,46 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         const start = battlePositions.get(index) ?? fighter.x
         const x = start + (fighter.x - start) * Math.min(1, elapsed * 13)
         battlePositions.set(index, x)
-        const baseY = fighter.flying ? floor - 28 + Math.sin(time / 280 + index) * 5 : floor
+        const baseY = fighter.flying && !fighter.boss ? floor - 28 + Math.sin(time / 280 + index) * 5 : floor
         const y = fighter.maneuver?.kind === 'fly' ? baseY - Math.sin(Math.PI * fighter.maneuver.phase) * 130 : baseY
-        const top = y - Math.max(50, (clip?.height ?? 0) * spriteScale(clip, 3 * zoom) / 2)
-        if (fighter.maneuver?.kind === 'dig') drawDigMound(context, x, y, battle.time)
-        else {
-          sprite(context, readyClip(clip, variant?.animations), x, y, fighter.direction, time, false, 3 * zoom)
+        let scale = 3 * zoom * (fighter.boss ? fighter.bossScale ?? 4 : 1)
+        if (fighter.boss && clip) {
+          const base = appearance.form === 'gigantamax' && battleClip(entry?.normal?.animations, 'Idle')
+          if (base) scale *= Math.min(1, Math.max(base.width, base.height) / Math.max(clip.width, clip.height))
+          scale *= Math.min(1, Math.max(80, y - 60) / (clip.height * spriteScale(clip, scale)))
+        }
+        const top = Math.max(28, y - Math.max(38, (clip?.height ?? 0) * spriteScale(clip, scale)))
+        if (fighter.hp && fighter.maneuver?.kind === 'dig') drawDigMound(context, x, y, battle.time)
+        else if (fighter.hp) {
+          context.save()
+          if (fighter.boss) {
+            dynamaxAura(context, x, y, top, time, battle.time)
+            context.shadowColor = '#ff315e'
+            context.shadowBlur = 18
+            if (fighter.motion === 'Run') {
+              const ghost = readyClip(clip, variant?.animations)
+              context.save()
+              context.globalAlpha = .24
+              for (const distance of [36, 18]) sprite(context, ghost, x - fighter.direction * distance, y, fighter.direction, time, false, scale, false, true)
+              context.restore()
+            }
+          }
+          if (hits?.some(hit => battle.time - hit.at < .17)) context.filter = 'brightness(0) invert(1)'
+          sprite(context, readyClip(clip, variant?.animations), x, y, fighter.direction, time, false, scale, false, true)
+          context.restore()
           if (!clip) label(context, fighter.name[0], x, y, 25)
         }
+        if (hits) hits.slice(-4).forEach((hit, slot) => {
+          const age = Math.max(0, battle.time - hit.at)
+          const anchor = top > 100 ? top - 28 : Math.min(height - 28, top + 55)
+          context.save()
+          context.globalAlpha = Math.min(1, (hit.expires - battle.time) * 5)
+          context.lineJoin = 'round'
+          label(context, '-' + Math.round(hit.damage), x + (slot % 2 ? 24 : -14) + (hit.critical ? Math.sin(age * 96) * Math.max(0, 8 - age * 35) : 0), Math.max(29, anchor - age * 53 - slot * 13),
+            hit.critical ? 39 : 30, hit.critical ? '#ffcc51' : '#ffffff', hit.critical ? 7 : 5)
+          context.restore()
+        })
+        if (!fighter.hp) continue
         if (fighter.ongoing) drawOngoing(context, fighter.ongoing, x, y, battle.time)
         if (fighter.status) drawStatus(context, fighter.status, x, top - 55, battle.time, 26, 24)
         if (fighter.evasion || fighter.flinched) label(context, fighter.flinched ? '✦ ✦' : '≋', x + 32, top - 49, 20)
@@ -387,7 +496,10 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         context.fillStyle = hp <= .2 ? '#ed5863' : hp <= .5 ? '#ffce66' : '#65e595'
         context.fillRect(x - 44, top - 6, 88 * hp, 5)
       }
-      if (state.battle.over && state.battle.winner) label(context, state.battle.winner +
+      if (battle.raid && !battle.over) label(context, 'Dynamax · ' + formatTime(Date.now() + battle.remaining * 1000), width / 2, 48, 32, '#ffc0cc')
+      if (battle.raid && battle.over) label(context, state.battle.actors.some(actor => actor.boss && actor.hp) ?
+        (state.bot?.language === 'es' ? 'Incursión terminada' : 'Raid ended') : (state.bot?.language === 'es' ? '¡Jefe derrotado!' : 'Boss defeated!'), width / 2, height * .63, 49, '#ffe7a6')
+      else if (state.battle.over && state.battle.winner) label(context, state.battle.winner +
         (state.bot?.language === 'es' ? ' gana la batalla' : ' wins the battle'), width / 2, height * .63, 49, '#ffe7a6')
       return
     }
@@ -439,19 +551,19 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       }
       const jumping = actor.behavior === 'Jump' || actor.behavior === 'Hop'
       const lift = jumping ? 36 * Math.sin(Math.PI * (time - actor.since) / (actor.until - actor.since)) : 0
-      const y = height * .83 - lift
+      const y = height - 2 - lift
       const summonAge = time - actor.arrived
       if (summonAge < 640) summonCapsule(context, actor.x, y, summonAge)
       if (summonAge < 230) continue
       context.save()
       context.globalAlpha = Math.min(1, (summonAge - 230) / 230)
       const clip = readyClip(animation, animations)
-      sprite(context, clip, actor.x, y, actor.direction, time - actor.since, false, scale, once && clip === animation)
+      sprite(context, clip, actor.x, y, actor.direction, time - actor.since, false, scale, once && clip === animation, true)
       if (!animation) label(context, name[0], actor.x, y, 22)
       if (key.endsWith(' ✦')) sparkles(context, actor.x, y, time, layer * .13, scale)
       const pickup = data.active.pickup
       const pickupAge = pickup && (Date.now() - pickup.at) / 2100
-      const labelY = y - Math.max(45, (animation?.height ?? 0) * spriteScale(animation, scale) / 2)
+      const labelY = y - Math.max(45, (animation?.height ?? 0) * spriteScale(animation, scale))
       const levelUpAge = time - (actor.levelUpAt ?? -Infinity)
       if (pickup && pickupAge >= 0 && pickupAge < 1) {
         context.save()
@@ -464,7 +576,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       if (showNames) {
         const nameInChat = data.displayName || viewer
         const display = nameInChat.length > 16 ? nameInChat.slice(0, 15) + '…' : nameInChat
-        label(context, display + ' | ' + key, actor.x, labelY - 22, 23)
+        const names = [state.config.showViewerName !== false && display, state.config.showPokemonName !== false && key].filter(Boolean)
+        if (names.length) label(context, names.join(' | '), actor.x, labelY - 22, 23)
         const bounce = levelUpAge < 650 ? Math.sin(Math.PI * levelUpAge / 650) * 9 : 0
         label(context, 'Lv. ' + rank, actor.x, labelY + bounce * .3, 19 + bounce, bounce ? '#a2fce1' : '#fff')
         const start = xpAtLevel(rank)

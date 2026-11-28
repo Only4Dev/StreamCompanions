@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.4
+
+- Add team battles, configurable Dynamax raids, live event controls and a headless balance simulator.
+- Expand editable species, move, ability, egg and encounter data.
+- Add Shiny Dust, one-level rewards for duplicate catches and eggs, and battle damage indicators.
+- Improve the live portal, party cards, shop feedback and item descriptions.
+
 ## 1.2.3
 
 - Refresh stale overlay catalogs, retry failed sprite requests and use a loaded idle or walking sprite while other animations load.

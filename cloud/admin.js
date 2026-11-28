@@ -3,6 +3,7 @@ import { battleSpecies } from '../dev/battle.js'
 import { isFirstStage } from '../ui/evolution.js'
 import { level } from '../ui/levels.js'
 import { heldItems } from '../ui/held-items.js'
+import { normalizeSpeciesRules } from '../ui/species-rules.js'
 import { specialEncounterTag } from '../ui/capture-rates.js'
 
 const scope = "(SELECT o.community_id FROM community_owners o JOIN devices d ON d.key_hash = o.key_hash AND d.community_id = o.community_id " +
@@ -52,21 +53,37 @@ export async function adminPortal(request, url, db, identity, en, escape, page) 
     if (request.headers.get('Origin') !== url.origin) return new Response(null, { status: 403 })
     const reader = request.body?.getReader()
     if (!reader) return new Response(null, { status: 400 })
-    const decoder = new TextDecoder()
-    let text = ''
+    const contentType = request.headers.get('Content-Type') ?? ''
+    const upload = contentType.startsWith('multipart/form-data;')
+    const chunks = []
     let size = 0
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
       size += value.byteLength
-      if (size > 2048) { await reader.cancel(); return new Response(null, { status: 413 }) }
-      text += decoder.decode(value, { stream: true })
+      if (size > (upload ? 256_000 : 2048)) { await reader.cancel(); return new Response(null, { status: 413 }) }
+      chunks.push(value)
     }
-    const form = new URLSearchParams(text + decoder.decode())
+    const body = new Response(new Blob(chunks), { headers: { 'Content-Type': contentType } })
+    let form
+    try { form = upload ? await body.formData() : new URLSearchParams(await body.text()) }
+    catch { return new Response(null, { status: 400 }) }
     const id = form.get('id') ?? ''
     const type = form.get('type')
     if (!/^[a-f0-9-]{36}$/.test(id)) return new Response(null, { status: 400 })
     let action
+    if (type === 'speciesRules') {
+      const kind = form.get('kind')
+      const file = form.get('rules')
+      if (!['catch', 'rarity'].includes(kind)) return new Response(null, { status: 400 })
+      let rules = null
+      if (form.get('reset') !== '1') {
+        if (!upload || typeof file?.text !== 'function' || !file.size) return new Response(null, { status: 400 })
+        try { rules = normalizeSpeciesRules(kind, JSON.parse(await file.text())) } catch {}
+        if (!rules) return new Response(en ? 'Invalid species rules JSON.' : 'JSON de reglas inválido.', { status: 400 })
+      }
+      action = { type, kind, rules }
+    }
     if (type === 'battle') action = { type }
     if (type === 'spawn' && wild(form.get('pokemon'))) action = { type, pokemon: form.get('pokemon') }
     if (type === 'grant') {
@@ -107,6 +124,11 @@ export async function adminPortal(request, url, db, identity, en, escape, page) 
   const section = (type, fields, button, enabled = available) => '<form class="admin-command" method="post" action="' + escape(destination) + '">' +
     '<input type="hidden" name="id" value="' + crypto.randomUUID() + '"><input type="hidden" name="type" value="' + type + '">' +
     fields + '<button' + (enabled ? '' : ' disabled') + '>' + button + '</button></form>'
+  const ruleForm = (kind, file) => '<form class="admin-command" method="post" enctype="multipart/form-data" action="' + escape(destination) +
+    '"><input type="hidden" name="id" value="' + crypto.randomUUID() + '"><input type="hidden" name="type" value="speciesRules"><input type="hidden" name="kind" value="' + kind +
+    '"><label><a href="/data/' + file + '" download>' + file + '</a><input type="file" name="rules" accept=".json,application/json" required></label><button' +
+    (available ? '' : ' disabled') + '>' + (en ? 'Load JSON' : 'Cargar JSON') + '</button><button name="reset" value="1" formnovalidate' +
+    (available ? '' : ' disabled') + '>' + (en ? 'Restore defaults' : 'Restaurar valores') + '</button></form>'
   const pokedex = [...pokemon.keys()].sort()
   const players = roster.results.map(row => [row.viewer_id, JSON.parse(row.payload)])
   const player = url.searchParams.get('player')
@@ -137,7 +159,7 @@ export async function adminPortal(request, url, db, identity, en, escape, page) 
     '<div class="admin-grid"><section><h2>' + (en ? 'Grant or compensate' : 'Entregar o compensar') + '</h2>' +
     section('grant', grantFields, en ? 'Grant' : 'Entregar', available && players.length > 0) + '</section><section><h2>' + (en ? 'Game controls' : 'Controles del juego') + '</h2>' +
     section('spawn', '<label>Pokémon<select name="pokemon">' + pokedex.filter(wild).map(name => option(name, name, escape)).join('') + '</select></label>', en ? 'Spawn wild Pokémon' : 'Invocar salvaje') +
-    section('battle', '', en ? 'Start battle' : 'Iniciar batalla') + '</section></div><section><h2>' + (en ? 'Player inventory' : 'Inventario del jugador') + '</h2><form class="toolbar" method="get" action="/admin"><input type="hidden" name="community" value="' + escape(community) + '"><select name="player" required aria-label="' + (en ? 'Player' : 'Jugador') + '">' + options + '</select><button>' + (en ? 'View inventory' : 'Ver inventario') + '</button></form>' +
+    section('battle', '', en ? 'Start battle' : 'Iniciar batalla') + '</section></div><section><h2>' + (en ? 'Rules by Pokémon' : 'Reglas por Pokémon') + '</h2>' + ruleForm('catch', 'catch-rates.json') + ruleForm('rarity', 'encounter-rarities.json') + '</section><section><h2>' + (en ? 'Player inventory' : 'Inventario del jugador') + '</h2><form class="toolbar" method="get" action="/admin"><input type="hidden" name="community" value="' + escape(community) + '"><select name="player" required aria-label="' + (en ? 'Player' : 'Jugador') + '">' + options + '</select><button>' + (en ? 'View inventory' : 'Ver inventario') + '</button></form>' +
     (selected ? '<h3>' + escape(selected.displayName || player) + '</h3><p>Pokédólares · $' + escape(selected.pokeDollars ?? 0) + ' · ' + (en ? 'Rare Candy' : 'Caramelo Raro') + ' ×' + escape(selected.rareCandies ?? 0) + ' · Legendary Tracker ×' + escape(selected.legendaryTrackers ?? 0) + '</p><p>' +
       escape(Object.entries(selected.balls ?? {}).map(([id, count]) => id + ' ×' + count).join(' · ')) + '</p><p>' + escape((selected.heldItems ?? []).map(id => heldItems[id]?.[Number(en)] ?? id).join(' · ')) + '</p><details><summary>Pokémon (' + Object.keys(selected.collection ?? {}).length + ')</summary><ul>' + Object.entries(selected.collection ?? {}).map(([name, xp]) => '<li>' + escape(name) + ' · Lv. ' + level(xp) + '</li>').join('') + '</ul></details>' : '') + '</section><h2>' + (en ? 'Recent actions' : 'Acciones recientes') + '</h2><ol>' + records + '</ol></section>')
 }

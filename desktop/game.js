@@ -1,10 +1,13 @@
+import { encounterRarities, normalizeSpeciesRules, rarityFor, specialRarities } from '../ui/species-rules.js'
+import { regionalSpecies } from '../ui/regional-species.js'
 import { hasPickup } from '../ui/abilities.js'
 import { normalizeCommand } from './commands.js'
 import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, isFirstStage, maxDnaBoosters, nextEvolutionLevel, regionalEvolutionsFrom } from '../ui/evolution.js'
 import { defaultSummonXpPerSecond, level, maxLevel, maxXp, xpAtLevel } from '../ui/levels.js'
-import { captureCategories, catchChance, catchDifficulty, eggRarity, normalizeCapturePercentages, specialEncounterTag } from '../ui/capture-rates.js'
+import { captureCategories, catchChance, catchDifficulty, normalizeCapturePercentages, specialEncounterTag } from '../ui/capture-rates.js'
 import { heldItems } from '../ui/held-items.js'
-import { eggRarities, legendaryEggChance, normalizeShopPrices, shopItems, validShopPrice, validShopQuantity } from '../ui/shop.js'
+import { eggPool, parseEggPool } from '../ui/egg-rules.js'
+import { eggRarities, normalizeShopPrices, shopItems, validShopPrice, validShopQuantity } from '../ui/shop.js'
 
 export const creatures = ['Brasa', 'Musgo', 'Gota']
 
@@ -16,19 +19,35 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   const shinySpecies = new Set(catalog.filter(item => item.shiny).map(item => item.name))
   const byName = new Map(catalog.map(item => [item.name, item]))
   const byId = new Map(catalog.filter(item => item.id).map(item => [item.id, item]))
+  let catchOverrides = normalizeSpeciesRules('catch', progress?.catchOverrides)
+  let rarityOverrides = normalizeSpeciesRules('rarity', progress?.rarityOverrides)
+  let specialSpecies, wildSpecies, wildWeight
   const specialTags = new Map(catalog.map(item => [item.name, specialEncounterTag(item.id, item.legendary)]))
-  const specialSpecies = catalog.filter(item => specialTags.get(item.name)).map(item => item.name)
-  const wildSpecies = catalog.filter(item => !specialTags.get(item.name) && isFirstStage(item.id)).map(item => item.name)
-  const eggPools = new Map(eggRarities.map(rarity => [rarity, []]))
-  for (const item of catalog) {
-    if (item.id && !specialTags.get(item.name) && isFirstStage(item.id)) eggPools.get(eggRarity(item.id)).push(item)
+  const rarityOf = item => rarityFor(item?.id, item?.legendary, rarityOverrides)
+  function updateEncounterPools() {
+    specialSpecies = catalog.filter(item => specialRarities.has(rarityOf(item))).map(item => item.name)
+    const weights = rarityOverrides?.weights ?? encounterRarities.weights
+    wildWeight = 0
+    wildSpecies = catalog.filter(item => !specialRarities.has(rarityOf(item)) && isFirstStage(item.id))
+      .map(item => ({ name: item.name, upper: (wildWeight += weights[rarityOf(item)]) }))
   }
-  const eggWeights = [65, 25, 8, 2]
-  const eggChoices = eggRarities.map((rarity, index) => ({ rarity, weight: eggWeights[index], pool: eggPools.get(rarity) }))
-    .filter(choice => choice.pool.length)
-  const eggWeight = eggChoices.reduce((total, choice) => total + choice.weight, 0)
+  updateEncounterPools()
   const trackers = catalog.filter(item => specialTags.get(item.name) === 'legendary')
-  const legendaryEggPool = trackers.filter(item => item.id && isFirstStage(item.id))
+  let eggChoices, eggWeight, legendaryEggPool, legendaryEggChance, customEggPool
+  function updateEggPool(input, custom = false) {
+    const rules = parseEggPool(input)
+    const choices = eggRarities.map(rarity => ({ rarity, weight: rules.weights[rarity],
+      pool: catalog.filter(item => rules.tierFor(item.id, specialTags.get(item.name)) === rarity) }))
+      .filter(choice => choice.pool.length && choice.weight > 0)
+    const weight = choices.reduce((sum, tier) => sum + tier.weight, 0)
+    if (custom && !weight) throw new Error('No eligible Pokémon in regular egg tiers')
+    eggChoices = choices
+    eggWeight = weight
+    legendaryEggChance = rules.legendaryChance
+    legendaryEggPool = trackers.filter(item => rules.tierFor(item.id, 'legendary') === 'legendary')
+    customEggPool = custom
+  }
+  updateEggPool(eggPool)
   const recentCaptures = []
   let captureSequence = 0
   const initialMetrics = () => ({ wins: 0, losses: 0, summonSeconds: 0 })
@@ -40,8 +59,11 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   for (const id of erasedViewers) viewers.delete(id)
   let layer = 0
   const savedConfig = { ...progress?.config }
+  delete savedConfig.teamBattles
+  delete savedConfig.duplicateMode
+  delete savedConfig.duplicateXpPercent
   delete savedConfig.duplicateXp
-  const config = { interval: 30, duration: 3, catchGraceSeconds: 10, legendaryChancePercent: .01, shiny: 128, nameLimit: 50, visibleLimit: 100, spriteScale: 100, duplicateMode: 1, duplicateXpPercent: 25, ...savedConfig }
+  const config = { interval: 30, duration: 3, catchGraceSeconds: 10, legendaryChancePercent: .01, shiny: 128, nameLimit: 50, showPokemonName: true, showViewerName: true, visibleLimit: 100, spriteScale: 100, wildEnabled: true, raidEnabled: (savedConfig.raidChance ?? 0) > 0, raidChance: 0, raidDuration: 120, raidSizePercent: 400, raidHpMultiplier: 5, raidStatMultiplier: 1.2, raidLevelMode: 'highest', raidCatch: false, raidRewards: [{ kind: 'money', amount: 2500 }, { kind: 'candy', amount: 1 }], teamBattles: true, ...savedConfig }
   if (!savedConfig.summonXpTuned && config.summonXpPerSecond === 1) config.summonXpPerSecond = defaultSummonXpPerSecond
   config.summonXpPerSecond ??= defaultSummonXpPerSecond
   delete config.battleXpPerOpponent
@@ -75,6 +97,21 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     const root = familyRoot(item.id)
     if (!families.has(root)) families.set(root, [])
     families.get(root).push(item)
+  }
+
+  const regionalBase = new Map(regionalSpecies.map(form => [form.id, form.baseId]))
+  const shinyRoot = id => familyRoot(regionalBase.get(id) ?? id)
+  const shinyLines = Map.groupBy(catalog.filter(entry => entry.id), entry => shinyRoot(entry.id))
+  function syncShinyUnlocks(viewer, root) {
+    if (!viewer.shinyFamilies?.includes(root)) return
+    for (const entry of shinyLines.get(root) ?? []) {
+      const { name } = entry
+      if (!entry.shiny || !Object.hasOwn(viewer.collection, name)) continue
+      const variant = name + ' ✦'
+      if (Object.hasOwn(viewer.collection, variant)) continue
+      viewer.collection[variant] = viewer.collection[name]
+      ;(viewer.dexAcquired ??= {})[variant] = now()
+    }
   }
 
   function shareFamily(viewer, key, xp, announce = true) {
@@ -133,6 +170,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         regionalUnlocked.push(name)
       }
     }
+    if (!shiny) syncShinyUnlocks(viewer, shinyRoot(entry.id))
     if (!announce || (!newForms.length && !regionalUnlocked.length)) return
     if (newForms.length === 1 && viewer.active?.key === key) {
       const target = newForms[0]
@@ -164,17 +202,18 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     for (const key of Object.keys(viewer.collection)) shareFamily(viewer, key, familyXp(viewer, key), false)
   }
 
-  function spawn(name) {
+  function spawn(name, eligible) {
     if (wildPaused) throw new Error("Wild encounters are paused for battle")
     const entry = byName.get(name)
-    const specialTag = specialTags.get(name)
-    if (!entry || (!specialTag && !isFirstStage(entry.id))) throw new Error('Invalid wild creature')
+    const rarity = entry && rarityOf(entry)
+    const specialTag = specialRarities.has(rarity) ? rarity : null
+    if (!entry || (!eligible && !specialTag && !isFirstStage(entry.id))) throw new Error('Invalid wild creature')
     const time = now()
-    const legendary = specialTag === 'legendary' || specialTag === 'mythical'
+    const legendary = Boolean(specialTag)
     const endsAt = time + (specialTag ? 5 : config.duration) * 60_000
     const catchUntil = endsAt + config.catchGraceSeconds * 1000
-    encounter = { id: time + ':' + ++encounterCount, name, level: 1, legendary, specialTag,
-      shiny: shinySpecies.has(name) && random() < 1 / config.shiny, endsAt, catchUntil }
+    encounter = { id: time + ':' + ++encounterCount, name, level: 1, legendary, specialTag, rarity,
+      ...(eligible ? { eligible } : {}), shiny: shinySpecies.has(name) && random() < 1 / config.shiny, endsAt, catchUntil }
     nextAt = Math.max(trackerAt ?? time + config.interval * 60_000, catchUntil)
   }
 
@@ -187,9 +226,14 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         trackerAt = undefined
         spawn(nextLegendary)
         nextLegendary = undefined
-      } else {
-        const pool = specialSpecies.length && random() < config.legendaryChancePercent / 100 ? specialSpecies : wildSpecies
-        if (pool.length) spawn(pool[Math.floor(random() * pool.length)])
+      } else if (config.wildEnabled) {
+        if (specialSpecies.length && random() < config.legendaryChancePercent / 100) {
+          spawn(specialSpecies[Math.floor(random() * specialSpecies.length)])
+        } else if (wildWeight) {
+          const roll = random() * wildWeight
+          const selected = wildSpecies.find(item => roll < item.upper)
+          if (selected) spawn(selected.name)
+        }
       }
     }
     if (battleActive) return
@@ -208,10 +252,10 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       const itemDropChance = hasPickup(speciesId) ? .052 : .002
       for (let minute = before; minute < after; minute++) {
         const candy = random() < .05
-        const money = config.summonMoneyPerMinute
+        let money = config.summonMoneyPerMinute
         if (candy) viewer.rareCandies = (viewer.rareCandies ?? 0) + 1
         if (money) viewer.pokeDollars = (viewer.pokeDollars ?? 0) + money
-        if (random() < itemDropChance) grantHeldItem(viewer)
+        if (random() < itemDropChance) money += grantHeldItem(viewer, true)
         const masterBall = random() < .0001
         if (masterBall) {
           viewer.balls ??= { normal: 0, great: 0, ultra: 0, master: 0 }
@@ -229,7 +273,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     const message = normalizeCommand(raw).toLowerCase()
     if (message !== '!legendaryticket') tick()
     const viewer = viewers.get(id)
-    if (battleActive && /^(?:!poke join|!catch|!summon|!summonshiny|!evolve|!candy|!legendaryticket)(?: |$)/.test(message)) return 'battleLocked'
+    if (battleActive && /^(?:!poke join|!catch|!summon|!summonshiny|!evolve|!candy|!legendaryticket|!shiny)(?: |$)/.test(message)) return 'battleLocked'
     if (message === '!poke join') {
       if (viewer && (!streamStarters || Object.keys(viewer.collection).length)) return 'alreadyJoined'
       const collection = viewer?.collection ?? {}
@@ -242,6 +286,27 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     }
     if (viewer && displayName) viewer.displayName = displayName
     if (!viewer) return 'joinFirst'
+    if (message === '!shiny') {
+      const key = viewer.active?.key
+      if (!key || !Object.hasOwn(viewer.collection, key)) return 'shinySummonFirst'
+      if (key.endsWith(' ✦')) return 'shinyAlreadyOwned'
+      const root = shinyRoot(byName.get(key)?.id)
+      if (root && viewer.shinyFamilies?.includes(root)) return 'shinyAlreadyOwned'
+      if (!shinySpecies.has(key)) return 'shinyUnavailable'
+      if (!(viewer.shinyDust > 0)) return 'shinyDustMissing'
+      const shiny = key + ' ✦'
+      viewer.shinyDust--
+      if (root) {
+        ;(viewer.shinyFamilies ??= []).push(root)
+        syncShinyUnlocks(viewer, root)
+      }
+      viewer.collection[shiny] ??= familyXp(viewer, key)
+      ;(viewer.dexAcquired ??= {})[shiny] ??= now()
+      shareFamily(viewer, shiny, viewer.collection[shiny])
+      viewer.active.key = shiny
+      onSummonChange({ event: 'shinyConverted', species: shiny, layer: viewer.active.layer })
+      return 'shinyConverted'
+    }
     if (message === '!legendaryticket') {
       if (wildPaused) return 'battleLocked'
       if (nextLegendary) return 'trackerQueued'
@@ -276,13 +341,14 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     if (command === '!catch') {
       const ball = argument || 'normal'
       if (!encounter) return 'noEncounter'
+      if (encounter.eligible && !encounter.eligible.includes(id)) return 'raidCatchIneligible'
       const key = encounter.name + (encounter.shiny ? ' ✦' : '')
       const owned = Object.hasOwn(viewer.collection, key)
-      if (viewer.caughtEncounter === encounter.id || (owned && config.duplicateMode === 0)) return 'alreadyCaught'
+      if (viewer.caughtEncounter === encounter.id || (owned && level(familyXp(viewer, key)) >= maxLevel)) return 'alreadyCaught'
       if (!Object.hasOwn(viewer.balls, ball)) return 'invalidBall'
       if (!viewer.balls[ball]) return 'noBalls'
       viewer.balls[ball]--
-      if (ball !== 'master' && random() >= catchChance(ball, byName.get(encounter.name)?.id, encounter.legendary, config.capturePercentages)) return 'escaped'
+      if (ball !== 'master' && random() >= catchChance(ball, byName.get(encounter.name)?.id, encounter.legendary, config.capturePercentages, catchOverrides?.species[byName.get(encounter.name)?.id])) return 'escaped'
       viewer.caughtEncounter = encounter.id
       recentCaptures.push({ id: ++captureSequence, encounterId: encounter.id, viewer: viewer.displayName || id,
         pokemon: key, at: now() })
@@ -295,11 +361,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       }
       const xp = viewer.collection[key]
       if (xp >= maxXp) return 'caught'
-      const levelIndex = Math.floor(Math.sqrt(xp / 120))
-      const nextLevelXp = (levelIndex + 1) ** 2 * 120
-      const levelSpan = nextLevelXp - levelIndex ** 2 * 120
-      const earnedXp = Math.max(1, Math.round(levelSpan * config.duplicateXpPercent / 100))
-      shareFamily(viewer, key, Math.min(maxXp, config.duplicateMode === 2 ? nextLevelXp : xp + earnedXp))
+      shareFamily(viewer, key, xpAtLevel(Math.min(maxLevel, level(xp) + 1)))
       return 'duplicateReward'
     }
     if (command === '!summon' || command === '!summonshiny') {
@@ -314,10 +376,18 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     return 'ignored'
   }
 
-  function grantHeldItem(viewer) {
+  function grantHeldItem(viewer, roaming = false) {
     viewer.heldItems ??= []
-    const available = Object.keys(heldItems).filter(item => !viewer.heldItems.includes(item))
-    if (available.length) viewer.heldItems.push(available[Math.floor(random() * available.length)])
+    const available = Object.keys(heldItems).filter(item => roaming || !viewer.heldItems.includes(item))
+    if (!available.length) return 0
+    const item = available[Math.floor(random() * available.length)]
+    if (!viewer.heldItems.includes(item)) {
+      viewer.heldItems.push(item)
+      return 0
+    }
+    const refund = Math.floor(config.shopPrices[item] / 2)
+    viewer.pokeDollars = (viewer.pokeDollars ?? 0) + refund
+    return refund
   }
 
   return {
@@ -340,10 +410,28 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       recentCaptures.length = 0
       return true
     },
+    setSpeciesRules(kind, values) {
+      const rules = values === null ? null : normalizeSpeciesRules(kind, values)
+      if (values !== null && !rules) throw new Error('Invalid species rules')
+      if (kind === 'catch') catchOverrides = rules
+      else if (kind === 'rarity') {
+        rarityOverrides = rules
+        updateEncounterPools()
+      } else throw new Error('Invalid species rule type')
+    },
     setCapturePercentages(values) {
       const percentages = normalizeCapturePercentages(values)
       if (!percentages) throw new Error('Invalid capture percentages')
       config.capturePercentages = percentages
+    },
+    setEggPool: input => updateEggPool(input, true),
+    setRaidRewards(rewards) {
+      if (!Array.isArray(rewards) || rewards.length > 10 || rewards.some(({kind, item, amount}) =>
+        !['money', 'candy', 'tracker', 'balls', 'held', 'dust'].includes(kind) || !Number.isSafeInteger(amount) || amount < 1 ||
+        amount > (kind === 'money' ? 1_000_000 : 999) ||
+        kind === 'balls' && !['normal', 'great', 'ultra', 'master'].includes(item) ||
+        kind === 'held' && (!Object.hasOwn(heldItems, item) || amount !== 1))) throw new Error('Invalid raid rewards')
+      config.raidRewards = rewards
     },
     setShopPrices(values) {
       const prices = normalizeShopPrices(values)
@@ -378,6 +466,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
             for (const key of keys) delete viewer.dnaBoosters[key]
             viewer.dnaBoosters[keys[0]] = dna + quantity
           }
+          else if (item === 'shiny-dust') viewer.shinyDust = (viewer.shinyDust ?? 0) + 1
           else if (item === 'legendary-tracker') viewer.legendaryTrackers = (viewer.legendaryTrackers ?? 0) + 1
           else if (item === 'poke-egg') {
             const roll = random()
@@ -389,16 +478,14 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
             const duplicate = Object.hasOwn(viewer.collection, pokemon.name)
             const xp = familyXp(viewer, pokemon.name)
             const rank = level(xp)
-            const bonus = duplicate && rank < maxLevel && config.duplicateMode !== 1
-              ? xpAtLevel(rank + 1) - xp
-              : duplicate && rank < maxLevel ? Math.max(1, Math.round((xpAtLevel(rank + 1) - xpAtLevel(rank)) * config.duplicateXpPercent / 100)) : 0
+            const bonus = duplicate && rank < maxLevel ? xpAtLevel(rank + 1) - xp : 0
             const earned = Math.min(bonus, maxXp - xp)
             if (!duplicate) {
               viewer.collection[pokemon.name] = xp
               ;(viewer.dexAcquired ??= {})[pokemon.name] = now()
             }
             shareFamily(viewer, pokemon.name, xp + earned)
-            hatch = { id: pokemon.id, name: pokemon.name, rarity, duplicate, xp: earned, rules: 2 }
+            hatch = { id: pokemon.id, name: pokemon.name, rarity, duplicate, xp: earned, rules: customEggPool ? 4 : 3, ...(duplicate && earned > 0 ? { levelUp: true } : {}) }
           } else (viewer.heldItems ??= []).push(item)
           result = 'purchased'
         }
@@ -428,7 +515,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         viewer.balls[item] = (viewer.balls[item] ?? 0) + amount
         return true
       }
-      const counter = { money: 'pokeDollars', candy: 'rareCandies', tracker: 'legendaryTrackers' }
+      const counter = { money: 'pokeDollars', candy: 'rareCandies', tracker: 'legendaryTrackers', dust: 'shinyDust' }
       if (!Object.hasOwn(counter, kind) || amount > (kind === 'money' ? 1_000_000 : 999)) return false
       const key = counter[kind]
       const total = (viewer[key] ?? 0) + amount
@@ -489,6 +576,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       wildPaused = paused
     },
     spawn,
+    spawnRaidPrize(name, viewerIds) { spawn(name, viewerIds) },
     setRunning(running) {
       if ((config.running !== false) === running) return
       tick()
@@ -526,7 +614,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       if (viewer) viewer.log = [...(viewer.log ?? []).slice(-29), { ...action, at: now() }]
     },
     starterName: id => Object.keys(viewers.get(id)?.collection ?? {})[0],
-    encounterDifficulty: (name, language) => catchDifficulty(byName.get(name)?.id, byName.get(name)?.legendary, language),
+    encounterSpecies: name => byName.get(name)?.id,
+    encounterDifficulty: (name, language) => catchDifficulty(byName.get(name)?.id, encounter?.name === name ? encounter.legendary : specialRarities.has(rarityOf(byName.get(name))), language, catchOverrides?.species[byName.get(name)?.id]?.rate),
     linkKickViewer(kickId, twitchId) {
       if (erasedViewers.has(kickId) || erasedViewers.has(twitchId)) return
       const source = viewers.get(kickId)
@@ -547,6 +636,9 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
           acquired[name] = Math.max(acquired[name] ?? 0, at)
         }
         target.heldItems = [...new Set([...(target.heldItems ?? []), ...(source.heldItems ?? [])])]
+        target.shinyFamilies = [...new Set([...(target.shinyFamilies ?? []), ...(source.shinyFamilies ?? [])])]
+        for (const root of target.shinyFamilies) syncShinyUnlocks(target, root)
+        target.shinyDust = Math.max(target.shinyDust ?? 0, source.shinyDust ?? 0)
         target.legendaryTrackers = Math.max(target.legendaryTrackers ?? 0, source.legendaryTrackers ?? 0)
         target.rareCandies = Math.max(target.rareCandies ?? 0, source.rareCandies ?? 0)
         target.log = [...(target.log ?? []), ...(source.log ?? [])].sort((a, b) => a.at - b.at).slice(-30)
@@ -573,7 +665,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     snapshot() {
       tick()
       const visibleEncounter = encounter && now() < encounter.endsAt ? encounter : null
-      return structuredClone({ config, encounter: visibleEncounter, nextAt: wildPaused ? null : nextAt, nextLegendary, notice, recentCaptures,
+      return structuredClone({ config, encounter: visibleEncounter, nextAt: wildPaused || (!config.wildEnabled && !nextLegendary) ? null : nextAt, nextLegendary, notice, recentCaptures,
         encounterCount: encounterCount - encounterBaseline, captureCount: captureSequence - captureBaseline,
         statistics: statistics(), viewers: Object.fromEntries(viewers) })
     },
@@ -593,20 +685,33 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
     progress() {
       tick()
       return {
-        config,
+        config, catchOverrides, rarityOverrides,
         statistics: statistics(),
         nextLegendary,
         trackerAt,
         erasedViewers: [...erasedViewers],
         viewerGenerations: Object.fromEntries(viewerGenerations),
         shopReceipts: Object.fromEntries(shopReceipts),
-        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, pokeDollars, dnaBoosters, log, dexAcquired }]) =>
-          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, pokeDollars, dnaBoosters, log, dexAcquired }]))
+        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, pokeDollars, dnaBoosters, log, dexAcquired }]) =>
+          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, pokeDollars, dnaBoosters, log, dexAcquired }]))
       }
     },
-    recordBattle(participants, winner, speciesKey) {
-      if (!winner || !participants.includes(winner)) return 0
+    recordBattle(participants, winner, speciesKey, performances = []) {
       const fighters = new Set(participants)
+      if (fighters.size < 2) return 0
+      for (const actor of performances) {
+        if (!fighters.has(actor.viewerId)) continue
+        const viewer = viewers.get(actor.viewerId)
+        if (!viewer || !Object.hasOwn(viewer.collection, actor.speciesKey)) continue
+        const score = Math.min(100, (actor.damageFraction ?? 0) * 100 + (actor.knockouts ?? 0) * 35)
+        if (score <= 0) continue
+        const xp = viewer.collection[actor.speciesKey]
+        const rank = level(xp)
+        if (rank < maxLevel) shareFamily(viewer, actor.speciesKey, Math.min(maxXp, xp + (xpAtLevel(rank + 1) - xpAtLevel(rank)) * score * .0012))
+        const bonus = Math.round(config.battleMoneyPerWin * score / 200)
+        if (bonus) viewer.pokeDollars = (viewer.pokeDollars ?? 0) + bonus
+      }
+      if (!winner || !fighters.has(winner)) return 0
       for (const id of fighters) {
         const metrics = viewers.get(id)?.metrics
         if (metrics) metrics[id === winner ? 'wins' : 'losses']++
@@ -630,7 +735,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       const { summonMoneyPerMinute = config.summonMoneyPerMinute, summonXpPerSecond = config.summonXpPerSecond, battleXpPercentPerWin = config.battleXpPercentPerWin } = values
       const { battleEveryEncounters = config.battleEveryEncounters, battleMoneyPerWin = config.battleMoneyPerWin } = values
       const { battleEnabled = config.battleEnabled, battleHpMultiplier = config.battleHpMultiplier } = values
-      const { interval, duration, catchGraceSeconds = config.catchGraceSeconds, legendaryChancePercent = config.legendaryChancePercent, shiny, nameLimit = config.nameLimit, visibleLimit = config.visibleLimit, spriteScale = config.spriteScale, duplicateMode = config.duplicateMode, duplicateXpPercent = config.duplicateXpPercent } = values
+      const { interval, duration, catchGraceSeconds = config.catchGraceSeconds, legendaryChancePercent = config.legendaryChancePercent, shiny, nameLimit = config.nameLimit, visibleLimit = config.visibleLimit, spriteScale = config.spriteScale } = values
       if (!Number.isInteger(interval) || interval < 6 || interval > 1440 ||
           !Number.isInteger(duration) || duration < 1 || duration > interval ||
           !Number.isFinite(legendaryChancePercent) || legendaryChancePercent < 0 || legendaryChancePercent > 100 ||
@@ -639,15 +744,22 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
           !Number.isInteger(nameLimit) || nameLimit < 0 || nameLimit > 250 ||
           !Number.isInteger(visibleLimit) || visibleLimit < 1 || visibleLimit > 250 ||
           !Number.isInteger(spriteScale) || spriteScale < 50 || spriteScale > 300 ||
-          ![0, 1, 2].includes(duplicateMode) ||
-          !Number.isInteger(duplicateXpPercent) || duplicateXpPercent < 1 || duplicateXpPercent > 100 ||
           !Number.isInteger(summonMoneyPerMinute) || summonMoneyPerMinute < 0 || summonMoneyPerMinute > 100_000 ||
           !Number.isFinite(summonXpPerSecond) || summonXpPerSecond < 0 || summonXpPerSecond > 100 ||
           !Number.isSafeInteger(battleMoneyPerWin) || battleMoneyPerWin < 0 || battleMoneyPerWin > 1_000_000 ||
           !Number.isFinite(battleXpPercentPerWin) || battleXpPercentPerWin < 0 || battleXpPercentPerWin > 100 ||
           !Number.isSafeInteger(battleEveryEncounters) || battleEveryEncounters < 0 || battleEveryEncounters > 100 ||
           ![0, 1].includes(battleEnabled) || ![1, 1.5, 2].includes(battleHpMultiplier)) throw new Error('Invalid configuration')
-      Object.assign(config, { interval, duration, catchGraceSeconds, legendaryChancePercent, shiny, nameLimit, visibleLimit, spriteScale, duplicateMode, duplicateXpPercent })
+      for (const [name, min, max, whole] of [['raidSizePercent', 100, 600, true], ['raidHpMultiplier', 1, 50, false], ['raidStatMultiplier', .1, 5, false], ]) {
+        const value = values[name] ?? config[name]
+        if (!Number.isFinite(value) || value < min || value > max || (whole && !Number.isInteger(value))) throw new Error('Invalid boss configuration')
+      }
+      Object.assign(config, { interval, duration, catchGraceSeconds, legendaryChancePercent, shiny, nameLimit, visibleLimit, spriteScale })
+      if (Number.isFinite(values.raidChance) && values.raidChance >= 0 && values.raidChance <= 100) config.raidChance = values.raidChance
+      for (const name of ['raidSizePercent', 'raidHpMultiplier', 'raidStatMultiplier']) if (values[name] !== undefined) config[name] = values[name]
+      if (['highest', 'average'].includes(values.raidLevelMode)) config.raidLevelMode = values.raidLevelMode
+      if (Number.isInteger(values.raidDuration) && values.raidDuration >= 30 && values.raidDuration <= 600) config.raidDuration = values.raidDuration
+      for (const name of ['showPokemonName', 'showViewerName', 'raidCatch', 'wildEnabled', 'raidEnabled']) if (typeof values[name] === 'boolean') config[name] = values[name]
       Object.assign(config, { summonMoneyPerMinute, summonXpPerSecond, battleXpPercentPerWin, battleMoneyPerWin, battleEveryEncounters, battleEnabled, battleHpMultiplier })
       if (Object.hasOwn(values, 'summonXpPerSecond')) config.summonXpTuned = true
       nextAt = Math.max(trackerAt ?? now() + interval * 60_000, encounter?.catchUntil ?? 0)

@@ -34,6 +34,28 @@ app.on('second-instance', () => {
 
 const battleRules = await import('../dev/battle.js')
 const battleStats = battleRules.battleSpecies
+const { applyAbilities } = await import('../ui/abilities.js')
+const { simEntry, simulateMatchup } = await import('./balance-sim.js')
+let simulating = false
+const defaultRaidBosses = JSON.parse(await readFile(new URL('../ui/raid-bosses.json', import.meta.url)))
+function validateRaidBosses(data) {
+  if (!Array.isArray(data?.bosses) || !data.bosses.length || data.bosses.length > 100 ||
+      data.bosses.some(boss => !battleStats(boss?.species) || !manifest.species.some(item => Number(item.id) === boss.species) ||
+        !['easy', 'medium', 'hard', 'expert'].includes(boss.difficulty))) throw new Error('Invalid raid boss roster')
+  const bosses = data.bosses.map(boss => ({ ...defaultRaidBosses.bosses.find(entry => entry.species === boss.species), ...boss }))
+  for (const gmax of defaultRaidBosses.bosses.filter(boss => boss.gigantamax)) {
+    if (!bosses.some(boss => boss.species === gmax.species)) bosses.push(gmax)
+  }
+  if (bosses.some(boss => (boss.moves && (!Array.isArray(boss.moves) || !boss.moves.length || boss.moves.length > 4 ||
+      new Set(boss.moves).size !== boss.moves.length || boss.moves.some(id => !Object.hasOwn(battleRules.moves, id) || battleRules.moves[id].ultimate))) ||
+      (boss.ultimate && !battleRules.moves[boss.ultimate]?.ultimate) ||
+      (boss.ultimatePp !== undefined && (!Number.isInteger(boss.ultimatePp) || boss.ultimatePp < 1 || boss.ultimatePp > 10)))) throw new Error('Invalid boss moveset')
+  return { ...data, bosses }
+}
+let raidBosses = defaultRaidBosses
+let queuedRaid
+let lastRaidRoll = 0
+const raidDifficulties = { easy: ['Fácil', 'Easy'], medium: ['Media', 'Medium'], hard: ['Difícil', 'Hard'], expert: ['Experta', 'Expert'] }
 let communityBattle
 let previewBattle
 let battleTimer
@@ -84,7 +106,7 @@ function chatAction(viewer, displayName, text, platform, save = true, sharedSumm
   if (pendingReset || !isLive(platform)) return ''
   const [action, ball = 'normal'] = normalizeCommand(text).split(' ')
   if (action.startsWith('!') && action !== '!balls') {
-    if (!['!poke', '!catch', '!summon', '!summonshiny', '!evolve', '!candy', '!balls', '!legendaryticket'].includes(action)) return ''
+    if (!['!poke', '!catch', '!summon', '!summonshiny', '!evolve', '!candy', '!balls', '!legendaryticket', '!shiny'].includes(action)) return ''
     const now = Date.now()
     for (const [id, at] of commandTimes) if (now - at >= 5000) commandTimes.delete(id)
     if (commandTimes.has(viewer)) return ''
@@ -171,7 +193,9 @@ if (!manifest && app.isPackaged) {
   manifest = await readSpriteManifest(spriteFolder)
 }
 manifest ??= { species: creatures.map(name => ({ name, normal: null, shiny: null })) }
-const catalogVersion = createHash('sha256').update(JSON.stringify(manifest.species)).digest('hex').slice(0, 16)
+const catalogVersion = createHash('sha256').update(JSON.stringify(manifest.species))
+  .update(await readFile(new URL('../ui/ui.js', import.meta.url)))
+  .update(await readFile(new URL('../ui/sprites.js', import.meta.url))).digest('hex').slice(0, 16)
 let game
 let progress
 let checkpoint
@@ -300,14 +324,14 @@ async function pollShop() {
     void flushPortalAnnouncements()
     if (kickAbort.signal.aborted || game.config.running === false) return
     const encounter = game.currentEncounter()
-    const webGame = encounter ? { id: encounter.id, shiny: Boolean(encounter.shiny), en: game.encounterDifficulty(encounter.name, 'en'), es: game.encounterDifficulty(encounter.name, 'es') } : {}
+    const webGame = encounter ? { id: encounter.id, speciesId: game.encounterSpecies(encounter.name), rarity: encounter.rarity, shiny: Boolean(encounter.shiny), en: game.encounterDifficulty(encounter.name, 'en'), es: game.encounterDifficulty(encounter.name, 'es') } : {}
     const endpoint = new URL('/api/shop', syncDevice.url)
     const fetchLinks = Date.now() >= nextIdentitySync
     const fetchAdmin = Date.now() >= nextAdminPoll
     const request = body => fetch(endpoint, {
       method: body ? 'POST' : 'GET', redirect: 'error',
       headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json',
-        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '2', 'X-Shop-Quantity': '1', 'X-Web-Game': JSON.stringify(webGame), 'X-Identity-Orders': '1', ...(fetchAdmin ? { 'X-Admin-Actions': '1' } : {}), ...(fetchLinks ? { 'X-Identity-Links': '1' } : {}) } : {}) },
+        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '2', 'X-Shop-Quantity': '1', 'X-Web-Game': 'v2:' + Buffer.from(JSON.stringify(webGame)).toString('base64url'), 'X-Identity-Orders': '1', ...(fetchAdmin ? { 'X-Admin-Actions': '1' } : {}), ...(fetchLinks ? { 'X-Identity-Links': '1' } : {}) } : {}) },
       body: body && JSON.stringify({ viewers: body }),
       signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(8000)])
     })
@@ -389,6 +413,10 @@ async function processAdminActions(actions) {
     if (!result) {
       let done = false
       try {
+        if (action.type === 'speciesRules') {
+          game.setSpeciesRules(action.kind, action.rules)
+          done = true
+        }
         if (action.type === 'grant') done = game.grantAdmin(action)
         if (action.type === 'spawn' && game.config.running !== false && !game.trackerPending()) {
           game.spawn(action.pokemon)
@@ -419,7 +447,7 @@ async function processWebGame(actions) {
     const { id, viewerId, platform, command, encounterId, twitchId, kickId } = action
     if (!/^[a-f0-9-]{36}$/.test(id) || !/^(twitch|kick):\d{1,24}$/.test(viewerId) ||
         !['twitch', 'kick'].includes(platform) || typeof command !== 'string' || command.length > 90 ||
-        !/^!(?:catch (?:normal|great|ultra|master)|summon .+|summonshiny .+|candy \d{1,2}|legendaryticket)$/.test(command)) continue
+        !/^!(?:catch (?:normal|great|ultra|master)|summon .+|summonshiny .+|candy \d{1,2}|legendaryticket|shiny)$/.test(command)) continue
     let result = game.webReceipt(id)
     const replay = Boolean(result)
     if (!result) {
@@ -713,13 +741,50 @@ async function pollKick() {
     if (!kickAbort.signal.aborted) kickTimer = setTimeout(pollKick, next)
   }
 }
+function makeRaidBoss(boss, party) {
+  const config = game.config
+  const levels = party.map(entry => entry.level)
+  const level = config.raidLevelMode === 'average' ? Math.round(levels.reduce((sum, rank) => sum + rank, 0) / levels.length) : Math.max(...levels)
+  const partyScale = Math.max(.6, Math.sqrt(party.length / 3))
+  const art = manifest.species.find(entry => Number(entry.id) === boss.species)
+  return { ...simEntry(boss.species, level, 0), name: art.name, team: 'raid-boss', boss: true,
+    bossForm: art.battleForms?.gigantamax ? 'gigantamax' : null, bossScale: config.raidSizePercent / 100,
+    hpBoost: config.raidHpMultiplier * partyScale, statBoost: config.raidStatMultiplier,
+    bossMoves: boss.moves, bossUltimate: boss.ultimate, bossUltimatePp: boss.ultimatePp, margin: 230 }
+}
+
+function launchBattlePreview(mode, species) {
+  if (!['raid', 'team'].includes(mode)) return 400
+  if (battleStarting || communityBattle && !communityBattle.battle.over) return 409
+  const names = new Map(manifest.species.map(item => [Number(item.id), item.name]))
+  const info = (id, rank, team, extras) => ({ ...simEntry(id, rank, 2), name: names.get(id), team, ...extras })
+  const party = [3, 6, 9, 149].map((id,index) => info(id, 45, mode === 'raid' ? 'party' : 'a', { support: index === 0 ? 'healpulse' : null }))
+  let entries = party
+  if (mode === 'raid') {
+    const boss = raidBosses.bosses.find(item => item.species === species && names.has(item.species))
+    if (!boss) return 404
+    entries = [...party, makeRaidBoss(boss, party)]
+  } else entries = [...party.slice(0,3), ...[94, 130, 65].map((id,index) => info(id, 45, 'b', { support: index === 1 ? 'pollenpuff' : null }))]
+  const battle = battleRules.createBattle(entries, { raid: mode === 'raid', duration: mode === 'raid' ? game.config.raidDuration : 60 })
+  const current = { battle, finishedAt: 0 }
+  communityBattle = current
+  battleTimer = setInterval(() => {
+    if (communityBattle !== current) { clearInterval(battleTimer); return }
+    battle.step(1 / 30)
+    if (!battle.over) return
+    clearInterval(battleTimer)
+    current.finishedAt = Date.now()
+  }, 1000 / 30)
+  return 204
+}
+
 function publicBattle(battle) {
   return { over: battle.over, winner: battle.winner?.ownerName || battle.winner?.name,
-    time: battle.time, field: battle.field, effects: battle.effects,
+    time: battle.time, raid: battle.raid, remaining: battle.remaining, field: battle.field, effects: battle.effects,
     projectiles: battle.projectiles.map(({ x, move, direction, actor }) => ({ x, move, direction, actor: { types: actor.types } })),
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
-      return { name, ownerName, shiny, form: actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
+      return { name, ownerName, shiny, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
         evasion: boosts.evasion > battle.time, flinched: flinchUntil > battle.time }
     }) }
@@ -729,70 +794,91 @@ const sheets = new Set(manifest.species.flatMap(item => [item, ...Object.values(
   item.portrait, item.shinyPortrait,
   ...[item.normal, item.shiny].filter(Boolean).flatMap(variant => Object.values(variant.animations).map(animation => animation.url))
 ].filter(path => /^\/pmd\/[a-z0-9-]+\/[a-z0-9_-]+\.(?:png|webp)$/i.test(path))))
-async function startCommunityBattle(waitForBanner = false) {
-  if (battleStarting || !game.config.battleEnabled) return 409
+async function startCommunityBattle(waitForBanner = false, raidBoss, manual = false) {
+  if (battleStarting || !manual && !raidBoss && !game.config.battleEnabled) return 409
   battleStarting = true
-  try { return await runCommunityBattle(waitForBanner) } finally { battleStarting = false }
+  try { return await runCommunityBattle(waitForBanner, raidBoss, manual) } finally { battleStarting = false }
 }
 
-async function runCommunityBattle(waitForBanner) {
+async function runCommunityBattle(waitForBanner, raidBoss, manual) {
   if (!battleRules || (!twitchClientId && !syncDevice) || game.config.running === false || (communityBattle && !communityBattle.battle.over)) {
     return 409
   }
   const byName = new Map(manifest.species.map(species => [species.name.toLowerCase(), species]))
-  const candidates = []
-  for (const [viewerId, viewer] of Object.entries(game.snapshot().viewers)) {
-    if (!viewer.active || !/^(twitch|kick):\d{1,24}$/.test(viewerId)) continue
-    const species = byName.get(viewer.active.key.replace(/ ✦$/, '').toLowerCase())
-    if (!species) continue
-    const rank = level(viewer.collection[viewer.active.key])
+  const viewers = game.snapshot().viewers
+  const activeIds = Object.keys(viewers).filter(id => viewers[id].active && /^(twitch|kick):\d{1,24}$/.test(id))
+  const teamMode = !raidBoss
+  if (teamMode) activeIds.splice(12)
+  let savedTeams = {}
+  if (syncDevice && stopSync) {
+    for (let offset = 0; offset < activeIds.length; offset += 12) {
+      try {
+        const response = await deviceRequest('/api/movesets', { teams: activeIds.slice(offset, offset + 12) })
+        if (response.ok) Object.assign(savedTeams, await response.json())
+      } catch { /* single summon fallback for this batch */ }
+    }
+  }
+  const entriesForViewer = (viewerId, pokemon) => {
+    const viewer = viewers[viewerId]
+    if (!Object.hasOwn(viewer.collection, pokemon)) return null
+    const species = byName.get(pokemon.replace(/ ✦$/, '').toLowerCase())
+    if (!species) return null
+    const rank = level(viewer.collection[pokemon])
     const id = Number(species.id)
     const row = battleStats(id)
-    if (!row) continue
+    if (!row) return null
     const [, stats, types, final] = row
     const form = manifest.species.find(item => Number(item.id) === id) ?? species
-    const variant = viewer.active.key.endsWith(' ✦') ? form.shiny ?? form.normal : form.normal
-    candidates.push({ viewerId, speciesKey: viewer.active.key, id, stats, types, final, level: rank,
-      dna: game.dnaCount(viewer, viewer.active.key),
+    const variant = pokemon.endsWith(' ✦') ? form.shiny ?? form.normal : form.normal
+    return { viewerId, speciesKey: pokemon, team: teamMode ? viewerId : 'raid-party', id, stats, types, final, level: rank,
+      dna: game.dnaCount(viewer, pokemon),
       ownedHeldItems: viewer.heldItems ?? [],
       name: form.name, margin: Math.max(75, ...Object.values(variant?.animations ?? {}).map(clip => clip.width * spriteScale(clip, 3) / 2 + 18)),
       ownerName: viewer.displayName,
-      shiny: viewer.active.key.endsWith(' ✦') })
+      shiny: pokemon.endsWith(' ✦') }
   }
-  let entries = candidates.slice(0, 12)
-  if (entries.length < 2) {
+  let entries = activeIds.flatMap(viewerId => {
+    const team = savedTeams[viewerId]?.slice(0, 3).map(slot => entriesForViewer(viewerId, slot.pokemon)).filter(Boolean)
+    return team?.length ? team : [entriesForViewer(viewerId, viewers[viewerId].active.key)].filter(Boolean)
+  })
+  if (new Set(entries.map(entry => entry.viewerId)).size < (raidBoss ? 1 : 2)) {
     return 422
   }
   if (syncDevice && stopSync) {
-    try {
-      const response = await fetch(new URL('/api/movesets', syncDevice.url), {
-        method: 'POST', redirect: 'error', signal: AbortSignal.timeout(2500),
-        headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json' },
-        body: JSON.stringify(entries.map(({ viewerId, speciesKey }) => ({ viewerId, speciesKey })))
-      })
-      if (response.ok) {
+    for (let offset = 0; offset < entries.length; offset += 36) {
+      const batch = entries.slice(offset, offset + 36)
+      try {
+        const response = await fetch(new URL('/api/movesets', syncDevice.url), {
+          method: 'POST', redirect: 'error', signal: AbortSignal.timeout(2500),
+          headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json' },
+          body: JSON.stringify(batch.map(({ viewerId, speciesKey }) => ({ viewerId, speciesKey })))
+        })
+        if (!response.ok) continue
         const results = await response.json()
-        for (const entry of entries) {
+        for (const entry of batch) {
           const loadout = results.find(item => item.viewerId === entry.viewerId && item.speciesKey === entry.speciesKey)
           entry.selectedMoves = loadout?.moves
           entry.selectedAt = loadout?.selectedAt
           entry.selectedUltimate = loadout?.ultimate
           if (entry.ownedHeldItems.includes(loadout?.heldItem)) entry.heldItem = loadout.heldItem
         }
-      }
-    } catch (error) { console.warn('Could not load community movesets:', error.message) }
+      } catch (error) { console.warn('Could not load community movesets:', error.message) }
+    }
   }
   if (waitForBanner) {
     battleBannerUntil = Date.now() + 2000
     await new Promise(resolve => setTimeout(resolve, 2000))
     battleBannerUntil = 0
   }
-  if (kickAbort.signal.aborted || !game.config.battleEnabled || game.config.running === false || (communityBattle && !communityBattle.battle.over)) return 409
+  if (kickAbort.signal.aborted || !manual && !raidBoss && !game.config.battleEnabled || game.config.running === false || (communityBattle && !communityBattle.battle.over)) return 409
   const active = game.overlay('companions').viewers
-  entries = entries.filter(entry => active[entry.viewerId]?.active.key === entry.speciesKey)
-  if (entries.length < 2) return 422
+  const currentViewers = game.snapshot().viewers
+  entries = entries.filter(entry => active[entry.viewerId] && Object.hasOwn(currentViewers[entry.viewerId].collection, entry.speciesKey))
+  if (new Set(entries.map(entry => entry.viewerId)).size < (raidBoss ? 1 : 2)) return 422
+  if (raidBoss) entries.push(makeRaidBoss(raidBoss, entries))
   const battle = battleRules.createBattle(entries, {
     hpMultiplier: game.config.battleHpMultiplier,
+    ...(raidBoss ? { raid: true, duration: game.config.raidDuration } : {}),
     onMoveReward(actor, amount) {
       if (game.creditBattleMove(actor.viewerId, amount)) {
         logDiagnostic('battle_move_reward', { species: actor.id, amount })
@@ -809,7 +895,24 @@ async function runCommunityBattle(waitForBanner) {
     communityBattle.finishedAt = Date.now()
     clearInterval(battleTimer)
     game.setBattleActive(false)
-    const money = game.recordBattle(entries.map(entry => entry.viewerId), battle.winner?.viewerId, battle.winner?.speciesKey)
+    if (raidBoss) {
+      const boss = entries.find(entry => entry.boss)
+      if (battle.winner && !battle.winner.boss) {
+        const participants = [...new Set(entries.filter(entry => !entry.boss).map(entry => entry.viewerId))]
+        for (const viewerId of participants) for (const reward of game.config.raidRewards) game.grantAdmin({ ...reward, viewerId })
+        if (game.config.raidCatch) {
+          game.setWildPaused(false)
+          game.spawnRaidPrize(boss.name, participants)
+          lastRaidRoll = game.encounterCount()
+        }
+        announceInLiveChats(botSignature(bot, bot.language === 'en' ? 'The Dynamax boss was defeated!' : '¡Derrotaron al jefe Dinamax!'))
+      } else {
+        announceInLiveChats(botSignature(bot, bot.language === 'en' ? 'The Dynamax boss raid ended.' : 'Terminó la incursión Dinamax.'))
+      }
+      persistGame()
+      return
+    }
+    const money = game.recordBattle(entries.map(entry => entry.viewerId), battle.winner?.viewerId, battle.winner?.speciesKey, battle.actors)
     logDiagnostic('battle_finished', { winner: Boolean(battle.winner), money })
     persistGame()
   }, 1000 / 30)
@@ -819,18 +922,41 @@ async function runCommunityBattle(waitForBanner) {
 
 function tickBattleSchedule() {
   const every = game.config.battleEveryEncounters
-  if (!game.config.battleEnabled || game.config.running === false) battleDueAt = 0
+  if (game.config.running === false || (queuedRaid ? !game.config.raidEnabled || !game.config.raidChance : !game.config.battleEnabled)) {
+    battleDueAt = 0
+    queuedRaid = undefined
+  }
   game.setWildPaused(Boolean(battleDueAt || battleStarting || (communityBattle && !communityBattle.battle.over)))
-  if (!game.config.battleEnabled || game.config.running === false || battleStarting || (communityBattle && !communityBattle.battle.over)) return
+  if (game.config.running === false || battleStarting || (communityBattle && !communityBattle.battle.over)) return
   if (battleDueAt) {
     if (Date.now() < battleDueAt || game.hasEncounter()) return
     battleDueAt = 0
-    startCommunityBattle(true).catch(() => {})
+    const raid = queuedRaid
+    queuedRaid = undefined
+    startCommunityBattle(true, raid).catch(() => {})
     return
   }
-  if (!every || game.encounterCount() - lastBattleEncounter < every || game.hasEncounter()) return
+  if (game.hasEncounter()) return
   const active = Object.keys(game.overlay('companions').viewers).filter(id => /^(twitch|kick):\d+$/.test(id))
-  if (active.length < 2) return
+  const count = game.encounterCount()
+  if (count > lastRaidRoll) {
+    lastRaidRoll = count
+    if (game.config.raidEnabled && active.length > 0 && Math.random() * 100 < game.config.raidChance) {
+      const pool = raidBosses.bosses.filter(boss => manifest.species.some(item => Number(item.id) === boss.species))
+      queuedRaid = pool[Math.floor(Math.random() * pool.length)]
+      if (queuedRaid) {
+        const english = bot.language === 'en'
+        const difficulty = raidDifficulties[queuedRaid.difficulty][Number(english)]
+        const name = manifest.species.find(item => Number(item.id) === queuedRaid.species).name
+        battleDueAt = Date.now() + 60_000
+        game.setWildPaused(true)
+        announceInLiveChats(botSignature(bot, english ? 'A Dynamax boss approaches! ' + name + ' · ' + difficulty
+          : '¡Se aproxima un jefe Dinamax! ' + name + ' · dificultad ' + difficulty))
+        return
+      }
+    }
+  }
+  if (!game.config.battleEnabled || active.length < 2 || !every || count - lastBattleEncounter < every) return
   battleDueAt = Date.now() + 300_000
   game.setWildPaused(true)
   const message = botSignature(bot, bot.language === 'en' ? 'Battle royale starts in 5 minutes!' : '¡La batalla campal empieza en 5 minutos!')
@@ -845,8 +971,16 @@ const routes = new Map([
   ['/levels.js', ['levels.js', 'text/javascript']],
   ['/ui/levels.js', ['levels.js', 'text/javascript']],
   ['/ui/held-items.js', ['held-items.js', 'text/javascript']],
+  ['/ui/egg-rules.js', ['egg-rules.js', 'text/javascript']],
+  ['/ui/egg-pool.json', ['egg-pool.json', 'application/json']],
+  ['/ui/learnsets.json', ['learnsets.json', 'application/json']],
   ['/ui/shop.js', ['shop.js', 'text/javascript']],
+  ['/ui/catch-rates.json', ['catch-rates.json', 'application/json']],
+  ['/ui/encounter-rarities.json', ['encounter-rarities.json', 'application/json']],
   ['/ui/capture-rates.js', ['capture-rates.js', 'text/javascript']],
+  ['/ui/pokemon-abilities.json', ['pokemon-abilities.json', 'application/json']],
+  ['/ui/base-stats.json', ['base-stats.json', 'application/json']],
+  ['/ui/raid-bosses.json', ['raid-bosses.json', 'application/json']],
   ['/ui/abilities.js', ['abilities.js', 'text/javascript']],
   ['/ui/about.js', ['about.js', 'text/javascript']],
   ['/ui/evolution.js', ['evolution.js', 'text/javascript']],
@@ -882,7 +1016,7 @@ const server = createServer(async (req, res) => {
       const state = ['encounter', 'companions'].includes(overlay)
         ? { ...game.overlay(overlay), catalogVersion, bot: { language: bot.language } }
         : { ...game.snapshot(), twitchStatus, kickStatus, syncStatus, setup, bot, setupComplete, version: app.getVersion(), updateStatus,
-          twitchConnected: twitchAllowed() && Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, canInstallUpdate: app.isPackaged && process.platform === 'win32', activityLog, localChat, botTestStatus, canReset: syncDevice?.url === publicPortal, resettingCommunity: Boolean(pendingReset), live: setup.platform !== 'demo' }
+          twitchConnected: twitchAllowed() && Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, canInstallUpdate: app.isPackaged && process.platform === 'win32', activityLog, localChat, botTestStatus, canReset: syncDevice?.url === publicPortal, resettingCommunity: Boolean(pendingReset), raidBosses: raidBosses.bosses.map(boss => ({ ...boss, name: manifest.species.find(item => Number(item.id) === boss.species)?.name ?? boss.name })), live: setup.platform !== 'demo' }
       if (overlay === 'encounter' && state.encounter) state.encounter = { ...state.encounter,
         difficulty: game.encounterDifficulty(state.encounter.name, bot.language) }
       if (overlay === 'companions' && ['summon', 'battle'].includes(searchParams.get('preview'))) {
@@ -924,6 +1058,10 @@ const server = createServer(async (req, res) => {
           const battle = current.battle
           state.battle = publicBattle(battle)
         }
+      }
+      if (!overlay && communityBattle && (!communityBattle.finishedAt || Date.now() - communityBattle.finishedAt < 4500)) {
+        state.battle = publicBattle(communityBattle.battle)
+        state.battleStart = battleBannerUntil > Date.now()
       }
       res.end(JSON.stringify(state))
       return
@@ -1010,6 +1148,29 @@ const server = createServer(async (req, res) => {
           res.writeHead(503).end()
         } finally { installingUpdate = false }
         return
+      }
+      if (action.startRaid) {
+        const boss = raidBosses.bosses.find(item => item.species === action.startRaid && manifest.species.some(entry => Number(entry.id) === item.species))
+        if (!boss) return res.writeHead(404).end()
+        const result = await startCommunityBattle(false, boss)
+        if (result === 204) { battleDueAt = 0; queuedRaid = undefined }
+        return res.writeHead(result).end()
+      }
+      if (action.forceBattle) return res.writeHead(launchBattlePreview(action.forceBattle, action.species)).end()
+      if (action.balanceSimulation) {
+        if (simulating) { res.writeHead(409).end(); return }
+        simulating = true
+        try {
+          const report = await simulateMatchup(action.balanceSimulation)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(report))
+        } finally { simulating = false }
+        return
+      }
+      if (action.startEventBattle === true) {
+        const result = await startCommunityBattle(false, undefined, true)
+        if (result === 204) { battleDueAt = 0; queuedRaid = undefined }
+        return res.writeHead(result).end()
       }
       if (action.startCommunityBattle === true) return res.writeHead(queueManualBattle()).end()
       if (action.bot || Object.hasOwn(action, 'language')) {
@@ -1125,12 +1286,54 @@ const server = createServer(async (req, res) => {
         game.spawn(action.spawn)
       }
       else if (action.clearStatistics === true) game.clearStatistics()
+      else if (['catch', 'rarity'].includes(action.speciesRules)) {
+        if (action.reset === true) game.setSpeciesRules(action.speciesRules, null)
+        else {
+          const selected = await dialog.showOpenDialog(mainWindow, {
+            properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }]
+          })
+          if (selected.canceled) { res.writeHead(204).end(); return }
+          const [file] = selected.filePaths
+          const bytes = await readFile(file)
+          if (bytes.length > 256_000) throw new Error('Species rules exceed size limit')
+          game.setSpeciesRules(action.speciesRules, JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, '')))
+        }
+      }
+      else if (['base-stats', 'pokemon-abilities', 'egg-pool'].includes(action.balanceData)) {
+        const selection = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] })
+        if (selection.canceled) { res.writeHead(204).end(); return }
+        const bytes = await readFile(selection.filePaths[0])
+        if (bytes.length > 1_000_000 || simulating || communityBattle && !communityBattle.battle.over) throw new Error('Balance settings unavailable')
+        const data = JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, ''))
+        const apply = { 'base-stats': battleRules.applyBaseStats, 'pokemon-abilities': applyAbilities, 'egg-pool': game.setEggPool }
+        apply[action.balanceData](data)
+        writeFileSync(join(app.getPath('userData'), action.balanceData + '.json'), JSON.stringify(data))
+      }
+      else if (action.learnsets === 'choose') {
+        const selection = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] })
+        if (selection.canceled) { res.writeHead(204).end(); return }
+        const bytes = await readFile(selection.filePaths[0])
+        if (bytes.length > 1_000_000 || simulating || communityBattle && !communityBattle.battle.over) throw new Error('Learnsets unavailable')
+        const data = JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, ''))
+        battleRules.applyLearnsets(data)
+        writeFileSync(join(app.getPath('userData'), 'learnsets.json'), JSON.stringify(data))
+      }
+      else if (action.raidBosses === 'choose') {
+        const selection = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] })
+        if (selection.canceled) { res.writeHead(204).end(); return }
+        const bytes = await readFile(selection.filePaths[0])
+        if (bytes.length > 128_000) throw new Error('Raid roster too large')
+        const bosses = validateRaidBosses(JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, '')))
+        writeFileSync(join(app.getPath('userData'), 'raid-bosses.json'), JSON.stringify(bosses))
+        raidBosses = bosses
+      }
       else if (action.capturePercentages) game.setCapturePercentages(action.capturePercentages)
       else if (action.shopPrices) game.setShopPrices(action.shopPrices)
       else if (action.config) {
         const enabled = game.config.battleEnabled
-        game.configure(action.config)
-        if (enabled !== game.config.battleEnabled) {
+        if (action.raidRewards) game.setRaidRewards(action.raidRewards)
+        game.configure({ ...game.config, ...action.config })
+        if (enabled !== game.config.battleEnabled && !queuedRaid) {
           lastBattleEncounter = game.encounterCount()
           battleDueAt = 0
         }
@@ -1181,6 +1384,10 @@ const server = createServer(async (req, res) => {
 app.whenReady().then(() => {
   const profile = app.getPath('userData')
   mkdirSync(profile, { recursive: true })
+  try { battleRules.applyBaseStats(JSON.parse(readFileSync(join(profile, 'base-stats.json'), 'utf8'))) } catch { /* bundled stats */ }
+  try { applyAbilities(JSON.parse(readFileSync(join(profile, 'pokemon-abilities.json'), 'utf8'))) } catch { /* bundled abilities */ }
+  try { battleRules.applyLearnsets(JSON.parse(readFileSync(join(profile, 'learnsets.json'), 'utf8'))) } catch { /* use bundled learnsets */ }
+  try { raidBosses = validateRaidBosses(JSON.parse(readFileSync(join(profile, 'raid-bosses.json'), 'utf8'))) } catch { /* use the bundled lineup */ }
   try { setShinyCue(readFileSync(shinyCueFile())) } catch { /* use the built-in cue */ }
   if (useInstalledUpdate(profile)) return
   setupFile = join(profile, 'startup.json')
@@ -1223,6 +1430,7 @@ app.whenReady().then(() => {
         announceInLiveChats(botSignature(bot, (viewer ? '@' + viewer + ' · ' : '') + message))
       }
     } })
+  try { game.setEggPool(JSON.parse(readFileSync(join(profile, 'egg-pool.json'), 'utf8'))) } catch { /* bundled eggs */ }
   if (!savedProgress) game.setRunning(false)
   if (setup.platform !== 'demo' && safeStorage.isEncryptionAvailable()) {
     const file = join(profile, 'cloud-device.enc')

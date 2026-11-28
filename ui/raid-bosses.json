@@ -1,0 +1,111 @@
+{
+  "notes": "Moves and ultimate are IDs from learnsets.json. Boss level follows the highest level or average in the participating team. The HP multiplier is calibrated for three Pokémon and scales with the size of the party.",
+  "bosses": [
+    {
+      "species": 1,
+      "name": "Bulbasaur",
+      "difficulty": "easy",
+      "moves": [
+        "raidvinewave",
+        "solar",
+        "giga",
+        "leaf"
+      ],
+      "ultimate": "ultimate-grass",
+      "ultimatePp": 4
+    },
+    {
+      "species": 7,
+      "name": "Squirtle",
+      "difficulty": "easy",
+      "moves": [
+        "raidtorrent",
+        "bubbles",
+        "aquatail",
+        "rain"
+      ],
+      "ultimate": "ultimate-water",
+      "ultimatePp": 4
+    },
+    {
+      "species": 25,
+      "name": "Pikachu",
+      "difficulty": "medium",
+      "moves": [
+        "raidthunder",
+        "discharge",
+        "thunderpunch",
+        "lightning"
+      ],
+      "ultimate": "ultimate-electric",
+      "ultimatePp": 4
+    },
+    {
+      "species": 9,
+      "name": "Blastoise",
+      "difficulty": "hard",
+      "moves": [
+        "raidshellslam",
+        "surf",
+        "hydro",
+        "aquatail"
+      ],
+      "ultimate": "ultimate-water",
+      "ultimatePp": 4
+    },
+    {
+      "species": 6,
+      "name": "Charizard",
+      "difficulty": "hard",
+      "gigantamax": true,
+      "moves": [
+        "raidwildfire",
+        "heat",
+        "fireblast",
+        "dragonclaw"
+      ],
+      "ultimate": "ultimate-fire",
+      "ultimatePp": 4
+    },
+    {
+      "species": 149,
+      "name": "Dragonite",
+      "difficulty": "expert",
+      "moves": [
+        "raiddragonstorm",
+        "quake",
+        "dragonclaw",
+        "dragonpulse"
+      ],
+      "ultimate": "ultimate-dragon",
+      "ultimatePp": 4
+    },
+    {
+      "species": 376,
+      "name": "Metagross",
+      "difficulty": "expert",
+      "moves": [
+        "raidmeteorcrash",
+        "quake",
+        "meteor",
+        "psychic"
+      ],
+      "ultimate": "ultimate-steel",
+      "ultimatePp": 4
+    },
+    {
+      "species": 869,
+      "name": "Alcremie",
+      "difficulty": "hard",
+      "gigantamax": true,
+      "moves": [
+        "raidcreamwave",
+        "fairy",
+        "kiss",
+        "psychic"
+      ],
+      "ultimate": "ultimate-fairy",
+      "ultimatePp": 4
+    }
+  ]
+}

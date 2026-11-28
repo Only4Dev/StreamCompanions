@@ -21,6 +21,8 @@
   </div>
   <nav id="panel-navigation" aria-label="Stream Companions">
     <button type="button" data-view="home" data-copy="homeTab"></button>
+    <button type="button" data-view="events" data-copy="eventsTab"></button>
+    <button type="button" data-view="data" data-copy="dataTab"></button>
     <button type="button" data-view="game" data-copy="config"></button>
     <button type="button" data-view="obs" data-copy="sourcesTab"></button>
     <button type="button" data-view="bot" data-copy="botTab"></button>
@@ -109,7 +111,8 @@
     <p class="muted" data-copy="connectionHelp"></p>
     <p id="setup-status" role="status"></p>
   </section></div>
-  <div data-pane="bot" hidden><section><h2>@streamcompanionsbot</h2><div class="connection-cards"><article><h3>Twitch</h3><p data-copy="botAccountHelp"></p><div class="overview-actions"><button type="button" data-copy-mod="twitch" data-copy="copyBotMod"></button><button type="button" id="test-twitch-bot" data-copy="testTwitchBot"></button></div></article><article><h3>Kick</h3><p data-copy="kickBotHelp"></p><div class="overview-actions"><button type="button" data-copy-mod="kick" data-copy="copyBotMod"></button><button type="button" id="test-kick-bot" data-copy="testKickBot"></button></div></article></div><p id="bot-test-result" role="status"></p>
+  <div data-pane="bot" hidden><section><h2>@streamcompanionsbot</h2><div class="connection-cards"><article><h3>Twitch</h3><p data-copy="botAccountHelp"></p><div class="overview-actions"><button type="button" data-copy-mod="twitch" data-copy="copyBotMod"></button><button type="button" id="test-twitch-bot" data-copy="testTwitchBot"></button></div></article>
+      <article><h3>Kick</h3><p data-copy="kickBotHelp"></p><div class="overview-actions"><button type="button" data-copy-mod="kick" data-copy="copyBotMod"></button><button type="button" id="test-kick-bot" data-copy="testKickBot"></button></div></article></div><p id="bot-test-result" role="status"></p>
     <h2 data-copy="botTab"></h2>
     <form id="bot-form">
       <label class="bot-announcement-switch"><input type="checkbox" id="announce-in-chat" role="switch" checked aria-describedby="bot-announcement-help"> <span data-copy="botAnnounceInChat"></span></label>
@@ -123,41 +126,78 @@
     </form>
     <p id="bot-status" role="status"></p>
   </section></div>
-  <div data-pane="game">
-  <form id="settings" class="grouped-settings">
-  <section><h2 data-copy="encounterSettings"></h2><div class="settings-grid">
+  <div data-pane="events" hidden>
+    <section><h2 data-copy="liveEvents"></h2><div class="event-actions">
+      <article><h3 data-copy="battleSettings"></h3><button id="start-event-battle" type="button" data-copy="startBattleNow"></button><p id="event-battle-status" role="status"></p></article>
+      <article><h3 data-copy="raidTitle"></h3>  <div class="overview-actions"><label><span data-copy="raidTitle"></span><select id="preview-raid-species"></select></label><button type="button" id="start-raid-now" data-copy="startRaidNow"></button></div>
+  <p role="status" id="raid-test-status"></p></article><article><h3 data-copy="encounterSettings"></h3><form id="spawn"><select name="creature" aria-label="Pokémon" required></select><button data-copy="spawn"></button></form><p id="event-wild-status" role="status"></p><form id="legendary-event" hidden>
+    <select name="creature" aria-label="Legendary or mythical Pokémon"></select>
+    <button data-copy="queueLegendary"></button>
+  </form><p id="legendary-status" role="status"></p></article>
+    </div></section>
+    <form id="event-settings" class="grouped-settings">
+      <section><h2 data-copy="encounterSettings"></h2><div class="settings-grid"><label><span data-copy="wildEnabled"></span><input name="wildEnabled" type="checkbox" checked></label>
     <label><span data-copy="interval"></span><input name="interval" type="number" min="6" max="1440" value="30" required></label>
     <label><span data-copy="duration"></span><input name="duration" type="number" min="1" value="3" required></label>
     <label><span data-copy="legendaryChancePercent"></span><input name="legendaryChancePercent" type="number" min="0" max="100" step="0.01" value="0.01" required></label>
     <label><span data-copy="catchGraceSeconds"></span><input name="catchGraceSeconds" type="number" min="0" max="120" value="10" required></label>
     <div><span data-copy="shinyCue"></span><div><button type="button" id="choose-shiny-cue" data-copy="chooseShinyCue"></button> <button type="button" id="preview-shiny-cue" data-copy="preview"></button> <button type="button" id="reset-shiny-cue" data-copy="resetShinyCue"></button></div><small id="shiny-cue-status" role="status"></small></div>
     <label><span data-copy="shiny"></span><input name="shiny" type="number" min="1" max="100000" value="128" required></label>
-    <label><span data-copy="duplicateMode"></span><select name="duplicateMode"><option value="1">XP</option><option value="2">+1 Lv.</option><option value="0" data-copy="duplicateOff"></option></select></label>
-    <label><span data-copy="duplicateXpPercent"></span><input name="duplicateXpPercent" type="number" min="1" max="100" value="25" required></label>
-  </div></section><section><h2 data-copy="companionSettings"></h2><div class="settings-grid">
-    <label><span data-copy="nameLimit"></span><input name="nameLimit" type="number" min="0" max="250" value="50" required></label>
-    <label><span data-copy="visibleLimit"></span><input name="visibleLimit" type="number" min="1" max="250" value="100" required></label>
-    <label><span data-copy="spriteScale"></span><input id="sprite-scale" name="spriteScale" type="range" min="50" max="300" step="1" value="100"><output id="sprite-scale-value" for="sprite-scale">100%</output></label>
-    <label><span data-copy="summonMoneyPerMinute"></span><input name="summonMoneyPerMinute" type="number" min="0" max="100000" required></label>
-    <label><span data-copy="summonXpPerSecond"></span><input name="summonXpPerSecond" type="number" min="0" max="100" step="0.1" required></label>
-  </div></section><section><h2 data-copy="battleSettings"></h2><div class="settings-grid">
+  </div></section><section><h2 data-copy="battleSettings"></h2><p data-copy="teamBattleHelp"></p><div class="settings-grid">
     <label><span data-copy="battleMoneyPerWin"></span><input name="battleMoneyPerWin" type="number" min="0" max="1000000" required></label>
     <label><span data-copy="battleXpPercentPerWin"></span><input name="battleXpPercentPerWin" type="number" min="0" max="100" step="0.1" required></label>
     <label><span data-copy="battleEveryEncounters"></span><input name="battleEveryEncounters" type="number" min="0" max="100" required></label>
     <label><span data-copy="battleEnabled"></span><select name="battleEnabled"><option value="0" data-copy="battleOff"></option><option value="1" data-copy="battleOn"></option></select></label>
     <label><span data-copy="battleHpMultiplier"></span><select name="battleHpMultiplier"><option value="1">1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>
+  </div></section><section><h2 data-copy="raidTitle"></h2>
+<div class="settings-grid"><label><span data-copy="raidEnabled"></span><input name="raidEnabled" type="checkbox"></label>
+    <label><span data-copy="raidChance"></span><input name="raidChance" type="number" min="0" max="100" step="0.1" required></label>
+    <label><span data-copy="raidDuration"></span><input name="raidDuration" type="number" min="30" max="600" required></label>
+    <label><span data-copy="raidSizePercent"></span><input name="raidSizePercent" type="number" min="100" max="600" required></label>
+    <label><span data-copy="raidHpMultiplier"></span><input name="raidHpMultiplier" type="number" min="1" max="50" step="0.1" required></label>
+    <label><span data-copy="raidStatMultiplier"></span><input name="raidStatMultiplier" type="number" min="0.1" max="5" step="0.1" required></label>
+    <label><span data-copy="raidLevelMode"></span><select name="raidLevelMode"><option value="highest" data-copy="raidHighestLevel"></option><option value="average" data-copy="raidAverageLevel"></option></select></label>
+    <label><span data-copy="raidCatch"></span><input name="raidCatch" type="checkbox"></label>
+  </div>
+    <h3 data-copy="raidRewards"></h3><div id="raid-rewards"></div><button id="add-raid-reward" type="button" aria-label="Add reward">+</button>
+  </section><button data-copy="saveEvents"></button><p id="event-settings-status" role="status"></p></form></div>
+  <div data-pane="data" hidden>
+    <section><h2 data-copy="dataTab"></h2><p data-copy="dataHelp"></p><div class="data-files">    <h3 data-copy="speciesRules"></h3>
+    <p><a href="/ui/catch-rates.json" download>catch-rates.json</a>
+      <button type="button" data-species-rules="catch" data-copy="importRules"></button>
+      <button type="button" data-species-rules="catch" data-reset data-copy="captureDefaults"></button></p>
+    <p><a href="/ui/encounter-rarities.json" download>encounter-rarities.json</a>
+      <button type="button" data-species-rules="rarity" data-copy="importRules"></button>
+      <button type="button" data-species-rules="rarity" data-reset data-copy="captureDefaults"></button></p>
+    <p id="species-rules-status" role="status"></p>
+<p><a href="/ui/raid-bosses.json" download>raid-bosses.json</a> <button id="load-raid-bosses" type="button" data-copy="importRules"></button></p>
+    <p><a href="/ui/learnsets.json" download>learnsets.json</a> <button id="load-learnsets" type="button" data-copy="importRules"></button></p>
+    <p><a href="/ui/base-stats.json" download>base-stats.json</a> <button type="button" data-balance-data="base-stats" data-copy="importRules"></button></p>
+    <p><a href="/ui/pokemon-abilities.json" download>pokemon-abilities.json</a> <button type="button" data-balance-data="pokemon-abilities" data-copy="importRules"></button></p>
+    <p><a href="/ui/egg-pool.json" download>egg-pool.json</a> <button type="button" data-balance-data="egg-pool" data-copy="importRules"></button></p>
+    <p role="status" id="balance-status"></p>
+</div></section>  <section><h2 data-copy="balanceLab"></h2>    <form id="balance-simulation"><div id="simulation-fighters" class="settings-grid"></div>
+      <label><span data-copy="simulationRounds"></span><input type="number" name="rounds" min="1" max="10000" value="100" required></label>
+      <button data-copy="runSimulation"></button></form><pre id="simulation-result" hidden></pre></section>
+</div>
+  <div data-pane="game">
+  <form id="settings" class="grouped-settings">
+<section><h2 data-copy="companionSettings"></h2><div class="settings-grid">
+    <label><span data-copy="showPokemonName"></span><input name="showPokemonName" type="checkbox" checked></label>
+    <label><span data-copy="showViewerName"></span><input name="showViewerName" type="checkbox" checked></label>
+    <label><span data-copy="nameLimit"></span><input name="nameLimit" type="number" min="0" max="250" value="50" required></label>
+    <label><span data-copy="visibleLimit"></span><input name="visibleLimit" type="number" min="1" max="250" value="100" required></label>
+    <label><span data-copy="spriteScale"></span><input id="sprite-scale" name="spriteScale" type="range" min="50" max="300" step="1" value="100"><output id="sprite-scale-value" for="sprite-scale">100%</output></label>
+    <label><span data-copy="summonMoneyPerMinute"></span><input name="summonMoneyPerMinute" type="number" min="0" max="100000" required></label>
+    <label><span data-copy="summonXpPerSecond"></span><input name="summonXpPerSecond" type="number" min="0" max="100" step="0.1" required></label>
   </div></section><button data-copy="save"></button><p id="settings-status" role="status"></p></form>
   </div><div data-pane="obs" hidden>
   <section><h2 data-copy="obsTitle"></h2><p data-copy="obsHelp"></p><div id="sources"></div><p id="obs-status" role="status"></p></section>
-  <section><h2 data-copy="previewEncounter"></h2><form id="spawn">
+  <section><h2 data-copy="previewEncounter"></h2><form id="encounter-preview-form">
     <select name="creature" data-aria="creature"></select>
     <button type="button" id="preview-encounter" data-copy="previewLocal"></button>
-    <button data-copy="spawn"></button>
-  </form><form id="legendary-event" hidden>
-    <select name="creature" aria-label="Legendary or mythical Pokémon"></select>
-    <button data-copy="queueLegendary"></button>
-  </form><p id="legendary-status" role="status"></p><canvas id="encounter" data-aria="encounter"></canvas></section>
-  <section><h2 data-copy="testSummon"></h2>
+  </form><canvas id="encounter" data-aria="encounter"></canvas></section>
+  <section><h2 data-copy="testSummon"></h2><button type="button" data-force-battle="team" data-copy="forceTeam"></button><p id="team-test-status" role="status"></p><label><span data-copy="raidTitle"></span><select id="preview-only-raid-species"></select></label><button type="button" data-force-battle="raid" data-copy="forceRaid"></button><p id="raid-preview-status" role="status"></p>
   <form id="summon-preview">
     <select name="creature" aria-label="Pokémon"></select>
     <label><span>Shiny</span><input type="checkbox" name="shiny"></label>

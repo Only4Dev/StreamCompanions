@@ -103,6 +103,24 @@ async function importStill(id, dex = Number(id), shiny = false, optional = false
     Idle: { url: '/pmd/' + id + '/Static.png', width: png.readUInt32BE(16), height: png.readUInt32BE(20), durations: [60], rows: 1 }
   } }
 }
+const gigantamax = { '0006': '0003', '0869': '0063' }
+async function importGigantamax(item) {
+  const code = gigantamax[item.id]
+  if (!code) return
+  const normal = await cachedVariant(item.battleForms?.gigantamax?.normal) ?? await importVariant(item.id, false, [], '/' + code)
+  if (!normal) throw new Error('Missing animated Gigantamax sprite: ' + item.id)
+  item.battleForms = { ...item.battleForms, gigantamax: { code, normal } }
+}
+
+if (process.argv.includes('--gigantamax-only')) {
+  if (previous?.revision !== revision) throw new Error('Run the full sprite import first')
+  await Promise.all(previous.species.map(importGigantamax))
+  const temporary = new URL('manifest.json.tmp', root)
+  await writeFile(temporary, JSON.stringify(previous))
+  await rename(temporary, manifestPath)
+  process.exit(0)
+}
+
 const ids = nationalDex.map(([id, , name]) => ({ id: String(id).padStart(4, '0'), name }))
 async function importPortrait(id, shiny, known) {
   if (known !== undefined) {
@@ -148,24 +166,25 @@ await Promise.all(Array.from({ length: 40 }, async () => {
   }
 }))
 const available = species.filter(Boolean)
-await Promise.all(available.filter(item => battleFormAssets[Number(item.id)]).map(async item => {
+async function withBattleForms(item, sourceId = item.id, previous = item) {
   const forms = await Promise.all(Object.entries(battleFormAssets[Number(item.id)]).map(async ([key, index]) => {
     const code = String(index).padStart(4, '0')
     const path = '/' + code
-    const old = item.battleForms?.[key]
+    const old = previous?.battleForms?.[key]
     const dex = battleFormFallbacks[Number(item.id)]?.[key]
     const folder = item.id + '-' + code
-    const normal = await cachedVariant(old?.normal) ?? await importVariant(item.id, false, [], path) ??
+    const normal = await cachedVariant(old?.normal) ?? await importVariant(sourceId, false, [], path) ??
       (dex ? await importStill(folder, dex, false, true) : null)
     if (!normal) return null
     const required = Object.keys(normal.animations)
-    const shinyCredit = tracker[item.id]?.subgroups?.[code]?.subgroups?.['0001']?.sprite_credit?.primary
-    const shiny = await cachedVariant(old?.shiny) ?? (shinyCredit ? await importVariant(item.id, true, required, path) : null) ??
+    const shinyCredit = tracker[sourceId]?.subgroups?.[code]?.subgroups?.['0001']?.sprite_credit?.primary
+    const shiny = await cachedVariant(old?.shiny) ?? (shinyCredit ? await importVariant(sourceId, true, required, path) : null) ??
       (dex ? await importStill(folder + '-shiny', dex, true, true) : null)
     return [key, { code, normal, shiny }]
   }))
   item.battleForms = Object.fromEntries(forms.filter(Boolean))
-}))
+}
+await Promise.all(available.filter(item => battleFormAssets[Number(item.id)]).map(item => withBattleForms(item)))
 await Promise.all(regionalSpecies.map(async (form, index) => {
   const id = String(form.id)
   const sourceId = String(form.baseId).padStart(4, '0')
@@ -177,9 +196,12 @@ await Promise.all(regionalSpecies.map(async (form, index) => {
   const required = Object.keys(normal.animations)
   const shiny = await cachedVariant(old?.shiny) ?? (path ? await importVariant(sourceId, true, required, path) : null) ??
     await importStill(id + '-shiny', form.id, true, true)
-  available[species.length + index] = { id, name: form.name, baseId: sourceId, pmdForm: form.pmdForm, region: form.region, normal, shiny }
+  const item = { id, name: form.name, baseId: sourceId, pmdForm: form.pmdForm, region: form.region, normal, shiny }
+  if (battleFormAssets[form.id]) await withBattleForms(item, sourceId, old)
+  available[species.length + index] = item
 }))
 const catalog = available.filter(Boolean)
+await Promise.all(catalog.map(importGigantamax))
 const temporary = new URL('manifest.json.tmp', root)
 await writeFile(temporary, JSON.stringify({ revision, species: catalog,
   missing: catalog.filter(item => item.normal.source === 'pokeapi').map(item => item.id), strictShiny: true }))

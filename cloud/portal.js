@@ -1,6 +1,11 @@
 import { adminCommunities, adminPortal } from './admin.js'
 import { expireShopOrders } from './shop-queue.js'
-import { enqueueWebGame, webGameStatus, webGameViewer } from './web-game.js'
+import { enqueueWebGame, webActionLock, webGameStatus, webGameViewer } from './web-game.js'
+import learnsetData from '../ui/learnsets.json' with { type: 'json' }
+import { eggPool } from '../ui/egg-rules.js'
+import { catchRates } from '../ui/capture-rates.js'
+import { encounterRarities } from '../ui/species-rules.js'
+import { abilitiesData, abilityDetails } from '../ui/abilities.js'
 import { botCopy } from '../ui/bot-copy.js'
 import { helpPage } from './help.js'
 import { aboutCopy, projectLinks } from '../ui/about.js'
@@ -9,19 +14,19 @@ import { webEnglish } from "./web-copy.js"
 import { authorizeUrl, eraseAccount, platformIdentity, providerConfig, sessionKey, signIn, unlinkIdentity } from './auth.js'
 import { nationalDex } from './national-dex.js'
 import { kanto } from './kanto.js'
-import { equippedMoves, moveCooldown, movePp, moves } from '../dev/battle.js'
+import { baseStatsData, equippedMoves, moveCooldown, movePp, moves } from '../dev/battle.js'
 import { familyDnaCount, familyRoot, maxDnaBoosters } from '../ui/evolution.js'
 import { regionalSpecies } from '../ui/regional-species.js'
-import { creatureMoves, dexEntries, parseLoadout, speciesName, validMoveset } from './movesets.js'
+import { battleTeamFamily, creatureMoves, dexEntries, parseLoadout, speciesName, validMoveset } from './movesets.js'
 import { portalStyles, dexStyles, providerStyles, languageStyles, helpStyles, darkStyles, mobileStyles, liveReactionStyles } from './portal-style.js'
 import { level, maxLevel, ultimateLevel, xpAtLevel } from '../ui/levels.js'
-import { arenaShopItems, heldItems } from '../ui/held-items.js'
-import { featuredShopItems, maxShopQuantity, shopIconUrl, shopItems, validShopQuantity } from '../ui/shop.js'
+import { arenaShopItems, heldItems, itemEffect } from '../ui/held-items.js'
+import { featuredShopItems, legendaryEggChance, maxShopQuantity, shopIconUrl, shopItems, validShopQuantity } from '../ui/shop.js'
 
 function communityTabs(community, language, current, region = 'kanto') {
   const en = language === 'en'
   const tabs = [['dex', 'Pokédex'], ['inventory', en ? 'Inventory' : 'Inventario'], ['shop', en ? 'Shop' : 'Tienda'],
-    ['overview', en ? 'Overview' : 'Resumen'], ['log', en ? 'Log' : 'Registro'], ['live', en ? 'Play on the web' : 'Jugar en web'],
+    ['overview', en ? 'Overview' : 'Resumen'], ['log', en ? 'Log' : 'Registro'], ['team', en ? 'Battle team' : 'Equipo'], ['live', en ? 'Play on the web' : 'Jugar en web'],
     ['help', en ? 'Help' : 'Ayuda']]
   return '<nav class="tabs community-tabs" aria-label="' + (en ? 'Community' : 'Comunidad') + '">' + tabs.map(([tab, label]) =>
     '<a href="/?' + escape(new URLSearchParams({ community, tab, region })) + '"' + (current === tab ? ' aria-current="page"' : '') +
@@ -66,6 +71,15 @@ function renderAnnouncements(community, language) {
     '<script src="/assets/announcements.js" defer></script>'
 }
 
+function encounterSprite(id, shiny) {
+  return 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' + (shiny ? 'shiny/' : '') + id + '.png'
+}
+
+const rarityLabels = {
+  common: ['Común', 'Common'], uncommon: ['Poco común', 'Uncommon'], rare: ['Raro', 'Rare'], epic: ['Épico', 'Epic'],
+  legendary: ['Legendario', 'Legendary'], mythical: ['Singular', 'Mythical'], ultraBeast: ['Ultraente', 'Ultra Beast'], paradox: ['Paradoja', 'Paradox']
+}
+
 const webGameScript = `(() => {
 const root = document.querySelector('[data-web-game]');
 const status = root.querySelector('[role=status]');
@@ -73,6 +87,7 @@ const capture = root.querySelector('[data-capture-form]');
 const endpoint = new URL('/live/status', location.origin);
 endpoint.search = location.search;
 let submitting = false;
+let locked = false;
 let timer;
 let version = 0;
 let lastLog = '';
@@ -123,7 +138,7 @@ function schedule(delay) {
 }
 root.addEventListener('submit', async event => {
   event.preventDefault();
-  if (submitting || endpoint.searchParams.has('game')) return;
+  if (submitting || locked || endpoint.searchParams.has('game')) return;
   const form = event.target;
   const data = new URLSearchParams(new FormData(form));
   actionType = data.get('action');
@@ -166,6 +181,17 @@ async function refresh() {
     lastEncounter = state.encounter;
     capture.querySelector('input[name="encounter"]').value = state.encounter || '';
     root.querySelector('[data-capture-difficulty]').textContent = state.difficulty || root.dataset.noEncounter;
+    root.querySelector('[data-encounter-rarity]').textContent = state.rarity || '';
+    const portrait = root.querySelector('[data-encounter-portrait]');
+    if (state.species) {
+      const src = (${encounterSprite.toString()})(state.species.id, state.shiny);
+      if (portrait.getAttribute('src') !== src) portrait.src = src;
+      portrait.alt = state.species.name;
+      portrait.hidden = false;
+    } else {
+      portrait.hidden = true;
+      portrait.removeAttribute('src');
+    }
     for (const input of capture.querySelectorAll('input[name="ball"]')) {
       const amount = state.balls?.[input.value] ?? 0;
       input.disabled = amount < 1;
@@ -175,12 +201,14 @@ async function refresh() {
       const available = capture.querySelector('input[name="ball"]:not(:disabled)');
       if (available) available.checked = true;
     }
-    capture.querySelector('button').disabled = submitting || state.pending || !state.encounter ||
+    locked = state.locked || state.cooldown > 0;
+    capture.querySelector('button').disabled = submitting || locked || state.pending || !state.encounter ||
       !capture.querySelector('input[name="ball"]:checked:not(:disabled)');
     for (const button of root.querySelectorAll('form:not([data-capture-form]) button')) {
-      const maximum = button.hasAttribute('data-tracker-use') ? state.legendaryTrackers || 0 : button.hasAttribute('data-candy-use') ? state.rareCandies || 0 : Infinity;
-      button.disabled = submitting || state.pending || !state.online || maximum < 1;
+      const maximum = button.hasAttribute('data-shiny-use') ? state.shinyDust || 0 : button.hasAttribute('data-tracker-use') ? state.legendaryTrackers || 0 : button.hasAttribute('data-candy-use') ? state.rareCandies || 0 : Infinity;
+      button.disabled = submitting || locked || state.pending || !state.online || maximum < 1;
     }
+    root.querySelector('[data-shiny-dust-count]').textContent = '×' + (state.shinyDust || 0);
     root.querySelector('[data-tracker-count]').textContent = '×' + (state.legendaryTrackers || 0);
     root.querySelector('[data-candy-count]').textContent = '×' + (state.rareCandies || 0);
     const activity = root.querySelector('[data-live-activity]');
@@ -199,7 +227,7 @@ async function refresh() {
     else if (!state.online) status.textContent = root.dataset.offline;
     else if (status.textContent === root.dataset.offline) status.textContent = '';
     if (!state.pending) endpoint.searchParams.delete('game');
-    schedule(state.pending ? 500 : 2500);
+    schedule(state.pending || state.locked ? 500 : state.cooldown > 0 ? Math.min(state.cooldown, 500) : 2500);
   } catch (error) {
     console.warn('Could not refresh live game status', error);
     if (current === version) schedule(2500);
@@ -249,6 +277,8 @@ function webGameState(runtime, row, language) {
   const message = pending ? (en ? 'Waiting for the streamer’s app…' : 'Esperando a la app del streamer…') :
     result ? messages[result] || botCopy[language][result] || (en ? 'The action could not be completed.' : 'No se pudo completar la acción.') : ''
   return { online, pending, message, ...(result ? { result } : {}), encounter: online ? runtime.encounter_id : null,
+    rarity: online ? rarityLabels[runtime.rarity]?.[Number(en)] ?? null : null,
+    species: online && runtime.species_id ? { id: runtime.species_id, name: speciesName(runtime.species_id) } : null,
     difficulty: online ? runtime[en ? 'difficulty_en' : 'difficulty_es'] : null, ...(online && runtime.shiny ? { shiny: true } : {}) }
 }
 
@@ -270,7 +300,7 @@ async function renderLiveGame(request, db, url, language) {
   const viewer = identity && await webGameViewer(db, identity.account_id, community, platform)
   if (!viewer) return '<section class="sheet" id="play-web"><h2>' + (en ? 'Play on the web' : 'Jugar en web') + '</h2><p>' + (en ? 'Sign in and link your channel account to play.' : 'Inicia sesión y vincula tu cuenta del canal para jugar.') + ' <a href="/">' +
     (en ? 'Viewer portal' : 'Portal de viewers') + '</a></p></section>'
-  const { collection, balls, legendaryTrackers = 0, rareCandies = 0 } = JSON.parse(viewer.payload)
+  const { collection, balls, legendaryTrackers = 0, rareCandies = 0, shinyDust = 0 } = JSON.parse(viewer.payload)
   const runtime = await db.prepare('SELECT * FROM web_game_runtime WHERE community_id = ?').bind(community).first()
   const id = url.searchParams.get('game')
   const row = ['offline', 'expired', 'pending'].includes(id) ? { result: id } : await webGameStatus(db, identity.account_id, community, id)
@@ -278,7 +308,8 @@ async function renderLiveGame(request, db, url, language) {
   const destination = escape('/live/action?' + new URLSearchParams({ community, platform }))
   const open = (action, extra = '') => '<form method="post" action="' + destination + '"' + extra + '>' +
     '<input type="hidden" name="id" value="' + crypto.randomUUID() + '"><input type="hidden" name="action" value="' + action + '">'
-  const disabled = !state.online || state.pending ? ' disabled' : ''
+  const lock = await webActionLock(db, identity.account_id, community)
+  const disabled = !state.online || lock.pending || lock.cooldown > 0 || state.pending ? ' disabled' : ''
   const names = [['normal', 'Poké Ball', 'poke-ball'], ['great', en ? 'Great Ball' : 'Super Ball', 'great-ball'],
     ['ultra', 'Ultra Ball', 'ultra-ball'], ['master', 'Master Ball', 'master-ball']]
   const firstAvailable = names.find(([type]) => balls[type] > 0)?.[0]
@@ -291,10 +322,12 @@ async function renderLiveGame(request, db, url, language) {
   return '<section class="sheet" id="play-web" data-web-game data-waiting="' + (en ? 'Sending action…' : 'Enviando acción…') +
     '" data-failed="' + (en ? 'Could not send the action. Try again.' : 'No se pudo enviar la acción. Intenta de nuevo.') +
     '" data-offline="' + (en ? 'Waiting for the streamer to start the app…' : 'Esperando a que el streamer inicie la app…') +
-    '" data-no-encounter="' + noEncounter + '"><h2>' + (en ? 'Play on the web' : 'Jugar en web') +
+    '" data-no-encounter="' + noEncounter + '"><h2>' + (en ? 'Controls' : 'Controles') +
     '</h2><p class="live-game-status" role="status">' + escape(state.message) + '</p><div class="live-game-grid">' +
-    '<section class="live-game-card"><h3>' + (en ? 'Catch' : 'Captura') + '</h3><p class="meta" data-capture-difficulty>' +
-    escape(state.difficulty ?? noEncounter) + '</p>' +
+    '<section class="live-game-card"><header class="capture-heading"><div><h3>' + (en ? 'Catch' : 'Captura') + '</h3><p class="meta" data-capture-difficulty>' +
+    escape(state.difficulty ?? noEncounter) + '</p><p class="meta" data-encounter-rarity>' + escape(state.rarity ?? '') + '</p></div>' +
+    '<div class="capture-portrait-frame"><img data-encounter-portrait width="96" height="96" alt="' + escape(state.species?.name ?? '') + '"' +
+    (state.species ? ' src="' + encounterSprite(state.species.id, state.shiny) + '"' : ' hidden') + '></div></header>' +
     open('catch', ' data-capture-form') + '<input type="hidden" name="encounter" value="' + escape(state.encounter ?? '') + '">' +
     '<fieldset class="live-balls"><legend>' + (en ? 'Choose a Poké Ball' : 'Elige una Poké Ball') + '</legend>' + options +
     '</fieldset><button' + (state.encounter && firstAvailable ? disabled : ' disabled') + '>' +
@@ -308,12 +341,14 @@ async function renderLiveGame(request, db, url, language) {
     (rareCandies ? disabled : ' disabled') + ' data-candy-use>' + (en ? 'Use Rare Candy' : 'Usar Caramelo Raro') + '</button></form></section>' +
     '<section class="live-game-card"><h3>' + (en ? 'Key Items' : 'Objetos clave') + '</h3>' + open('tracker') +
     '<p class="meta live-item-count">' + itemIcon('dowsing-machine') + ' Legendary Tracker <strong data-tracker-count>×' + legendaryTrackers + '</strong></p><button data-tracker-use' +
-    (legendaryTrackers ? disabled : ' disabled') + '>' + (en ? 'Use Legendary Tracker' : 'Usar Legendary Tracker') + '</button></form></section>' +
+    (legendaryTrackers ? disabled : ' disabled') + '>' + (en ? 'Use Legendary Tracker' : 'Usar Legendary Tracker') + '</button></form>' + open('shiny') + '<p class="meta live-item-count">' + itemIcon('stardust') + ' Shiny Dust <strong data-shiny-dust-count>×' + shinyDust + '</strong></p><button data-shiny-use' +
+    (shinyDust ? disabled : ' disabled') + '>' + (en ? 'Use Shiny Dust' : 'Usar Shiny Dust') + '</button></form></section>' +
     '</div><label><input type="checkbox" data-shiny-audio> ' + (en ? 'Play shiny sounds' : 'Reproducir sonidos shiny') + '</label><details class="live-activity" open><summary>' + (en ? 'Your game activity' : 'Tu actividad de juego') +
-    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=6" defer></script>'
+    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=9" defer></script>'
 
 }
 
+const regionalBase = new Map(regionalSpecies.map(form => [form.id, form.baseId]))
 const families = new Map()
 for (const entry of dexEntries) {
   const root = familyRoot(entry[0])
@@ -334,6 +369,15 @@ const typeNames = {
   electric: 'Eléctrico', psychic: 'Psíquico', ice: 'Hielo', dragon: 'Dragón', dark: 'Siniestro', fairy: 'Hada'
 }
 const typeIds = Object.keys(typeNames)
+const descriptionHint = (trigger, description, label) => {
+  if (!description) return trigger
+  const id = 'description-' + crypto.randomUUID()
+  return '<span class="description-hint"><button type="button" class="description-trigger" aria-label="' + escape(label) +
+    '" aria-describedby="' + id + '">' + trigger + '</button><span class="description-slot"><span id="' + id + '">' +
+    escape(description) + '</span></span></span>'
+}
+const itemTooltip = (item, en, graphic, label) => descriptionHint(graphic, itemEffect(item, en), label ?? shopItems[item]?.names[Number(en)] ?? item)
+
 const itemIcon = item => '<img class="bag-icon" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/' + item + '.png" alt="" width="30" height="30">'
 function typeIcon(type, en) {
   const id = typeIds.indexOf(type) + 1
@@ -409,7 +453,7 @@ function renderPage(body, status, language, theme, url) {
     '<main><header class="mast"><span class="mark" aria-hidden="true">✦</span>Stream Companions<nav class="web-language" aria-label="' + (language === 'en' ? 'Portal navigation' : 'Navegación del portal') + '"><a href="/">' +
     (language === 'en' ? 'Home' : 'Inicio') + '</a>' + '<a class="help-header" href="?' + escape(new URLSearchParams({
       tab: 'help', ...(url.searchParams.get('community') ? { community: url.searchParams.get('community') } : {})
-    })) + '">' + (language === 'en' ? 'Help' : 'Ayuda') + '</a><a href="/?tab=about">' + aboutCopy[language].about + '</a><a href="/?tab=live">' + (language === 'en' ? 'Live' : 'En directo') + '</a>' + themeLink + languageLinks + '</nav></header>' + body + '</main></html>', { status, headers })
+    })) + '">' + (language === 'en' ? 'Help' : 'Ayuda') + '</a><a href="/?tab=about">' + aboutCopy[language].about + '</a><a href="/?tab=live">' + (language === 'en' ? 'Live' : 'En directo') + '</a>' + themeLink + languageLinks + '</nav></header>' + body + '<script src="/assets/descriptions.js" defer></script></main></html>', { status, headers })
 }
 
 function redirect(location, cookies) {
@@ -481,6 +525,7 @@ export async function portal(request, url, env) {
           }
           submitted = true;
           for (const button of document.querySelectorAll('[data-shop-buy] button')) button.disabled = true;
+          for (const input of document.querySelectorAll('[data-shop-quantity]')) input.readOnly = true;
           if (submitting) submitting.hidden = false;
         });
       }
@@ -524,7 +569,7 @@ export async function portal(request, url, env) {
         setTimeout(() => {
           dialog.classList.add('hatched');
           title.textContent = dialog.dataset.reveal;
-          result.textContent = hatch.name + (hatch.xp > 0 ? ' · +' + hatch.xp + ' XP' : '');
+          result.textContent = hatch.name + (hatch.levelUp ? (document.documentElement.lang === 'es' ? ' · +1 nivel' : ' · +1 level') : hatch.xp > 0 ? ' · +' + hatch.xp + ' XP' : '');
         }, reducedMotion ? 0 : tier.duration);
       }
       const receipt = document.querySelector('[data-order-pending], [data-order-receipt]');
@@ -539,7 +584,7 @@ export async function portal(request, url, env) {
         const cap = dna ? (state.dna ? ${maxDnaBoosters} - state.dnaCount : 0) : ${maxShopQuantity};
         const limit = Math.min(cap, Math.floor(state.balance / Number(shopPrice)));
         const input = form.querySelector('[data-shop-quantity]');
-        if (input) input.max = Math.max(1, limit);
+        if (input) { input.max = Math.max(1, limit); input.readOnly = submitted || state.pending; }
         const button = form.querySelector('button');
         button.disabled = submitted || !state.online || state.pending || owned || limit < 1 ||
           (shopProduct === 'master-ball' && !state.master) ||
@@ -563,7 +608,6 @@ export async function portal(request, url, env) {
         if (receipt) status.searchParams.set('purchase', query.get('purchase'));
         if (query.has('pokemon')) status.searchParams.set('pokemon', query.get('pokemon'));
         const dnaCount = document.querySelector('[data-shop-dna-count]');
-        const delta = document.querySelector('[data-shop-delta]');
         let balance = wallet ? Number(wallet.dataset.shopWallet) : null;
         let attempts = 0;
         async function refresh() {
@@ -579,7 +623,6 @@ export async function portal(request, url, env) {
             }
             if (wallet && Number.isSafeInteger(state.balance)) {
               if (state.balance !== balance) {
-                if (delta) delta.textContent = state.balance > balance ? '+$' + (state.balance - balance) : '';
                 balance = state.balance;
                 wallet.textContent = '$' + balance;
               }
@@ -604,7 +647,7 @@ export async function portal(request, url, env) {
               receipt.textContent = receipt.dataset.waiting;
             }
           }
-          setTimeout(refresh, receipt?.hasAttribute('data-order-pending') ? 500 : 5000);
+          setTimeout(refresh, receipt?.hasAttribute('data-order-pending') || latestState?.pending ? 500 : 5000);
         }
         if (receipt) refresh();
         else setTimeout(refresh, 1000);
@@ -636,6 +679,48 @@ export async function portal(request, url, env) {
   if (request.method === 'GET' && url.pathname === '/assets/web-game.js') return new Response(webGameScript, {
     headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff' }
   })
+  if (request.method === 'GET' && url.pathname === '/assets/descriptions.js') return new Response(`
+let active, timer;
+function clear() {
+  clearTimeout(timer);
+  active?.classList.remove('is-visible');
+  active = undefined;
+}
+function open(trigger, delay) {
+  clear();
+  active = trigger.closest('.description-hint');
+  timer = setTimeout(() => active?.classList.add('is-visible'), delay);
+}
+for (const trigger of document.querySelectorAll('.description-trigger')) {
+  trigger.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') open(trigger, 2000); });
+  trigger.addEventListener('pointerleave', event => { if (event.pointerType === 'mouse' && active === trigger.closest('.description-hint')) clear(); });
+  trigger.addEventListener('click', event => {
+    if (active === trigger.closest('.description-hint') && active.classList.contains('is-visible')) clear(); else open(trigger, 0);
+  });
+  trigger.addEventListener('blur', () => { if (active === trigger.closest('.description-hint')) clear(); });
+}
+document.addEventListener('pointerdown', event => { if (!event.target.closest('.description-trigger')) clear(); });
+document.addEventListener('keydown', event => { if (event.key === 'Escape') clear(); });
+`, { headers: { 'Content-Type': 'text/javascript; charset=utf-8' } })
+  if (request.method === 'GET' && url.pathname === '/assets/battle-team.js') return new Response(`
+for (const card of document.querySelectorAll('[data-team-card]')) {
+  const select = card.querySelector('select');
+  const portrait = card.querySelector('img');
+  const empty = card.querySelector('[data-team-empty]');
+  function update() {
+    const option = select.selectedOptions[0];
+    const src = option?.dataset.sprite;
+    portrait.hidden = !src;
+    empty.hidden = Boolean(src);
+    if (src) { portrait.src = src; portrait.alt = option.value; }
+    else { portrait.removeAttribute('src'); portrait.alt = ''; }
+  }
+  select.addEventListener('change', update);
+  update();
+}
+`, { headers: { 'Content-Type': 'text/javascript; charset=utf-8' } })
+  const data = url.pathname === '/data/base-stats.json' ? baseStatsData : url.pathname === '/data/learnsets.json' ? learnsetData : url.pathname === '/data/pokemon-abilities.json' ? abilitiesData : url.pathname === '/data/egg-pool.json' ? eggPool : url.pathname === '/data/catch-rates.json' ? catchRates : url.pathname === '/data/encounter-rarities.json' ? encounterRarities : null
+  if (request.method === 'GET' && data) return Response.json(data)
   const requested = url.searchParams.get('lang') ?? getCookie(request, 'sc_lang')
   const language = requested === 'en' ? 'en' : 'es'
   const t = text => language === 'en' ? webEnglish[text] ?? text : text
@@ -643,11 +728,14 @@ export async function portal(request, url, env) {
   const page = (body, status = 200) => renderPage(body, status, language, theme, url)
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'live') {
     const { results } = await env.DB.prepare('SELECT community_id, seen_at, platforms FROM community_stream_status ORDER BY seen_at DESC LIMIT 100').all()
-    const title = language === 'en' ? 'Streaming communities' : 'Comunidades de streaming'
+    const community = url.searchParams.get('community')
+    const title = community ? (language === 'en' ? 'Play on the web' : 'Jugar en web')
+      : (language === 'en' ? 'Streaming communities' : 'Comunidades de streaming')
     const selectedStream = results.find(row => row.community_id === url.searchParams.get('community'))
     const platform = url.searchParams.get('platform')
-    if (selectedStream && !platform && selectedStream.seen_at > Date.now() - 90_000) {
-      const available = JSON.parse(selectedStream.platforms).find(item => item.live && ['twitch', 'kick'].includes(item.provider))
+    const channels = selectedStream ? JSON.parse(selectedStream.platforms) : []
+    if (selectedStream && !platform) {
+      const available = channels.find(item => item.live && selectedStream.seen_at > Date.now() - 90_000) ?? channels[0]
       if (available) {
         url.searchParams.set('platform', available.provider)
         return redirect(url.pathname + url.search, [])
@@ -667,7 +755,7 @@ export async function portal(request, url, env) {
     const channelTabs = selectedStream ? '<nav class="tabs live-platforms" aria-label="' + (en ? 'Streaming platform' : 'Plataforma de streaming') + '">' +
       ['twitch', 'kick'].map(provider => {
         const name = provider === 'twitch' ? 'Twitch' : 'Kick'
-        const channel = liveChannels(selectedStream).find(item => item.provider === provider)
+        const channel = channels.find(item => item.provider === provider && validChannel(item))
         return channel ? '<a href="' + escape(liveUrl(selectedStream.community_id, provider)) + '"' +
           (provider === platform ? ' aria-current="page"' : '') + '>' + name + '</a>' :
           '<span aria-disabled="true">' + name + '</span>'
@@ -675,22 +763,19 @@ export async function portal(request, url, env) {
     const cards = communities.map(({ row, channels }) =>
       '<li><a class="button" href="' + escape(liveUrl(row.community_id, channels[0].provider)) + '">' +
       escape(channels[0].login) + '</a></li>').join('')
-    const mainTabs = stream ? '<nav class="tabs live-sections" aria-label="' + (en ? 'Live sections' : 'Secciones del directo') +
-      '"><a href="#watch-live">' + (en ? 'Watch stream' : 'Ver directo') + '</a><a href="#play-web">' +
-      (en ? 'Play on the web' : 'Jugar en web') + '</a></nav>' : ''
     const channelUrl = stream && (platform === 'twitch' ? 'https://www.twitch.tv/' : 'https://kick.com/') + encodeURIComponent(stream.login)
-    const watch = '<section class="sheet live-watch" id="watch-live"><h1>' + title + '</h1>' + mainTabs + channelTabs +
+    const watch = '<section class="sheet live-watch" id="watch-live"><h1>' + title + '</h1>' + channelTabs +
       (stream ? '<div class="live-reaction" data-live-reaction aria-hidden="true"></div>' : '') +
       (player ? '<div class="live-player"><iframe title="' + escape(stream.login) + '" src="' + escape(player) +
         '" width="960" height="540" allowfullscreen></iframe></div>' +
         '<a class="live-mobile-channel" href="' + escape(channelUrl) + '">' +
         (en ? 'Open on ' : 'Abrir en ') + (platform === 'twitch' ? 'Twitch' : 'Kick') + '</a>' :
-        '<p class="meta">' + (communities.length
+        '<p class="meta">' + (community ? (en ? 'This channel is offline.' : 'Este canal está fuera de directo.') : communities.length
           ? (en ? 'Choose a live channel to watch and play here.' : 'Elige un canal en directo para ver el stream y jugar aquí.')
           : (en ? 'No channels are live right now.' : 'No hay canales en directo en este momento.')) + '</p>') +
-      '<ul class="community-list live-communities">' + cards + '</ul></section>'
-    const game = stream ? await renderLiveGame(request, env.DB, url, language) : ''
-    const community = url.searchParams.get('community')
+      (community ? '' : '<ul class="community-list live-communities">' + cards + '</ul>') + '</section>'
+    if (community && !platform) url.searchParams.set('platform', 'twitch')
+    const game = community ? await renderLiveGame(request, env.DB, url, language) : ''
     return page((community ? communityTabs(community, language, 'live', url.searchParams.get('region') ?? 'kanto') : '') +
       (game ? '<div class="live-layout">' + watch + game + '</div>' : watch) +
       (selectedStream ? renderAnnouncements(selectedStream.community_id, language) : ''))
@@ -738,7 +823,7 @@ export async function portal(request, url, env) {
     const viewer = await env.DB.prepare(
       'SELECT p.payload, s.seen_at, s.supports_quantity, s.supports_dna, s.prices, o.id AS order_id, o.result, o.hatch, o.created_at, o.dispatched_at FROM viewer_progress p JOIN account_identities i ON p.viewer_id = i.viewer_id ' +
       'LEFT JOIN shop_online s ON s.community_id = p.community_id ' +
-      'LEFT JOIN shop_orders o ON o.community_id = p.community_id AND o.viewer_id = p.viewer_id AND o.id = ? ' +
+      'LEFT JOIN shop_orders o ON o.community_id = p.community_id AND o.viewer_id = p.viewer_id AND o.id = COALESCE(?, (SELECT pending.id FROM shop_orders pending JOIN account_identities owner ON owner.viewer_id = pending.viewer_id WHERE owner.account_id = i.account_id AND pending.community_id = p.community_id AND pending.result IS NULL ORDER BY pending.created_at LIMIT 1)) ' +
       'WHERE i.account_id = ? AND p.community_id = ? ORDER BY o.id IS NOT NULL DESC, (p.viewer_id LIKE \'twitch:%\') DESC, p.updated_at DESC, p.viewer_id LIMIT 1'
     ).bind(url.searchParams.get('purchase'), identity.account_id, community).first()
     if (!viewer) return json({ error: 'community not found' }, 404)
@@ -811,10 +896,11 @@ export async function portal(request, url, env) {
     if (!viewer) return new Response(null, { status: 404 })
     const runtime = await env.DB.prepare('SELECT * FROM web_game_runtime WHERE community_id = ?').bind(community).first()
     const row = await webGameStatus(env.DB, identity.account_id, community, url.searchParams.get('game'))
-    const { balls = {}, log = [], legendaryTrackers = 0, rareCandies = 0 } = JSON.parse(viewer.payload)
+    const { balls = {}, log = [], legendaryTrackers = 0, rareCandies = 0, shinyDust = 0 } = JSON.parse(viewer.payload)
     const activity = log.slice(-8).reverse().map(({ action, result }) => ({ action,
       message: webGameState(null, { result: result === 'caught' || result === 'duplicateReward' ? 'catchSuccess' : result }, language).message }))
-    return Response.json({ ...webGameState(runtime, row, language), balls, activity, ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(rareCandies ? { rareCandies } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
+    const lock = await webActionLock(env.DB, identity.account_id, community)
+    return Response.json({ ...webGameState(runtime, row, language), locked: lock.pending, cooldown: lock.cooldown, balls, activity, ...(shinyDust ? { shinyDust } : {}), ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(rareCandies ? { rareCandies } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
   }
 
   if (route) {
@@ -904,7 +990,8 @@ export async function portal(request, url, env) {
   }
   const editingItem = request.method === 'POST' && url.pathname === '/held-item'
   const buying = request.method === 'POST' && url.pathname === '/shop/buy'
-  const editing = buying || editingItem || request.method === 'POST' && url.pathname === '/moveset'
+  const editingTeam = request.method === 'POST' && url.pathname === '/battle-team'
+  const editing = editingTeam || buying || editingItem || request.method === 'POST' && url.pathname === '/moveset'
   if (!editing && (request.method !== 'GET' || url.pathname !== '/')) return null
   if (editing && (!identity || request.headers.get('Origin') !== url.origin)) return new Response(null, { status: 403 })
   if (!identity) return page(
@@ -956,7 +1043,20 @@ export async function portal(request, url, env) {
         '<p class="empty">' + t("Aún no tienes comunidades sincronizadas. Usa !poke join en el chat de un streamer participante.") + '</p>') +
       '</section>')
   }
-  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, legendaryTrackers = 0, pokeDollars = 0, dnaBoosters = {}, log = [], dexAcquired = {} } = JSON.parse(selected.payload)
+  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, legendaryTrackers = 0, shinyDust = 0, pokeDollars = 0, dnaBoosters = {}, log = [], dexAcquired = {} } = JSON.parse(selected.payload)
+  const teamUrl = '/?' + new URLSearchParams({ community: selected.community_id, tab: 'team' })
+  if (editingTeam) {
+    const body = await request.text()
+    if (body.length > 2048) return new Response(null, { status: 413 })
+    const form = new URLSearchParams(body)
+    const slots = [0, 1, 2].map(index => ({ pokemon: form.get('pokemon' + index) ?? '' })).filter(slot => slot.pokemon)
+    const teams = slots.map(slot => battleTeamFamily(slot.pokemon))
+    if (new Set(teams).size !== slots.length || slots.some(({pokemon}, index) =>
+      !teams[index] || !Object.hasOwn(collection, pokemon))) return redirect(teamUrl + '&team=invalid', [])
+    await env.DB.prepare('INSERT INTO viewer_battle_teams (community_id, account_id, slots) VALUES (?, ?, ?) ON CONFLICT (community_id, account_id) DO UPDATE SET slots = excluded.slots')
+      .bind(selected.community_id, identity.account_id, JSON.stringify(slots)).run()
+    return redirect(teamUrl + '&team=saved', [])
+  }
   const online = buying || url.searchParams.get('tab') === 'shop' || !editing && url.searchParams.has('pokemon')
     ? await env.DB.prepare('SELECT seen_at, prices, supports_dna, supports_quantity FROM shop_online WHERE community_id = ?').bind(selected.community_id).first() : null
   const published = online?.prices ? JSON.parse(online.prices) : null
@@ -1106,10 +1206,11 @@ export async function portal(request, url, env) {
       const current = availableItems.includes(equipped?.item) ? equipped.item : ''
       const itemAction = '/held-item?' + new URLSearchParams({ ...locationParams, pokemon: speciesKey })
       itemFrame = '<button type="button" class="held-frame" popovertarget="choose-held"><strong>' + itemLabel + '</strong>' +
-        (current ? itemIcon(current) + '<span>' + itemName(current) + '</span>' : '<span>' + (en ? 'None' : 'Ninguno') + '</span>') + '</button>' +
+        (current ? '<span>' + itemName(current) + '</span>' : '<span>' + (en ? 'None' : 'Ninguno') + '</span>') + '</button>' +
+        (current ? itemTooltip(current, en, itemIcon(current), itemName(current)) : '') +
         '<div class="held-picker" id="choose-held" popover><h3>' + itemLabel + '</h3><form method="post" action="' + escape(itemAction) + '">' +
-        ['' , ...availableItems].map(item => '<button name="item" value="' + item + '"' + (current === item ? ' class="chosen"' : '') + '>' +
-          (item ? itemIcon(item) + itemName(item) : (en ? 'None' : 'Ninguno')) + '</button>').join('') + '</form></div>'
+        ['' , ...availableItems].map(item => '<div class="held-choice">' + (item ? itemTooltip(item, en, itemIcon(item), itemName(item)) : '') + '<button name="item" value="' + item + '"' + (current === item ? ' class="chosen"' : '') + '>' +
+          (item ? itemName(item) : (en ? 'None' : 'Ninguno')) + '</button></div>').join('') + '</form></div>'
     }
     const descriptions = {
       1: en ? 'The bulb on its back stores energy as it grows.' : 'El bulbo de su lomo acumula energía a medida que crece.',
@@ -1141,10 +1242,10 @@ export async function portal(request, url, env) {
       (speciesKey.endsWith(' ✦') ? 'shiny/' : '') + detail.id + '.png'
     return page(communityTabs(selected.community_id, language, 'dex', url.searchParams.get('region') ?? 'kanto') + '<section class="sheet creature-summary"><p><a href="' + escape(returnToDex) + '">' +
       (en ? 'Back to Pokédex' : 'Volver a la Pokédex') + '</a></p>' + familyNav + '<div class="summary-profile"><img alt="" width="120" height="120" src="' + sprite +
-      '"><div><h1>' + escape(speciesKey) + '</h1><p class="summary-meta">#' + String(detail.id).padStart(3, '0') + ' · Lv. ' + detail.rank +
+      '"><div><h1>' + escape(speciesKey) + '</h1><p class="summary-meta">#' + String(regionalBase.get(detail.id) ?? detail.id).padStart(3, '0') + ' · Lv. ' + detail.rank +
       detail.types.map(type => typeIcon(type, en)).join('') + '</p>' + (description ? '<p>' + escape(description) + '</p>' : '') +
       (detail.form === detail.id ? '' : '<p>' + (en ? 'Battle form · ' : 'Forma en combate · ') + escape(speciesName(detail.form)) + '</p>') +
-      xpBar + '</div><div class="summary-equipment">' + itemFrame + '</div></div><dl class="battle-stats">' + stats.map(([es, english, key]) => '<div><dt>' + (en ? english : es) +
+      '<p><strong>' + (en ? 'Abilities' : 'Habilidades') + '</strong> · ' + abilityDetails(detail.form, en).map(ability => descriptionHint(escape(ability.name), ability.effect, ability.name)).join('') + '</p>' + xpBar + '</div><div class="summary-equipment">' + itemFrame + '</div></div><dl class="battle-stats">' + stats.map(([es, english, key]) => '<div><dt>' + (en ? english : es) +
         '</dt><dd>' + Math.round(detail.stats[key]) + '</dd></div>').join('') + '</dl>' + dnaSection +
       '<div class="section-with-help"><h2>' + (en ? 'Moveset' : 'Ataques activos') + '</h2>' + helpHint(en ? 'About cooldowns and PP' : 'Sobre recarga y PP', en ? 'CD is the cooldown in seconds after the move finishes. PP is how many times the move can be used per battle. Ultimates use a charge meter.' : 'CD es la recarga en segundos después del ataque. PP indica cuántas veces puedes usarlo por batalla. Los ataques definitivos requieren carga.') + '</div><form class="moveset-form" method="post" action="' + escape(action) +
       '"><fieldset><legend>' + (en ? 'Choose up to four' : 'Elige hasta cuatro') + ' · <output>' + active.length + ' / 4</output></legend><div class="move-options">' +
@@ -1159,7 +1260,7 @@ export async function portal(request, url, env) {
       '</section><script src="/assets/moveset.js" defer></script><script src="/assets/shop-status.js" defer></script>')
   }
   const requestedTab = url.searchParams.get('tab')
-  const tab = ['inventory', 'overview', 'shop', 'log'].includes(requestedTab) ? requestedTab : 'dex'
+  const tab = ['inventory', 'overview', 'shop', 'log', 'team'].includes(requestedTab) ? requestedTab : 'dex'
   const shopLabel = language === 'en' ? 'Shop' : 'Tienda'
   let shopPage = ''
   if (tab === 'shop') {
@@ -1180,8 +1281,11 @@ export async function portal(request, url, env) {
       maxed: en ? 'That Pokémon is at the DNA limit' : 'Ese Pokémon ya alcanzó el máximo de DNA' }
     const pending = order && !order.result
     const eggDialog = section === 'eggs' ? hatchDialog(en) : ''
-    const eggOdds = section === 'eggs' ? '<p class="meta">' + (en ? 'First-stage Pokémon only. Legendary hatch chance: 0.001% per egg.' : 'Solo Pokémon en primera etapa. Probabilidad legendaria: 0,001% por huevo.') + '</p>' : ''
-    shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong> <span data-shop-delta aria-live="polite"></span></p>' + shopTabs + eggOdds +
+    const legendaryOdds = new Intl.NumberFormat(language, { style: 'percent', maximumFractionDigits: 8 }).format(legendaryEggChance)
+    const eggOdds = section === 'eggs' ? '<p class="meta">' + (en
+      ? 'First-stage Pokémon only. Legendary hatch chance per egg: ' + legendaryOdds
+      : 'Solo Pokémon en primera etapa. Probabilidad legendaria por huevo: ' + legendaryOdds) + '</p>' : ''
+    shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong></p>' + shopTabs + eggOdds +
       (url.searchParams.has('repriced') ? '<p role="status">' + (en ? 'The price changed. Check it before buying again.' : 'El precio cambió. Revísalo antes de volver a comprar.') + '</p>' : '') +
       (purchaseWarning ? '<p role="status" class="empty">' + escape(purchaseWarning) + '</p>' : '') +
       '<p role="status" class="empty" data-shop-availability data-offline="' + escape(offlineText) + '" data-upgrade="' +
@@ -1201,12 +1305,13 @@ export async function portal(request, url, env) {
           (owned ? (en ? 'Owned' : 'Ya lo tienes') : (en ? 'Buy' : 'Comprar')) + '</button>'
         const quantityInput = product.ball
           ? quantityField(en, price, Math.min(maxShopQuantity, Math.floor(pokeDollars / price))) : ''
-        return '<li><img class="bag-icon" src="' + shopIconUrl(id) + '" alt="" width="30" height="30"><strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
+        const graphic = '<img class="bag-icon' + (id === 'poke-egg' ? ' egg-shop-icon' : '') + '" src="' + shopIconUrl(id) + '" alt="" width="30" height="30">'
+        return '<li>' + itemTooltip(id, en, graphic) + '<strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
           '<form method="post" data-shop-buy data-shop-product="' + id + '" data-shop-price="' + price + '" action="' + escape(action) + '"' +
           (product.ball ? ' data-shop-ball="' + product.ball + '"' : '') + (featured ? ' data-shop-feature' : '') + '>' +
           (product.ball ? '<span class="shop-count">' + (en ? 'In bag' : 'En la bolsa') + ' <strong data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</strong></span>' : '') + quantityInput + button + '</form>' + (featured ? '<small data-feature-upgrade' + (needsUpdate ? '' : ' hidden') + '>' + reasons.feature + '</small>' : '') + (id === 'master-ball' ? '<small data-shop-master-upgrade' + (available && needsUpdate ? '' : ' hidden') + '>' + escape(reasons.master) + '</small>' : '') +
           (available && !needsUpdate && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
-      }).join('') + '</ul>' + eggDialog + '</section><script src="/assets/shop-status.js?v=3" defer></script>'
+      }).join('') + '</ul>' + eggDialog + '</section><script src="/assets/shop-status.js?v=6" defer></script>'
   }
   const logDescription = entry => {
     const outcome = Object.hasOwn(outcomes, entry.result) ? outcomes[entry.result] : ''
@@ -1220,8 +1325,8 @@ export async function portal(request, url, env) {
       en ? 'Remaining (' + name + '): ' + remaining : 'Restantes (' + name + '): ' + remaining].filter(Boolean).join(' · ')
   }
   const outcomes = en ?
-    { joined: 'Joined', caught: 'Caught', escaped: 'Escaped', noBalls: 'Out of Poké Balls', noEncounter: 'No wild Pokémon', summoned: 'Summoned', removed: 'Withdrawn', duplicateReward: 'Earned XP', alreadyCaught: 'Already caught', candyUsed: 'Used Rare Candy' } :
-    { joined: 'Registro', caught: 'Captura', escaped: 'Se escapó', noBalls: 'Sin Poké Balls', noEncounter: 'Sin encuentro activo', summoned: 'Invocado', removed: 'Retirado', duplicateReward: 'Ganó XP', alreadyCaught: 'Ya capturado', candyUsed: 'Usó Caramelo Raro' }
+    { joined: 'Joined', caught: 'Caught', escaped: 'Escaped', noBalls: 'Out of Poké Balls', noEncounter: 'No wild Pokémon', summoned: 'Summoned', removed: 'Withdrawn', duplicateReward: 'Gained one level', alreadyCaught: 'Already caught', candyUsed: 'Used Rare Candy' } :
+    { joined: 'Registro', caught: 'Captura', escaped: 'Se escapó', noBalls: 'Sin Poké Balls', noEncounter: 'Sin encuentro activo', summoned: 'Invocado', removed: 'Retirado', duplicateReward: 'Subió un nivel', alreadyCaught: 'Ya capturado', candyUsed: 'Usó Caramelo Raro' }
   const overviewLabel = language === 'en' ? 'Overview' : 'Resumen'
   const minutes = metrics.summonMinutes ?? 0
   const overview = '<section class="sheet"><h2>' + overviewLabel + '</h2><dl class="overview-stats">' +
@@ -1246,20 +1351,19 @@ export async function portal(request, url, env) {
     ['normal', 'Poké Ball', 'poke-ball'], ['great', 'Great Ball', 'great-ball'],
     ['ultra', 'Ultra Ball', 'ultra-ball'], ['master', 'Master Ball', 'master-ball']
   ].filter(([id]) => balls[id] > 0)
-    .map(([id, name, icon]) => '<li class="bag-slot"><img class="bag-icon" src="' + spriteBase + 'items/' + icon +
-      '.png" width="30" height="30" alt=""><span>' + name + '</span><strong>×' + escape(balls[id]) + '</strong></li>').join('')
+    .map(([id, name, icon]) => '<li class="bag-slot">' + itemTooltip(icon, en, itemIcon(icon), name) + '<span>' + name + '</span><strong>×' + escape(balls[id]) + '</strong></li>').join('')
   const pockets = [ ['balls', language === 'en' ? 'Poké Balls' : 'Poké Balls'],
     ['held', language === 'en' ? 'Held items' : 'Objetos equipables'], ['key', language === 'en' ? 'Consumables' : 'Consumibles'] ]
   const pocket = pockets.some(([id]) => id === url.searchParams.get('pocket')) ? url.searchParams.get('pocket') : 'balls'
   const wallet = '<p class="meta">Pokédólares · <strong>$' + escape(pokeDollars) + '</strong></p>'
   const consumables = [['rare-candy', language === 'en' ? 'Rare Candy' : 'Caramelo Raro', rareCandies],
-    ['dowsing-machine', 'Legendary Tracker', legendaryTrackers]].map(([icon, label, amount]) =>
-    '<li class="bag-slot">' + itemIcon(icon) + '<span>' + label + '</span><strong>×' + escape(amount) + '</strong></li>').join('')
+    ['dowsing-machine', 'Legendary Tracker', legendaryTrackers], ['stardust', 'Shiny Dust', shinyDust]].map(([icon, label, amount]) =>
+    '<li class="bag-slot">' + itemTooltip(({ 'dowsing-machine': 'legendary-tracker', stardust: 'shiny-dust' })[icon] ?? icon, en, itemIcon(icon), label) + '<span>' + label + '</span><strong>×' + escape(amount) + '</strong></li>').join('')
   const inventoryPage = '<section class="sheet"><h2>' + (language === 'en' ? 'Inventory' : 'Inventario') + '</h2>' + wallet + '<nav class="tabs pockets" aria-label="Inventory">' + pockets.map(([id, label]) =>
     '<a href="?' + escape(new URLSearchParams({ community: selected.community_id, tab: 'inventory', pocket: id })) + '"' +
     (id === pocket ? ' aria-current="page"' : '') + '>' + label + '</a>').join('') + '</nav>' +
     (pocket === 'key' ? '<ul class="bag">' + consumables + '</ul>' : pocket === 'held' && availableItems.length ?
-      '<ul class="held-grid">' + availableItems.map(item => '<li>' + itemIcon(item) + '<strong>' + itemName(item) + '</strong></li>').join('') + '</ul>' :
+      '<ul class="held-grid">' + availableItems.map(item => '<li>' + itemTooltip(item, en, itemIcon(item), itemName(item)) + '<strong>' + itemName(item) + '</strong>' + '</li>').join('') + '</ul>' :
       pocket === 'balls' && inventory ? '<ul class="bag">' + inventory + '</ul>' : '<p class="empty">' + t('Tu bolsa está vacía.') + '</p>') + '</section>'
   const seen = new Map()
   const eggAcquired = new Map()
@@ -1271,7 +1375,6 @@ export async function portal(request, url, env) {
     for (const row of seenRows.results) seen.set(row.species_id, row.seen_at)
     for (const row of eggs.results) eggAcquired.set(row.dex, row.acquired)
   }
-  const regionalNumbers = new Map(regionalSpecies.map(form => [form.id, form.baseId]))
   const regionSpecies = [...nationalDex.slice(region[2] - 1, region[3]), ...dexEntries.slice(nationalDex.length)
     .filter(([, formRegion]) => region[0] === 'all' || formRegion === region[0])]
   const borders = tab === 'dex' ? '<style>' + [...new Set(regionSpecies.map(([dex]) => familyRoot(dex)))].map(root =>
@@ -1300,8 +1403,9 @@ export async function portal(request, url, env) {
     const isNew = owned && acquired > (seen.get(dex) ?? 0)
     return '<li class="slot ' + (owned ? 'owned' : 'locked') + '" data-family="' + familyRoot(dex) + '"' +
       (isNew ? ' data-dex-new="' + dex + '" data-acquired="' + acquired + '"><span class="dex-new">' + (en ? 'NEW' : 'NUEVO') + '</span>' : '>') + '<span class="dex-number">#' +
-      String(regionalNumbers.get(dex) ?? dex).padStart(3, '0') + '</span>' +
+      String(regionalBase.get(dex) ?? dex).padStart(3, '0') + '</span>' +
       (member ? summaryLink(member, profile, 'dex-entry') : profile) +
+      (owned ? '<small class="dex-ability">' + abilityDetails(dex, en).slice(0, 1).map(ability => descriptionHint(escape(ability.name), ability.effect, ability.name)).join('') + '</small>' : '') +
       '<div class="variants">' + (details || '<span>' + t("Sin capturar") + '</span>') + '</div></li>'
   }).join('') : ''
   const updated = new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'es-PE', {
@@ -1310,12 +1414,40 @@ export async function portal(request, url, env) {
   const actions = '<div class="album-actions"><a class="button" href="/?account=1">' + t("Cuentas vinculadas") + '</a><a class="button" href="/">' + t("Cambiar streamer") + '</a>' + logout + '</div>'
   const regionNav = regions.map(([id, label]) => '<a href="' + escape(href('dex', id)) + '"' +
     (id === region[0] ? ' aria-current="page"' : '') + '>' + label + '</a>').join('')
+  let teamPage = ''
+  if (tab === 'team') {
+    const saved = await env.DB.prepare('SELECT slots FROM viewer_battle_teams WHERE community_id = ? AND account_id = ?')
+      .bind(selected.community_id, identity.account_id).first()
+    const slots = saved ? JSON.parse(saved.slots) : []
+    const mode = url.searchParams.get('team')
+    const message = mode === 'invalid' ? (en ? 'Choose Pokémon from different evolutionary lines.' : 'Elige Pokémon de líneas evolutivas distintas.') :
+      mode === 'saved' ? (en ? 'Team saved.' : 'Equipo guardado.') : ''
+    const teamSprites = new Map(Object.keys(collection).sort().flatMap(name => {
+      const id = dexByName.get(name.replace(/ ✦$/, ''))
+      return id ? [[name, encounterSprite(id, name.endsWith(' ✦'))]] : []
+    }))
+    const slotNames = en ? ['Lead', 'Teammate', 'Third slot'] : ['Líder', 'Compañero', 'Tercer puesto']
+    teamPage = '<section class="sheet"><h2>' + (en ? 'Battle team' : 'Equipo de batalla') + '</h2><p>' +
+      (en ? 'Choose up to three Pokémon from different evolution lines. If your team is empty, your summoned Pokémon leads.' : 'Elige hasta tres Pokémon de líneas evolutivas distintas. Si dejas el equipo vacío, tu Pokémon invocado ocupa el primer puesto.') +
+      '</p>' + (message ? '<p role="status">' + escape(message) + '</p>' : '') +
+      '<form method="post" action="' + escape('/battle-team?' + new URLSearchParams({community: selected.community_id})) + '"><div class="team-grid">' +
+      slotNames.map((slot, index) => {
+        const name = slots[index]?.pokemon
+        const sprite = teamSprites.get(name)
+        const empty = index === 0 ? (en ? 'Summoned Pokémon if team is empty' : 'Pokémon invocado si el equipo está vacío') : (en ? 'Open slot' : 'Puesto libre')
+        return '<section class="team-card" data-team-card><div class="team-portrait"><img width="96" height="96" alt="' +
+          escape(sprite ? name : '') + '"' + (sprite ? ' src="' + sprite + '"' : ' hidden') + '><span data-team-empty' + (sprite ? ' hidden' : '') + '>' + empty +
+          '</span></div><label>' + slot + '<select name="pokemon' + index + '"><option value="">' + (en ? 'Choose Pokémon' : 'Elige un Pokémon') + '</option>' +
+          [...teamSprites].map(([option, url]) => '<option value="' + escape(option) + '" data-sprite="' + url + '"' + (name === option ? ' selected' : '') +
+            '>' + escape(option) + '</option>').join('') + '</select></label></section>'
+      }).join('') + '</div><button>' + (en ? 'Save team' : 'Guardar equipo') + '</button></form><script src="/assets/battle-team.js" defer></script></section>'
+  }
   const nav = communityTabs(selected.community_id, language, tab, region[0])
   return page('<div class="toolbar"><div><p class="meta">Viewer · ' + escape(displayName) + '</p><h1>' + t("Tu álbum") + '</h1></div>' +
     actions + '</div><p class="meta community-label">' + t('Comunidad · ') + escape(selected.community_name ?? selected.community_id) + '</p>' + nav +
     (tab === 'dex' ? borders + '<section class="sheet"><div class="dex-heading"><h2>Pokédex</h2><a class="button"' + (caughtOnly ? ' aria-current="true"' : '') + ' href="' + escape(href('dex', region[0], !caughtOnly)) + '">' +
       (en ? 'Unlocked' : 'Desbloqueados') + '</a></div><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><ol class="dex-grid" data-dex-community="' + escape(selected.community_id) + '">' + slots + '</ol></section><script src="/assets/dex-new.js" defer></script>'
-      : tab === 'overview' ? overview : tab === 'shop' ? shopPage : tab === 'log' ?
+      : tab === 'team' ? teamPage : tab === 'overview' ? overview : tab === 'shop' ? shopPage : tab === 'log' ?
         '<section class="sheet"><h2>' + (en ? 'Activity log' : 'Registro de actividad') + '</h2><ul>' +
         [...log].reverse().map(entry => '<li><time>' + escape(new Date(entry.at).toLocaleString(language, { timeZone: 'America/Lima' })) +
           '</time> · ' + escape(entry.platform + ' · ' + logDescription(entry)) + '</li>').join('') + '</ul></section>' : inventoryPage) +

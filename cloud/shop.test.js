@@ -10,7 +10,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
   for (const migration of ['0001_sync', '0002_portal', '0003_viewer_login', '0004_accounts', '0005_movesets', '0006_kick',
-    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity', '0019_web_game', '0020_portal_announcements', '0021_shiny_cue', '0022_shop_hatch', '0023_shop_expiry', '0024_dex_seen', '0025_admin']) {
+    '0007_held_items', '0008_community_owners', '0009_shop', '0010_shop_prices', '0011_unlink', '0012_account_erasure', '0013_dna_boosters', '0014_viewer_generations', '0015_stream_status', '0018_shop_quantity', '0019_web_game', '0020_portal_announcements', '0021_shiny_cue', '0022_shop_hatch', '0023_shop_expiry', '0024_dex_seen', '0025_admin', '0026_web_encounter_portrait', '0027_web_action_cooldown', '0028_battle_teams']) {
     db.exec(await readFile(new URL('./migrations/' + migration + '.sql', import.meta.url), 'utf8'))
   }
   const D1 = {
@@ -114,19 +114,26 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.deepEqual(await readStatus(), {
     balance: 200, balls: updatedViewer.balls, heldItems: [], pending: false, online: true, bulk: true, message: 'Compra realizada.'
   })
-  const runtimeHeaders = { Authorization: 'Bearer ' + token, 'X-Web-Game': JSON.stringify({ id: '100:1', shiny: true, en: 'Easy', es: 'Fácil' }) }
+  const runtimeHeaders = { Authorization: 'Bearer ' + token, 'X-Web-Game': JSON.stringify({ id: '100:1', shiny: true, en: 'Easy', es: 'F?cil' }) }
   db.prepare('INSERT INTO community_stream_status VALUES (?, ?, ?)').run('stream', Date.now(), JSON.stringify([
     { provider: 'twitch', login: 'streamer', live: true },
     { provider: 'kick', login: 'streamer', live: true }
   ]))
   const pollWeb = async () => (await (await worker.fetch(new Request(base + '/api/shop', { headers: runtimeHeaders }), { DB: D1 })).json()).webActions
   assert.deepEqual(await pollWeb(), [])
+  assert.equal(db.prepare('SELECT difficulty_es FROM web_game_runtime').get().difficulty_es, 'Fácil')
+  runtimeHeaders['X-Web-Game'] = 'v2:' + Buffer.from(JSON.stringify({ id: '100:1', speciesId: 10114, shiny: true, es: 'Pokémon' })).toString('base64url')
+  await pollWeb()
+  assert.equal(db.prepare('SELECT species_id FROM web_game_runtime').get().species_id, 10114)
   const liveUrl = base + '/?tab=live&community=stream&platform=twitch'
   const livePage = await worker.fetch(new Request(liveUrl, { headers: { Cookie: 'sc_session=' + session } }), { DB: D1 })
   assert.match(livePage.headers.get('Content-Security-Policy'), /connect-src 'self'/)
   const liveHtml = await livePage.text()
   assert.match(liveHtml, /player\.twitch\.tv\/\?channel=streamer&amp;parent=example\.test/)
   assert.match(liveHtml, /data-capture-form/)
+  assert.match(liveHtml, /class="capture-heading"[^]*class="capture-portrait-frame"/)
+  assert.match(liveHtml, /data-encounter-portrait[^>]+shiny\/10114\.png/)
+  assert.doesNotMatch(liveHtml, /Comunidades de streaming|Ver directo/)
   assert.match(liveHtml, /<a href="\/">Inicio<\/a>/)
   const cueUrl = base + '/live/shiny-cue?community=stream&platform=twitch'
   const cookie = { Cookie: 'sc_session=' + session }
@@ -253,6 +260,20 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const finishEgg = hatch => device('POST', { viewers: [{ id: legendaryEgg, result: 'purchased', viewer: legendaryViewer, hatch }] })
   assert.equal((await finishEgg({ id: 20, name: 'Raticate', rarity: 'uncommon', duplicate: false, xp: 0, rules: 2 })).status, 400)
   assert.equal((await finishEgg(hatchedLegend)).status, 200)
+  const selectTeam = (pokemon1) => worker.fetch(new Request(base + '/battle-team?community=stream', {
+    method: 'POST', headers: { ...cookie, Origin: base },
+    body: new URLSearchParams({ pokemon0: 'Rattata', support0: 'pollenpuff', pokemon1 })
+  }), { DB: D1 })
+  assert.match((await selectTeam('Raticate')).headers.get('Location'), /team=invalid/)
+  assert.match((await selectTeam('Mewtwo')).headers.get('Location'), /team=saved/)
+  const loadTeams = await worker.fetch(new Request(base + '/api/movesets', {method:'POST',
+    headers: { Authorization: 'Bearer ' + token }, body: JSON.stringify({ teams: ['twitch:1'] })
+  }), { DB: D1 })
+  const authTeamPage = () => worker.fetch(new Request(base + '/?community=stream&tab=team', { headers: cookie }), { DB: D1 })
+  const teamHtml = await (await authTeamPage()).text()
+  assert.match(teamHtml, /class="team-portrait"[^>]*><img[^>]*pokemon\/19\.png/)
+  assert.doesNotMatch(teamHtml, /name="support[0-9]/)
+  assert.deepEqual(await loadTeams.json(), { 'twitch:1': [{pokemon:'Rattata'}, {pokemon:'Mewtwo'}] })
   assert.equal(JSON.parse(db.prepare('SELECT hatch FROM shop_orders WHERE id = ?').get(legendaryEgg).hatch).rarity, 'legendary')
   assert.match((await order(egg, 5000, 1, 'poke-egg')).headers.get('Location'), new RegExp('purchase=' + egg))
   const consumables = await worker.fetch(new Request(base + '/?community=stream&tab=inventory&pocket=key', { headers: cookie }), { DB: D1 })
@@ -260,10 +281,13 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.match(bag, /rare-candy\.png[^]*Caramelo Raro[^]*×3/)
   assert.match(bag, /dowsing-machine\.png[^]*Legendary Tracker[^]*×1/)
   db.prepare('UPDATE community_stream_status SET platforms = ? WHERE community_id = ?').run(channels, 'stream')
-  const trackerAction = await worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
+  const requestTracker = () => worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
     method: 'POST', headers: { ...cookie, Origin: base },
     body: new URLSearchParams({ id: crypto.randomUUID(), action: 'tracker' })
   }), { DB: D1 })
+  assert.match((await requestTracker()).headers.get('Location'), /game=cooldown/)
+  db.prepare('UPDATE web_game_actions SET finished_at = ? WHERE finished_at IS NOT NULL').run(Date.now() - 6000)
+  const trackerAction = await requestTracker()
   assert.equal(trackerAction.status, 303)
   assert.ok((await pollWeb()).some(action => action.command === '!legendaryticket'))
   db.prepare('UPDATE shop_orders SET created_at = 1 WHERE result IS NOT NULL').run()
@@ -313,6 +337,15 @@ test('a signed-in viewer can submit one shop order while their device is online'
   }), { DB: D1 })
   assert.deepEqual(await ackAdmin.json(), { received: [adminId] })
   assert.deepEqual(await pollAdmin(), [])
+  const ruleForm = new FormData()
+  const rulesId = crypto.randomUUID()
+  for (const [key, value] of Object.entries({ id: rulesId, type: 'speciesRules', kind: 'catch' })) ruleForm.set(key, value)
+  ruleForm.set('rules', new Blob([JSON.stringify({ species: { 19: { rate: 120, percentages: [40, 60, 90] } } })]), 'catch-rates.json')
+  const rulesRequest = headers => worker.fetch(new Request(adminUrl, { method: 'POST', headers, body: ruleForm }), { DB: D1 })
+  assert.equal((await rulesRequest({ Origin: base })).status, 401)
+  assert.equal((await rulesRequest({ ...cookie, Origin: 'https://other.test' })).status, 403)
+  assert.match((await rulesRequest({ ...cookie, Origin: base })).headers.get('Location'), /status=queued/)
+  assert.deepEqual(await pollAdmin(), [{ id: rulesId, type: 'speciesRules', kind: 'catch', rules: { species: { 19: { rate: 120, percentages: [40, 60, 90] } } } }])
   db.prepare('DELETE FROM community_owners WHERE community_id = ?').run('stream')
   const confirmPage = await worker.fetch(new Request(base + '/auth/delete', { headers: { Cookie: 'sc_session=' + session } }), { DB: D1 })
   const confirmationCookie = confirmPage.headers.getSetCookie().find(item => item.startsWith('sc_delete=')).split(';')[0]

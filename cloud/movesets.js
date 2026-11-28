@@ -1,5 +1,6 @@
 import { battleSpecies, battleStatsAtLevel, equippedMoves, moveOptions, moves, ultimateOptions } from '../dev/battle.js'
 import { regionalSpecies } from '../ui/regional-species.js'
+import { familyRoot } from '../ui/evolution.js'
 import { level, maxLevel } from '../ui/levels.js'
 import { kanto } from './kanto.js'
 import { nationalDex } from './national-dex.js'
@@ -8,6 +9,19 @@ export const dexEntries = [...nationalDex, ...regionalSpecies.map(form => [form.
 const entriesById = new Map(dexEntries.map(entry => [entry[0], entry]))
 export const speciesName = id => kanto[id - 1] ?? entriesById.get(id)?.[2]
 const idsByName = new Map(dexEntries.map(([id]) => [speciesName(id), id]))
+
+const regionalBase = new Map(regionalSpecies.map(form => [form.id, form.baseId]))
+export function battleTeamFamily(name) {
+  const id = idsByName.get(name.replace(/ ✦$/, ''))
+  return id && familyRoot(regionalBase.get(id) ?? id)
+}
+
+export async function readBattleTeams(db, community, viewerIds) {
+  const { results } = await db.prepare('SELECT i.viewer_id, t.slots FROM viewer_battle_teams t JOIN account_identities i ON i.account_id = t.account_id ' +
+    'WHERE t.community_id = ? AND i.detached_at IS NULL AND i.viewer_id IN (' + viewerIds.map(() => '?').join(',') + ')')
+    .bind(community, ...viewerIds).all()
+  return Object.fromEntries(results.map(({ viewer_id, slots }) => [viewer_id, JSON.parse(slots).map(({ pokemon }) => ({ pokemon }))]))
+}
 
 export function creatureMoves(speciesKey, xp, dna = 0) {
   const id = idsByName.get(speciesKey.replace(/ ✦$/, ''))

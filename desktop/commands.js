@@ -16,9 +16,9 @@ export function normalizeCommand(raw) {
   if (name === '!poke' && argument === 'bag') { name = '!balls'; argument = '' }
   if (name === '!poke' && argument === 'unir') argument = 'join'
   if (name === '!summon' && argument === 'fuera') argument = 'out'
-  if (name === '!summon' && argument.startsWith('shiny ')) {
+  if (name === '!summon' && (argument.startsWith('shiny ') || argument.endsWith(' shiny'))) {
     name = '!summonshiny'
-    argument = argument.slice(6)
+    argument = argument.startsWith('shiny ') ? argument.slice(6) : argument.slice(0, -6)
   }
   if (name === '!catch' && Object.hasOwn(ballAliases, argument)) argument = ballAliases[argument]
   return argument ? name + ' ' + argument : name
