@@ -1,4 +1,4 @@
-export async function playHatchSpace(stage, rarity, duration, signal, onReveal) {
+export async function playHatchSpace(stage, rarity, duration, signal, onReveal, shiny = false) {
   let engine
   let timer
   try {
@@ -21,14 +21,15 @@ export async function playHatchSpace(stage, rarity, duration, signal, onReveal) 
   camera.position.z = 1
   const geometry = new PlaneGeometry(2, 2)
   const uniforms = { resolution: {value:new Vector2()}, progress:{value:0},
-    tier:{value: rarity === 'legendary' ? 3 : rarity === 'epic' ? 2 : rarity === 'rare' ? 1 : .5} }
+    tier:{value: rarity === 'legendary' ? 3 : rarity === 'epic' ? 2 : rarity === 'rare' ? 1 : .5},
+    shiny:{value: shiny ? 1 : 0} }
   const material = new ShaderMaterial({ uniforms, depthTest: false, depthWrite: false,
     vertexShader: `
       void main(){gl_Position=vec4(position.xy,0.,1.);}
     `,
     fragmentShader: `
       uniform vec2 resolution;
-      uniform float progress,tier;
+      uniform float progress,tier,shiny;
       float noise(vec2 a){return fract(sin(dot(a,vec2(127.1,311.7)))*43758.5453);}
       float mist(vec2 p){
         vec2 cell=floor(p), t=fract(p);
@@ -113,9 +114,10 @@ export async function playHatchSpace(stage, rarity, duration, signal, onReveal) 
         vec2 drift=vec2(progress*.72,-progress*.31);
         float clouds=mist(dust*2.8+drift)*.59+mist(turn(.7)*dust*5.4-drift)*.29+mist(dust*10.+drift)*.12;
         float nebula=smoothstep(.32,.75,clouds)*band;
-        float glow=(.18+.12*tier)*smoothstep(.12,.55,progress)*(1.-emerge*.65);
+        float glow=(.18+.12*tier+.34*shiny)*smoothstep(.12,.55,progress)*(1.-emerge*.65);
         color+=nebula*(vec3(.20,.21,.59)+tint*.36)*(.22+glow);
         color+=tint*halo*exp(-abs(dust.y+.48)*2.8)*clouds*glow;
+        color+=shiny*nebula*vec3(.40,.26,.19)*(.6+.4*split);
         float ring=length(vec2(p.x,p.y*1.35));
         if(tier>2.5){
           float circles=exp(-abs(ring-1.15+progress*.10)*59.)+exp(-abs(ring-.90-progress*.17)*78.)*.55;
@@ -147,19 +149,19 @@ export async function playHatchSpace(stage, rarity, duration, signal, onReveal) 
         float b=(1.-smoothstep(.99,1.005,egg(dn)))*step(dn.y,cut(dn.x))*hatchMask;
         if(a>0.)color=mix(color,shell(up,tint),a);
         if(b>0.)color=mix(color,shell(dn,tint),b);
-        for(int i=0;i<10;i++){
+        for(int i=0;i<13;i++){
           float f=float(i);
-          if(f>=3.+tier*2.)break;
+          if(f>=3.+tier*2.+4.*shiny)break;
           float angle=f*2.39996+progress*(5.2+mod(f,3.));
           vec2 orbit=vec2(cos(angle)*(.59+split*.45),sin(angle)*(.28+split*.20));
           orbit=turn(.26+mod(f,3.)*.27)*orbit+vec2(0.,sin(f)*.22);
           float shine=pow(.52+.48*sin(f*3.3+progress*39.),2.);
           float visibility=(sin(angle)>0. && max(a,b)>.25)? .13:1.;
-          color+=mix(tint,vec3(1.,.98,.9),.56)*sparkle(p-orbit)*shine*visibility*(.62+.2*tier)*(1.-emerge);
+          color+=mix(tint,vec3(1.,.98,.9),.56)*sparkle(p-orbit)*shine*visibility*(.62+.2*tier+.38*shiny)*(1.-emerge);
         }
         float flare=smoothstep(.44,.57,progress)*(1.-smoothstep(.72,.84,progress));
         float beam=exp(-abs(p.y+.024)*43.-abs(p.x)*1.85);
-        color+=tint*(beam*.56+sparkle(p-vec2(-.16,.08))*.18)*flare*(.65+.23*tier);
+        color+=tint*(beam*.56+sparkle(p-vec2(-.16,.08))*.18)*flare*(.65+.23*tier+.48*shiny);
         color+=tint*halo*clouds*flash*.42;
         float burst=smoothstep(.56,.80,progress);
         if(burst>0.) for(int i=0;i<40;i++){

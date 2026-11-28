@@ -5,9 +5,9 @@ import { hasPickup } from '../ui/abilities.js'
 import { normalizeCommand } from './commands.js'
 import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, isFirstStage, maxDnaBoosters, nextEvolutionLevel, previousFamilyRoot, sharesRegionalBase } from '../ui/evolution.js'
 import { defaultSummonXpPerSecond, level, maxLevel, maxXp, xpAtLevel } from '../ui/levels.js'
-import { captureCategories, catchChance, catchDifficulty, normalizeCapturePercentages, specialEncounterTag } from '../ui/capture-rates.js'
+import { captureCategories, catchChance, catchDifficulty, normalizeCapturePercentages, shinyCaptureGoal, specialEncounterTag } from '../ui/capture-rates.js'
 import { heldItems } from '../ui/held-items.js'
-import { eggPool, eggProbabilities, eggRarities, nextEggPity, parseEggPool } from '../ui/egg-rules.js'
+import { eggPool, eggProbabilities, eggRarities, eggShinyOdds, nextEggPity, parseEggPool } from '../ui/egg-rules.js'
 import { normalizeShopPrices, shopItems, validShopPrice, validShopQuantity } from '../ui/shop.js'
 import { ancestralFragmentCost, tmCost } from '../ui/tm.js'
 
@@ -355,7 +355,11 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       if (encounter.eligible && !encounter.eligible.includes(id)) return 'raidCatchIneligible'
       const key = encounter.name + (encounter.shiny ? ' ✦' : '')
       const owned = Object.hasOwn(viewer.collection, key)
-      if (viewer.caughtEncounter === encounter.id || (owned && level(familyXp(viewer, key)) >= maxLevel)) return 'alreadyCaught'
+      const canLevel = owned && viewer.collection[key] < maxXp
+      const species = byName.get(encounter.name)
+      const shinyKey = encounter.name + ' ✦'
+      const canProgressShiny = !encounter.shiny && species?.id && !Object.hasOwn(viewer.collection, shinyKey)
+      if (viewer.caughtEncounter === encounter.id || (owned && level(familyXp(viewer, key)) >= maxLevel && !canProgressShiny)) return 'alreadyCaught'
       if (!Object.hasOwn(viewer.balls, ball)) return 'invalidBall'
       if (!viewer.balls[ball]) return 'noBalls'
       viewer.balls[ball]--
@@ -364,16 +368,23 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       recentCaptures.push({ id: ++captureSequence, encounterId: encounter.id, viewer: viewer.displayName || id,
         pokemon: key, at: now() })
       if (recentCaptures.length > 40) recentCaptures.shift()
+      if (canProgressShiny) {
+        const counts = viewer.shinyCaptures ??= {}
+        counts[species.id] = Math.min(shinyCaptureGoal, (counts[species.id] ?? 0) + 1)
+      }
       if (!owned) {
         ;(viewer.dexAcquired ??= {})[key] = now()
         viewer.collection[key] = familyXp(viewer, key)
         shareFamily(viewer, key, viewer.collection[key])
-        return 'caught'
+      } else if (canLevel) {
+        shareFamily(viewer, key, xpAtLevel(Math.min(maxLevel, level(viewer.collection[key]) + 1)))
       }
-      const xp = viewer.collection[key]
-      if (xp >= maxXp) return 'caught'
-      shareFamily(viewer, key, xpAtLevel(Math.min(maxLevel, level(xp) + 1)))
-      return 'duplicateReward'
+      if (canProgressShiny && viewer.shinyCaptures[species.id] === shinyCaptureGoal) {
+        viewer.collection[shinyKey] ??= familyXp(viewer, key)
+        ;(viewer.dexAcquired ??= {})[shinyKey] ??= now()
+        shareFamily(viewer, shinyKey, viewer.collection[shinyKey])
+      }
+      return canLevel ? 'duplicateReward' : 'caught'
     }
     if (command === '!summon' || command === '!summonshiny') {
       const name = species.find(item => item.toLowerCase() === argument)
@@ -501,18 +512,21 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
               const { rarity, pool } = eggChoices.find(choice => (roll -= chances[choice.rarity]) < 0) ??
                 eggChoices.findLast(choice => chances[choice.rarity] > 0)
               const pokemon = pool[Math.floor(random() * pool.length)]
-              const duplicate = Object.hasOwn(viewer.collection, pokemon.name)
-              const xp = familyXp(viewer, pokemon.name)
+              const shiny = random() < 1 / eggShinyOdds
+              const key = pokemon.name + (shiny ? ' ✦' : '')
+              const duplicate = Object.hasOwn(viewer.collection, key)
+              const xp = familyXp(viewer, key)
               const rank = level(xp)
               const bonus = duplicate && rank < maxLevel ? xpAtLevel(rank + 1) - xp : 0
               const earned = Math.min(bonus, maxXp - xp)
               if (!duplicate) {
-                viewer.collection[pokemon.name] = xp
-                ;(viewer.dexAcquired ??= {})[pokemon.name] = now()
+                viewer.collection[key] = xp
+                ;(viewer.dexAcquired ??= {})[key] = now()
               }
-              shareFamily(viewer, pokemon.name, xp + earned)
+              shareFamily(viewer, key, xp + earned)
               viewer.eggPity = nextEggPity(viewer.eggPity, rarity)
-              return { id: pokemon.id, name: pokemon.name, rarity, duplicate, xp: earned, rules: 5, ...(duplicate && earned > 0 ? { levelUp: true } : {}) }
+              return { id: pokemon.id, name: pokemon.name, rarity, duplicate, xp: earned, rules: 5,
+                ...(shiny ? { shiny: true } : {}), ...(duplicate && earned > 0 ? { levelUp: true } : {}) }
             })
             hatch = quantity === 1 ? hatches[0] : hatches
           } else (viewer.heldItems ??= []).push(item)
@@ -708,6 +722,10 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
           const acquired = target.dexAcquired ??= {}
           acquired[name] = Math.max(acquired[name] ?? 0, at)
         }
+        for (const [id, count] of Object.entries(source.shinyCaptures ?? {})) {
+          const captures = target.shinyCaptures ??= {}
+          captures[id] = Math.max(captures[id] ?? 0, count)
+        }
         target.heldItems = [...new Set([...(target.heldItems ?? []), ...(source.heldItems ?? [])])]
         target.shinyFamilies = [...new Set([...(target.shinyFamilies ?? []), ...(source.shinyFamilies ?? [])])]
         for (const root of target.shinyFamilies) syncShinyUnlocks(target, root)
@@ -774,8 +792,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         erasedViewers: [...erasedViewers],
         viewerGenerations: Object.fromEntries(viewerGenerations),
         shopReceipts: Object.fromEntries(shopReceipts),
-        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, vitamins, eggPity, training, pokeDollars, dnaBoosters, log, dexAcquired, tmDisks, tmFragments, tmMoves }]) =>
-          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, vitamins, eggPity, training, pokeDollars, dnaBoosters, log, dexAcquired, tmDisks, tmFragments, tmMoves }]))
+        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, shinyCaptures, vitamins, eggPity, training, pokeDollars, dnaBoosters, log, dexAcquired, tmDisks, tmFragments, tmMoves }]) =>
+          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, shinyCaptures, vitamins, eggPity, training, pokeDollars, dnaBoosters, log, dexAcquired, tmDisks, tmFragments, tmMoves }]))
       }
     },
     recordBattle(participants, winner, speciesKey, performances = []) {

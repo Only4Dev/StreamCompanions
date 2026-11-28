@@ -133,6 +133,15 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.match(liveHtml, /data-capture-form/)
   assert.match(liveHtml, /class="capture-heading"[^]*class="capture-portrait-frame"/)
   assert.match(liveHtml, /data-encounter-portrait[^>]+shiny\/10114\.png/)
+  assert.match(liveHtml, /data-encounter-owned[^>]+ hidden>/)
+  const stored = db.prepare('SELECT payload FROM viewer_progress WHERE viewer_id = ?').get('twitch:1').payload
+  const portraitOwner = JSON.parse(stored)
+  portraitOwner.collection['Alolan Exeggutor ✦'] = 0
+  const overwrite = db.prepare('UPDATE viewer_progress SET payload = ? WHERE viewer_id = ?')
+  overwrite.run(JSON.stringify(portraitOwner), 'twitch:1')
+  const ownedLive = await worker.fetch(new Request(liveUrl, { headers: { Cookie: 'sc_session=' + session } }), { DB: D1 })
+  assert.doesNotMatch(await ownedLive.text(), /data-encounter-owned[^>]+ hidden>/)
+  overwrite.run(stored, 'twitch:1')
   assert.doesNotMatch(liveHtml, /Comunidades de streaming|Ver directo/)
   assert.match(liveHtml, /<a href="\/">Inicio<\/a>/)
   const cueUrl = base + '/live/shiny-cue?community=stream&platform=twitch'
@@ -315,13 +324,18 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.match((await order(batchId, 5000, 5, 'poke-egg')).headers.get('Location'), new RegExp('purchase=' + batchId))
   assert.ok(!(await (await device('GET', undefined, eggPrices, true)).json()).orders.some(entry => entry.id === batchId))
   assert.equal((await (await device('GET', undefined, eggPrices, 2)).json()).orders.find(entry => entry.id === batchId).quantity, 5)
-  const batch = Array.from({ length: 5 }, () => ({ ...hatchedLegend, duplicate: true }))
-  const batchViewer = { ...legendaryViewer, revision: 7, pokeDollars: 30000 }
+  const batch = Array.from({ length: 5 }, (_, index) => index === 1
+    ? { ...hatchedLegend, shiny: true } : { ...hatchedLegend, duplicate: true })
+  const batchViewer = { ...legendaryViewer, revision: 7, pokeDollars: 30000,
+    collection: { ...legendaryViewer.collection, 'Mewtwo ✦': 0 }, shinyCaptures: { 19: 7 } }
   const finishBatch = hatch => device('POST', { viewers: [{ id: batchId, result: 'purchased', viewer: batchViewer, hatch }] })
   assert.equal((await finishBatch(batch.slice(1))).status, 400)
   assert.equal((await finishBatch(batch)).status, 200)
   status.searchParams.set('purchase', batchId)
   assert.deepEqual((await readStatus()).hatch, batch.map(({ rules, ...entry }) => entry))
+  assert.match(await readDex(), /Capturado 7\/20/)
+  const mewtwoDex = await worker.fetch(new Request(dexUrl + '&q=mewtwo', { headers: cookie }), { DB: D1 })
+  assert.doesNotMatch(await mewtwoDex.text(), /class="dex-capture-progress"/)
   db.prepare('UPDATE community_stream_status SET platforms = ? WHERE community_id = ?').run(channels, 'stream')
   const requestTracker = () => worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
     method: 'POST', headers: { ...cookie, Origin: base },

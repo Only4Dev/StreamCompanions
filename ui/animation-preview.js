@@ -64,7 +64,8 @@ export function mountAnimationPreview({ language }) {
       eggStage.innerHTML = player.hatchDialog(language() === 'en')
       const rarity = eggs.elements.rarity.value
       await player.revealHatches(eggStage.querySelector('dialog'),
-        rarity === 'batch' ? Object.values(hatchSamples) : hatchSamples[rarity], language())
+        rarity === 'batch' ? Object.values(hatchSamples) :
+          rarity === 'shiny' ? { ...hatchSamples.legendary, shiny: true } : hatchSamples[rarity], language())
     } catch { status.textContent = errorText() }
     finally { button.disabled = false }
   })

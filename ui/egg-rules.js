@@ -4,6 +4,7 @@ import { isFirstStage } from './evolution.js'
 
 export const eggPool = pool
 export const eggRarities = ['common', 'rare', 'epic', 'legendary']
+export const eggShinyOdds = 200
 
 export function parseEggPool(input) {
   const byId = new Map()

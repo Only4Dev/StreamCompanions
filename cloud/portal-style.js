@@ -126,6 +126,7 @@ button.description-trigger[aria-expanded=true]{outline:2px solid var(--line);out
 .bag-slot:has(.description-hint){grid-template-columns:minmax(0,1fr) auto}.bag-slot .description-hint{justify-items:start}.bag-slot button.description-trigger{grid-template-columns:40px minmax(0,1fr);align-items:center;gap:.6rem;text-align:left;justify-items:start}
 .held-choice{display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center}
 .dex-ability{font-size:.74rem;color:var(--muted);overflow-wrap:anywhere}
+.dex-capture-progress{font-size:.67rem;color:var(--muted);line-height:1.15}
 .team-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:.8rem;margin:1rem 0}
 .team-card{min-width:0;display:grid;gap:.7rem;padding:.75rem;border:1px solid var(--line);border-radius:14px}
 .team-card details{min-width:0}.team-card summary{cursor:pointer}.team-card [data-team-moves] .move-options{grid-template-columns:1fr}.team-portrait{display:grid;place-items:center;height:112px;border-radius:10px;background:color-mix(in srgb,var(--mint) 20%,var(--paper));text-align:center;padding:.4rem;font-size:.85rem;color:var(--muted)}
@@ -134,6 +135,10 @@ button.description-trigger[aria-expanded=true]{outline:2px solid var(--line);out
 .team-card select{width:100%}
 .capture-heading{display:grid;grid-template-columns:minmax(0,1fr) 78px;gap:.75rem;align-items:center;margin-bottom:.55rem}
 .capture-portrait-frame{display:grid;place-items:center;width:78px;height:78px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.capture-portrait-frame{position:relative}
+.capture-owned{position:absolute;top:2px;right:2px;display:grid;place-items:center;width:23px;height:23px;border-radius:50%;background:var(--paper);border:1px solid var(--line);pointer-events:none}
+.capture-owned[hidden]{display:none}
+.capture-owned img{width:18px;height:18px;object-fit:contain}
 [data-encounter-portrait]:not([hidden]){display:block;width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
 [data-theme=dark]{color-scheme:dark;--ink:#f3eefb;--muted:#c5bfd7;--paper:#262238;--line:#50486b;--mint:#234b3f;--shadow:4px 5px 0 #0c0a14}
 [data-theme=dark] body{background-color:#171424;background-image:radial-gradient(#37304b 1px,transparent 1px)}

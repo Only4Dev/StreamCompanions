@@ -3,7 +3,8 @@ export function hatchDialog(en) {
     '" data-reveal="' + (en ? 'Your egg hatched!' : '¡Tu huevo eclosionó!') + '"><h2 id="egg-title"></h2>' +
     '<p class="egg-rarity" data-hatch-rarity hidden></p><div class="egg-stage" aria-hidden="true"><div class="egg-aura"></div><div class="egg-rays"></div>' +
     '<div class="egg-waves"><i></i><i></i></div><div class="egg-particles"></div><div class="egg-shell"><i></i><i></i><b></b></div><img width="112" height="112" alt=""></div>' +
-    '<p data-hatch-result aria-live="polite"></p><ol class="egg-summary" data-hatch-summary hidden></ol><form method="dialog"><button>' + (en ? 'Close' : 'Cerrar') + '</button></form></dialog>'
+    '<p data-hatch-result aria-live="polite"></p><ol class="egg-summary" data-hatch-summary hidden></ol><form method="dialog">' +
+    '<button type="button" data-hatch-next hidden></button> <button>' + (en ? 'Close' : 'Cerrar') + '</button></form></dialog>'
 }
 
 export async function revealHatches(dialog, hatches, language) {
@@ -13,6 +14,7 @@ export async function revealHatches(dialog, hatches, language) {
   const title = dialog.querySelector('h2');
   const result = dialog.querySelector('[data-hatch-result]');
   const summary = dialog.querySelector('[data-hatch-summary]');
+  const next = dialog.querySelector('[data-hatch-next]');
   let stage = dialog.querySelector('.egg-stage');
   const template = stage.cloneNode(true);
   const tiers = {
@@ -35,8 +37,44 @@ export async function revealHatches(dialog, hatches, language) {
     const timer = setTimeout(done, ms);
     controller.signal.addEventListener('abort', done, { once: true });
   });
+  function waitForNext() {
+    return new Promise(resolve => {
+      if (controller.signal.aborted || !dialog.open) return resolve();
+      const done = () => {
+        next.removeEventListener('click', done);
+        controller.signal.removeEventListener('abort', done);
+        next.hidden = true;
+        resolve();
+      };
+      next.addEventListener('click', done, { once: true });
+      controller.signal.addEventListener('abort', done, { once: true });
+      next.hidden = false;
+      next.focus();
+    });
+  }
   dialog.addEventListener('close', cancel, { once: true });
-  const spriteUrl = id => 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' + id + '.png';
+  const spriteUrl = (id, shiny) => 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' + (shiny ? 'shiny/' : '') + id + '.png';
+  function setSprite(image, id, shiny) {
+    if (shiny) image.addEventListener('error', () => { image.src = spriteUrl(id, false); }, { once: true });
+    image.src = spriteUrl(id, shiny);
+  }
+  function shinyStars(stage) {
+    if (reducedMotion) return;
+    const halo = document.createElement('div');
+    halo.className = 'hatch-shiny-halo';
+    for (let index = 0; index < 12; index++) {
+      const star = document.createElement('i');
+      const angle = index * Math.PI / 6 - Math.PI / 2;
+      const distance = index < 8 ? 78 : 100;
+      star.style.setProperty('--x', (Math.cos(angle) * distance) + 'px');
+      star.style.setProperty('--y', (Math.sin(angle) * distance * .74) + 'px');
+      star.style.setProperty('--delay', (index * 76) + 'ms');
+      star.style.setProperty('--size', (index < 8 ? 19 : 12) + 'px');
+      halo.append(star);
+    }
+    stage.append(halo);
+    setTimeout(() => halo.remove(), 2400);
+  }
   function celebrate(rarity) {
     if (reducedMotion || controller.signal.aborted) return;
     const confetti = document.createElement('div');
@@ -70,15 +108,17 @@ export async function revealHatches(dialog, hatches, language) {
       const rarity = hatch.rarity === 'uncommon' ? 'rare' : Object.hasOwn(tiers, hatch.rarity) ? hatch.rarity : 'common';
       const tier = tiers[rarity];
       const suffix = batch.length > 1 ? ' · ' + (position + 1) + '/' + batch.length : '';
-      const name = hatch.name + (hatch.levelUp ? (en ? ' · +1 level' : ' · +1 nivel') : hatch.xp > 0 ? ' · +' + hatch.xp + ' XP' : '');
+      const shiny = hatch.shiny === true;
+      const name = hatch.name + (shiny ? ' ✦' : '') + (hatch.levelUp ? (en ? ' · +1 level' : ' · +1 nivel') : hatch.xp > 0 ? ' · +' + hatch.xp + ' XP' : '');
       dialog.classList.remove('hatched');
       dialog.dataset.rarity = rarity;
+      dialog.toggleAttribute('data-shiny-hatch', shiny);
       dialog.style.setProperty('--hatch-time', tier.duration + 'ms');
       title.textContent = dialog.dataset.opening + suffix;
       badge.hidden = true;
       result.textContent = '';
       const nextStage = template.cloneNode(true);
-      nextStage.querySelector('img').src = spriteUrl(hatch.id);
+      setSprite(nextStage.querySelector('img'), hatch.id, shiny);
       const particles = nextStage.querySelector('.egg-particles');
       if (!reducedMotion) for (let index = 0; index < tier.particles; index++) {
         const mote = document.createElement('i');
@@ -100,21 +140,23 @@ export async function revealHatches(dialog, hatches, language) {
           played = await playHatchSpace(stage, rarity, duration, controller.signal, () => {
             dialog.classList.add('hatched');
             celebrate(rarity);
-          });
+          }, shiny);
         } catch { /* the CSS animation remains available */ }
       }
       if (!played) await wait(reducedMotion ? 0 : tier.duration);
       if (!dialog.open) return;
       dialog.classList.add('hatched');
       if (!played) celebrate(rarity);
+      if (shiny) shinyStars(stage);
       title.textContent = dialog.dataset.reveal + suffix;
       badge.textContent = tier.names[Number(en)];
       badge.hidden = false;
       result.textContent = name;
       const item = document.createElement('li');
       item.dataset.rarity = rarity;
+      item.toggleAttribute('data-shiny-hatch', shiny);
       const image = new Image(36, 36);
-      image.src = spriteUrl(hatch.id);
+      setSprite(image, hatch.id, shiny);
       image.alt = '';
       const label = document.createElement('strong');
       label.textContent = name;
@@ -122,10 +164,12 @@ export async function revealHatches(dialog, hatches, language) {
       tierLabel.textContent = badge.textContent;
       item.append(image, label, tierLabel);
       summary.append(item);
-      await wait(1000);
+      next.textContent = position === batch.length - 1 ? (en ? 'View summary' : 'Ver resumen') : (en ? 'Next' : 'Siguiente');
+      await waitForNext();
       if (!dialog.open) return;
     }
     delete dialog.dataset.rarity;
+    dialog.removeAttribute('data-shiny-hatch');
     title.textContent = en ? 'Hatch summary' : 'Resumen de eclosión';
     stage.remove();
     badge.hidden = true;

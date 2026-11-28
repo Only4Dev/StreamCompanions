@@ -59,4 +59,17 @@ export const hatchStyles = `
 @keyframes hatch-confetti-fall{0%{opacity:0;transform:translate3d(0,0,0) rotate3d(1,1,.3,0deg)}9%,75%{opacity:.95}100%{opacity:0;transform:translate3d(var(--drift),106dvh,0) rotate3d(1,1,.3,680deg)}}
 
 @media(prefers-reduced-motion:reduce){.hatch-celebration{display:none}}
+.egg-dialog [data-hatch-next]{border:1px solid color-mix(in srgb,var(--glow) 55%,#533a63);border-radius:12px;padding:.55rem .95rem;background:#352653;color:#fff8ec;font-weight:750}
+.egg-dialog [data-hatch-next][hidden]{display:none}
+.egg-summary li:is([data-rarity=epic],[data-rarity=legendary]) strong{width:fit-content;background:linear-gradient(110deg,var(--hatch-name) 38%,#fff5d9 50%,var(--hatch-name) 62%) 100% 0/260% 100%;background-clip:text;color:transparent;animation:hatch-name-shine 2.7s ease-in-out infinite}
+.egg-dialog[data-shiny-hatch] [data-hatch-result],.egg-summary li[data-shiny-hatch] strong{background:linear-gradient(100deg,#ff8ab7,#ffe170,#8efbcc,#85ddff,#d6adff,#ff8ab7) 0 0/230% 100%;background-clip:text;color:transparent;filter:drop-shadow(0 0 7px #e5b8fd75);animation:hatch-name-rainbow 2.4s linear infinite}
+@keyframes hatch-name-shine{0%,16%{background-position:100% 0}76%,100%{background-position:0 0}}
+@keyframes hatch-name-rainbow{to{background-position:100% 0}}
+.hatch-shiny-halo{position:absolute;z-index:3;inset:0;pointer-events:none}
+.hatch-shiny-halo::before{content:'';position:absolute;inset:8% 0;background:radial-gradient(ellipse at center,#ffd87431,transparent 59%);animation:hatch-golden-fog 1.8s ease-out both}
+.hatch-shiny-halo i{position:absolute;left:50%;top:50%;width:var(--size);height:var(--size);background:#fff9c1;clip-path:polygon(50% 0,60% 37%,100% 50%,60% 62%,50% 100%,39% 62%,0 50%,39% 37%);filter:brightness(1.2);animation:hatch-shiny-star 1.15s var(--delay) ease-out both}
+.hatch-shiny-halo i:nth-child(3n){background:#ffd765}
+.hatch-shiny-halo i:nth-child(4n){background:#fff}
+@keyframes hatch-shiny-star{0%{opacity:0;transform:translate(-50%,-50%) scale(.15)}28%{opacity:1;transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) rotate(25deg) scale(1.2)}63%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--x) * 1.2),calc(-50% + var(--y) * 1.2)) rotate(90deg) scale(.4)}}
+@keyframes hatch-golden-fog{0%{opacity:0;transform:scale(.7)}25%{opacity:1}100%{opacity:0;transform:scale(1.3)}}
 `

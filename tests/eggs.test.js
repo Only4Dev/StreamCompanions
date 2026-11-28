@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { createGame } from '../desktop/game.js'
 import { openProgress } from '../desktop/progress.js'
 import { eggPool, eggProbabilities, nextEggPity, parseEggPool } from '../ui/egg-rules.js'
+import { maxXp } from '../ui/levels.js'
 
 const { weights, tierFor } = parseEggPool(eggPool)
 const closeTo = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-10, actual + ' != ' + expected)
@@ -107,4 +108,57 @@ test('egg lots apply pity sequentially and a retry keeps the same ordered receip
   assert.deepEqual(restarted.shopHatch(order.id), hatches)
   assert.equal(restarted.progress().viewers.A.pokeDollars, 0)
   assert.deepEqual(restarted.progress().viewers.A.eggPity, { rare: 0, epic: 10, legendary: 10 })
+})
+
+test('each egg rolls independently at 1/200 and keeps the shiny result on retries', () => {
+  const draws = [.1, .2, .00499, .1, .2, .005]
+  const options = { catalog: [{ id: 19, name: 'Rattata' }], now: () => 0, random: () => draws.shift() }
+  const game = createGame({ ...options, progress: { viewers: { A: { collection: {}, pokeDollars: 10000 } } } })
+  const order = { id: 'first', viewerId: 'A', item: 'poke-egg' }
+  assert.equal(game.fulfillOrder(order), 'purchased')
+  assert.equal(game.shopHatch('first').shiny, true)
+  assert.deepEqual(game.progress().viewers.A.collection, { 'Rattata ✦': 0 })
+  const restarted = createGame({ ...options, progress: game.progress() })
+  assert.equal(restarted.fulfillOrder(order), 'purchased')
+  assert.equal(restarted.shopHatch('first').shiny, true)
+  assert.equal(restarted.fulfillOrder({ ...order, id: 'second' }), 'purchased')
+  assert.equal(restarted.shopHatch('second').shiny, undefined)
+  assert.equal(restarted.shopHatch('second').duplicate, false)
+  assert.equal(draws.length, 0)
+})
+
+test('twenty successful wild catches unlock the exact shiny even at max level', () => {
+  const id = 'twitch:1'
+  const options = { catalog: [{ id: 19, name: 'Rattata' }, { id: 1, name: 'Bulbasaur' }], now: () => 1, random: () => .9 }
+  const dir = mkdtempSync(join(tmpdir(), 'sc-shiny-catches-'))
+  const file = join(dir, 'progress.sqlite')
+  const db = openProgress(file)
+  try {
+    const game = createGame({ ...options, progress: { viewers: { [id]: {
+      collection: { Rattata: maxXp }, balls: { normal: 1, master: 24 }
+    } } } })
+    game.spawn('Rattata')
+    assert.equal(game.chat(id, '!catch normal'), 'escaped')
+    for (let i = 0; i < 19; i++) {
+      game.spawn('Rattata')
+      assert.equal(game.chat(id, '!catch master'), 'caught')
+      assert.equal(game.chat(id, '!catch master'), 'alreadyCaught')
+    }
+    game.spawn('Bulbasaur')
+    assert.equal(game.chat(id, '!catch master'), 'caught')
+    db.save(game.progress())
+    assert.deepEqual(db.viewer(id).shinyCaptures, { 19: 19, 1: 1 })
+    const restarted = createGame({ ...options, progress: db.load() })
+    assert.ok(!Object.hasOwn(restarted.progress().viewers[id].collection, 'Rattata ✦'))
+    restarted.spawn('Rattata')
+    assert.equal(restarted.chat(id, '!catch master'), 'caught')
+    const viewer = restarted.progress().viewers[id]
+    assert.equal(viewer.collection['Rattata ✦'], maxXp)
+    assert.equal(viewer.shinyCaptures[19], 20)
+    assert.ok(!Object.hasOwn(viewer.collection, 'Bulbasaur ✦'))
+  } finally {
+    db.close()
+    unlinkSync(file)
+    rmdirSync(dir)
+  }
 })

@@ -11,7 +11,7 @@ import { arenaShopItems, heldItems } from '../ui/held-items.js'
 import { isFirstStage } from '../ui/evolution.js'
 import { battleSpecies } from '../dev/battle.js'
 import { eggRarities } from '../ui/egg-rules.js'
-import { eggRarity, specialEncounterTag } from '../ui/capture-rates.js'
+import { eggRarity, shinyCaptureGoal, specialEncounterTag } from '../ui/capture-rates.js'
 import { validTraining } from '../ui/training.js'
 import { validTmMoves } from '../ui/tm.js'
 import { featuredShopItems, normalizeShopPrices, shopItems, validShopQuantity } from '../ui/shop.js'
@@ -133,6 +133,11 @@ function viewerWrites(db, device, viewers) {
     const pokeDollars = viewer.pokeDollars ?? 0
     const dnaBoosters = viewer.dnaBoosters ?? {}
     const dexAcquired = viewer.dexAcquired ?? {}
+    const shinyCaptures = viewer.shinyCaptures ?? {}
+    if (typeof shinyCaptures !== 'object' || Array.isArray(shinyCaptures) || Object.entries(shinyCaptures).some(([id, count]) =>
+      !/^[1-9]\d{0,4}$/.test(id) || !battleSpecies(Number(id)) || !Number.isInteger(count) || count < 1 || count > shinyCaptureGoal)) {
+      return json({ error: 'invalid shiny capture counts' }, 400)
+    }
     if (!dexAcquired || typeof dexAcquired !== 'object' || Array.isArray(dexAcquired) || Object.entries(dexAcquired).some(([name, at]) =>
       !Object.hasOwn(viewer.collection, name) || !Number.isSafeInteger(at) || at < 0)) return json({ error: 'invalid dex acquisitions' }, 400)
     if (typeof dnaBoosters !== 'object' || Array.isArray(dnaBoosters) || Object.entries(dnaBoosters).some(([key, count]) =>
@@ -165,7 +170,8 @@ function viewerWrites(db, device, viewers) {
     ).bind(device.community_id, viewer.id, viewer.revision,
         JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters, ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(shinyDust ? { shinyDust } : {}), ...(vitamins ? { vitamins } : {}), ...(Object.keys(training).length ? { training } : {}),
           ...(tmDisks ? { tmDisks } : {}), ...(tmFragments ? { tmFragments } : {}), ...(Object.keys(tmMoves).length ? { tmMoves } : {}),
-          ...(eggPity ? { eggPity } : {}), ...(Object.keys(dexAcquired).length ? { dexAcquired } : {}), log: log.slice(-8).map(({ at, platform, action, result, capture }) => ({
+          ...(eggPity ? { eggPity } : {}), ...(Object.keys(dexAcquired).length ? { dexAcquired } : {}),
+          ...(Object.keys(shinyCaptures).length ? { shinyCaptures } : {}), log: log.slice(-8).map(({ at, platform, action, result, capture }) => ({
             at, platform, action, result, ...(capture ? { capture: { ball: capture.ball, remaining: capture.remaining, pokemon: capture.pokemon } } : {})
           })), metrics: { wins: metrics.wins, losses: metrics.losses, summonMinutes: metrics.summonMinutes } }), Date.now(), viewer.id, generation, generation, viewer.id, device.key_hash))
     writes.push(db.prepare('INSERT OR IGNORE INTO erasure_devices SELECT ?, viewer_id FROM erased_viewers WHERE viewer_id = ?')
@@ -303,13 +309,15 @@ async function deviceShop(request, db, events) {
       } else expected = special === 'legendary' ? 'legendary' : !special && row ? eggRarity(hatch.id) : null
       return !row || row[0] !== hatch.id || !expected ||
           ((hatch.rules === 2 || special === 'legendary') && !isFirstStage(hatch.id)) ||
-          typeof hatch.name !== 'string' || !Object.hasOwn(receipt.viewer?.collection ?? {}, hatch.name) ||
+          typeof hatch.name !== 'string' || (hatch.shiny !== undefined && typeof hatch.shiny !== 'boolean') ||
+          !Object.hasOwn(receipt.viewer?.collection ?? {}, hatch.name + (hatch.shiny ? ' ✦' : '')) ||
           hatch.rarity !== expected ||
           typeof hatch.duplicate !== 'boolean' || !Number.isFinite(hatch.xp) || hatch.xp < 0 || hatch.xp > Number.MAX_SAFE_INTEGER
     })
     if (invalidHatch) { reject(receipt, 'hatch'); continue }
     const results = hatches.map(hatch => ({ id: hatch.id, name: hatch.name, rarity: hatch.rarity,
-      duplicate: hatch.duplicate, xp: Math.floor(hatch.xp), ...(hatch.levelUp === true && hatch.duplicate && hatch.xp > 0 ? { levelUp: true } : {}) }))
+      duplicate: hatch.duplicate, xp: Math.floor(hatch.xp), ...(hatch.shiny ? { shiny: true } : {}),
+      ...(hatch.levelUp === true && hatch.duplicate && hatch.xp > 0 ? { levelUp: true } : {}) }))
     const writes = viewerWrites(db, device, receipt.viewer ? [receipt.viewer] : [])
     if (writes instanceof Response) { reject(receipt, 'progress'); continue }
     const { id, result } = receipt

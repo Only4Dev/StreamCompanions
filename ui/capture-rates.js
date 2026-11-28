@@ -57,3 +57,4 @@ export function catchChance(ball, id, legendary = false, percentages, overrides)
 export function catchDifficulty(id, legendary = false, language = 'es', rate) {
   return bandFor(id, legendary, rate).names[Number(language === 'en')]
 }
+export const shinyCaptureGoal = 20

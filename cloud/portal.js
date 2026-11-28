@@ -5,6 +5,7 @@ import learnsetData from '../ui/learnsets.json' with { type: 'json' }
 import moveCatalog from '../ui/moves.json' with { type: 'json' }
 import { normalizeTraining, trainingKey, trainingRules } from '../ui/training.js'
 import { eggPool } from '../ui/egg-rules.js'
+import { shinyCaptureGoal } from '../ui/capture-rates.js'
 import { catchRates } from '../ui/capture-rates.js'
 import { encounterRarities } from '../ui/species-rules.js'
 import { abilitiesData, abilityDetails } from '../ui/abilities.js'
@@ -100,6 +101,7 @@ function showFeedback(message, result, captureAction = false) {
   clearReaction = setTimeout(() => reaction.replaceChildren(), 4200);
 }
 function renderEncounter(state) {
+  const changed = lastEncounter !== state.encounter;
   if (lastEncounter !== undefined && state.encounter && state.encounter !== lastEncounter && state.shiny && shinyOptIn.checked) {
     playShiny().catch(() => {});
   }
@@ -108,6 +110,8 @@ function renderEncounter(state) {
   root.querySelector('[data-capture-difficulty]').textContent = state.difficulty || root.dataset.noEncounter;
   root.querySelector('[data-encounter-rarity]').textContent = state.rarity || '';
   const portrait = root.querySelector('[data-encounter-portrait]');
+  const owned = root.querySelector('[data-encounter-owned]');
+  if (changed || typeof state.owned === 'boolean') owned.hidden = !state.owned;
   if (state.species) {
     const src = (${encounterSprite.toString()})(state.species.id, state.shiny);
     if (portrait.getAttribute('src') !== src) portrait.src = src;
@@ -115,6 +119,7 @@ function renderEncounter(state) {
     portrait.hidden = false;
   } else {
     portrait.hidden = true;
+    owned.hidden = true;
     portrait.removeAttribute('src');
   }
 }
@@ -131,12 +136,13 @@ function connect() {
   socket.addEventListener('open', () => { if (!submitting) schedule(0); });
   socket.addEventListener('message', event => {
     const state = JSON.parse(event.data);
+    const changed = lastEncounter !== state.encounter;
     version++;
     const language = document.documentElement.lang === 'en' ? 'en' : 'es';
     renderEncounter({ ...state, difficulty: state[language], rarity: (${JSON.stringify(rarityLabels)})[state.rarity]?.[Number(language === 'en')] });
     capture.querySelector('button').disabled = submitting || locked || endpoint.searchParams.has('game') || !state.encounter ||
       !capture.querySelector('input[name="ball"]:checked:not(:disabled)');
-    if (!submitting) schedule(endpoint.searchParams.has('game') ? 0 : locked ? 500 : 60000);
+    if (!submitting) schedule(changed || endpoint.searchParams.has('game') ? 0 : locked ? 500 : 60000);
   });
   socket.addEventListener('close', () => {
     socket = undefined;
@@ -298,6 +304,9 @@ async function viewerSession(request, db) {
   return { session, key, identity }
 }
 
+const ownsEncounter = (state, collection = {}) => Boolean(state.species &&
+  Object.hasOwn(collection, state.species.name + (state.shiny ? ' ✦' : '')))
+
 async function renderLiveGame(request, db, url, language) {
   const en = language === 'en'
   const community = url.searchParams.get('community')
@@ -311,6 +320,8 @@ async function renderLiveGame(request, db, url, language) {
   const id = url.searchParams.get('game')
   const row = ['offline', 'expired', 'pending'].includes(id) ? { result: id } : await webGameStatus(db, identity.account_id, community, id)
   const state = webGameState(runtime, row, language)
+  const captured = ownsEncounter(state, collection)
+  const capturedLabel = en ? 'Already caught' : 'Ya capturado'
   const destination = escape('/live/action?' + new URLSearchParams({ community, platform }))
   const open = (action, extra = '') => '<form method="post" action="' + destination + '"' + extra + '>' +
     '<input type="hidden" name="id" value="' + crypto.randomUUID() + '"><input type="hidden" name="action" value="' + action + '">'
@@ -333,7 +344,8 @@ async function renderLiveGame(request, db, url, language) {
     '<section class="live-game-card"><header class="capture-heading"><div><h3>' + (en ? 'Catch' : 'Captura') + '</h3><p class="meta" data-capture-difficulty>' +
     escape(state.difficulty ?? noEncounter) + '</p><p class="meta" data-encounter-rarity>' + escape(state.rarity ?? '') + '</p></div>' +
     '<div class="capture-portrait-frame"><img data-encounter-portrait width="96" height="96" alt="' + escape(state.species?.name ?? '') + '"' +
-    (state.species ? ' src="' + encounterSprite(state.species.id, state.shiny) + '"' : ' hidden') + '></div></header>' +
+    (state.species ? ' src="' + encounterSprite(state.species.id, state.shiny) + '"' : ' hidden') + '><span class="capture-owned" data-encounter-owned role="img" aria-label="' +
+    capturedLabel + '" title="' + capturedLabel + '"' + (captured ? '' : ' hidden') + '>' + itemIcon('poke-ball') + '</span></div></header>' +
     open('catch', ' data-capture-form') + '<input type="hidden" name="encounter" value="' + escape(state.encounter ?? '') + '">' +
     '<fieldset class="live-balls"><legend>' + (en ? 'Choose a Poké Ball' : 'Elige una Poké Ball') + '</legend>' + options +
     '</fieldset><button' + (state.encounter && firstAvailable ? disabled : ' disabled') + '>' +
@@ -1125,7 +1137,8 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     const activity = log.slice(-8).reverse().map(({ action, result }) => ({ action,
       message: webGameState(null, { result: result === 'caught' || result === 'duplicateReward' ? 'catchSuccess' : result }, language).message }))
     const lock = await webActionLock(env.DB, identity.account_id, community)
-    return Response.json({ ...webGameState(runtime, row, language), locked: lock.pending, cooldown: lock.cooldown, balls, activity, ...(shinyDust ? { shinyDust } : {}), ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(rareCandies ? { rareCandies } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
+    const state = webGameState(runtime, row, language)
+    return Response.json({ ...state, owned: ownsEncounter(state, progress.collection), locked: lock.pending, cooldown: lock.cooldown, balls, activity, ...(shinyDust ? { shinyDust } : {}), ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(rareCandies ? { rareCandies } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
   }
 
   if (route) {
@@ -1267,7 +1280,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
         '<p class="empty">' + t("Aún no tienes comunidades sincronizadas. Usa !poke join en el chat de un streamer participante.") + '</p>') +
       '</section>')
   }
-  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, legendaryTrackers = 0, shinyDust = 0, vitamins = 0, training = {}, pokeDollars = 0, dnaBoosters = {}, log = [], dexAcquired = {}, tmDisks = 0, tmFragments = 0, tmMoves = {} } = JSON.parse(selected.payload)
+  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, legendaryTrackers = 0, shinyDust = 0, vitamins = 0, training = {}, pokeDollars = 0, dnaBoosters = {}, log = [], dexAcquired = {}, shinyCaptures = {}, tmDisks = 0, tmFragments = 0, tmMoves = {} } = JSON.parse(selected.payload)
   const teamUrl = '/?' + new URLSearchParams({ community: selected.community_id, tab: 'team' })
   if (editingTeam) {
     const body = await request.text()
@@ -1697,11 +1710,17 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     const acquired = Math.max(dexAcquired[key] ?? 0, dexAcquired[key + ' ✦'] ?? 0, eggAcquired.get(dex) ?? 0,
       ...regionalForms.flatMap(({ name }) => [dexAcquired[name] ?? 0, dexAcquired[name + ' ✦'] ?? 0]))
     const isNew = owned && acquired > (seen.get(dex) ?? 0)
+    const countLabel = en ? 'Caught' : 'Capturado'
+    const shinyProgress = [[dex, key], ...regionalForms.filter(form => shinyCaptures[form.id]).map(form => [form.id, form.name])]
+      .filter(([, name]) => !Object.hasOwn(collection, name + ' ✦'))
+      .map(([id, name]) => '<small class="dex-capture-progress"' + (id === dex ? '' : ' title="' + escape(name) + '"') +
+        '>' + (id === dex ? countLabel : escape(name)) + ' ' + (shinyCaptures[id] ?? 0) + '/' + shinyCaptureGoal + '</small>').join('')
     return '<li class="slot ' + (owned ? 'owned' : 'locked') + '" data-family="' + familyRoot(dex) + '"' +
       (isNew ? ' data-dex-new="' + dex + '" data-acquired="' + acquired + '"><span class="dex-new">' + (en ? 'NEW' : 'NUEVO') + '</span>' : '>') + '<span class="dex-number">#' +
       String(regionalBase.get(dex) ?? dex).padStart(3, '0') + '</span>' +
       (member ? summaryLink(member, profile, 'dex-entry') : profile) +
       (owned ? '<small class="dex-ability">' + escape(abilityDetails(dex, en)[0]?.name ?? '') + '</small>' : '') +
+      shinyProgress +
       '<div class="variants">' + (details || '<span>' + t("Sin capturar") + '</span>') + '</div></li>'
   }).join('') : ''
   const updated = new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'es-PE', {
