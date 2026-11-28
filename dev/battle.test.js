@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { activeLearnsets, addStageMovesToLegacyLearnsets, battleSpecies, arenaBaseStats, createBattle, formAtLevel, moveOptions, moves, movesFor, hpColor, ultimateOptions } from './battle.js'
+import { activeLearnsets, addStageMovesToLegacyLearnsets, battleMovePp, battleSpecies, arenaBaseStats, createBattle, formAtLevel, moveOptions, movePp, moves, movesFor, hpColor, ultimateOptions } from './battle.js'
 import { nationalStats } from './national-stats.js'
 
 const example = (id, level = 20) => {
@@ -1291,4 +1291,66 @@ test('Truant enforces recovery and Last Guard only counts distinct allies of the
   run(raid, 1.5)
   assert.equal(other.hp, 0)
   assert.deepEqual([...guard.fallenAllies], [ally.index])
+})
+
+test('raids triple player attack PP while support, recovery and boss PP keep their limits', () => {
+  for (const id of ['tackle', 'dragondarts', 'ultimate-dragon']) {
+    assert.equal(battleMovePp(moves[id], true, false), 3 * movePp(moves[id]), id)
+    assert.equal(battleMovePp(moves[id], true, true), movePp(moves[id]), id)
+    assert.equal(battleMovePp(moves[id], false, false), movePp(moves[id]), id)
+  }
+  for (const id of ['reflect', 'lightscreen', 'healpulse', 'recover', 'dragondance', 'revivebeam']) {
+    assert.equal(battleMovePp(moves[id], true, false), movePp(moves[id]), id)
+  }
+  const [player, boss] = createBattle([{ ...example(9, 45), team: 'party' },
+    { ...example(149, 45), team: 'boss', boss: true, bossUltimatePp: 4 }], { raid: true }).actors
+  assert.equal(player.ultimatePp, battleMovePp(moves[player.equippedUltimate], true, false))
+  assert.equal(boss.ultimatePp, 4)
+})
+
+test('every move can emit a typed animation cue through the shared combat engine', () => {
+  for (const [id, move] of Object.entries(moves)) {
+    const battle = createBattle([{ ...example(6, 45), team: 'a' }, { ...example(143, 75), team: 'b' },
+      { ...example(25, 45), team: 'a' }, { ...example(35, 45), team: 'a' }], { auto: false, random: () => .5 })
+    const [caster, target, ally, other] = battle.actors
+    caster.x = 780
+    target.x = 835
+    ally.x = 710
+    other.x = 680
+    ally.hp = move.reviveAlly ? 0 : Math.round(ally.maxHp * .35)
+    if (!ally.hp) ally.faintedAt = 0
+    other.hp = Math.round(other.maxHp * .4)
+    other.status = { kind: 'burn', ends: 10 }
+    if (move.heal) caster.hp = Math.round(caster.maxHp * .15)
+    if (move.needsSleep) target.status = { kind: 'sleep', ends: 10 }
+    assert.ok(battle.manual(0, id), id)
+    const cue = battle.effects.find(effect => effect.kind === 'move-cue')
+    assert.equal(cue?.style, move.kind, id)
+    assert.equal(cue?.source, 0, id)
+    assert.match(cue?.type ?? '', /^[a-z]+$/, id)
+  }
+})
+
+test('Dragon Darts launches two Dreepy and damaging hits carry effectiveness and critical feedback', () => {
+  const battle = createBattle([example(887, 45), example(143, 80)], { auto: false, random: () => .5 })
+  const [caster, target] = battle.actors
+  caster.x = 700
+  target.x = 850
+  assert.ok(battle.manual(0, 'dragondarts'))
+  const impacts = new Map()
+  for (let i = 0; i < 60; i++) {
+    battle.step(1 / 60)
+    for (const effect of battle.effects) if (effect.visual === 'dreepy' && effect.damage > 0) impacts.set(effect.at, effect)
+  }
+  assert.equal(impacts.size, 2)
+  assert.ok([...impacts.values()].every(hit => hit.target === 1 && hit.source === 0))
+
+  const fire = createBattle([example(4, 45), example(1, 80)], { auto: false, random: () => .05 })
+  fire.actors[0].x = 700
+  fire.actors[1].x = 752
+  assert.ok(fire.manual(0, 'ember'))
+  run(fire, .8)
+  const critical = fire.effects.find(effect => effect.kind === 'hit' && effect.damage > 0)
+  assert.ok(critical?.critical)
+  assert.ok(critical?.superEffective)
 })

@@ -1,5 +1,7 @@
 import { level, maxLevel, xpAtLevel } from './levels.js'
-import { drawArea, drawBattleContact, drawClash, drawDigMound, drawField, drawHyper, drawOngoing, drawPoisonHazard, drawProjectile, drawStatus, drawTarget, drawUltimate } from '../dev/battle-vfx.js'
+import { drawArea, drawBattleContact, drawChannel, drawClash, drawDigMound, drawField, drawHyper, drawOngoing, drawPoisonHazard, drawProjectile, drawStatus, drawTarget, drawUltimate } from '../dev/battle-vfx.js'
+import { battleFxColor, createBattleParticles, drawBarrier, drawImpact, drawMoveCue, drawPiercingBeam, drawSpellProjectile,
+  drawStageAura, drawStageMarks, drawStatusParticles } from './battle-fx.js'
 
 const images = new Map()
 
@@ -399,10 +401,13 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
   const actors = new Map()
   const battlePositions = new Map()
   const defeats = new Map()
+  const particles = kind === 'companions' ? createBattleParticles(canvas) : null
+  let renderingBattle = false
   let battleEndedAt
   let battleSnapshot
   let snapshotAt
   const species = new Map(catalog.map(entry => [entry.name, entry]))
+  const dreepy = kind === 'companions' ? catalog.find(entry => Number(entry.id) === 885)?.normal?.animations : null
   let previous = 0
   let shownEncounter
   let shownEncounterAt = 0
@@ -416,7 +421,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
     if (!state) return
     const width = kind === 'companions' ? companionWidth : canvas.clientWidth
     const height = kind === 'companions' ? (strip ? companionStripHeight : companionHeight) : canvas.clientHeight
-    if (!canvas.clientWidth || !canvas.clientHeight) return
+    if (!canvas.clientWidth || !canvas.clientHeight) { particles?.hide(); return }
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width
       canvas.height = height
@@ -446,6 +451,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
     }
 
     if (state.battle && !state.battleStart) {
+      particles.begin()
+      renderingBattle = true
       const floor = height - 2
       const battle = state.battle
       if (battleSnapshot !== battle) {
@@ -466,13 +473,19 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       const hitFeedback = new Map()
       for (const effect of battle.effects) {
         if (effect.expires <= feedbackTime) continue
-        if (effect.kind === 'hit' && (effect.damage > 0 || effect.dodged || effect.blocked) && Number.isInteger(effect.target)) {
+        if (effect.kind === 'hit' && (effect.damage > 0 || effect.dodged || effect.blocked || effect.immune || effect.absorbed) && Number.isInteger(effect.target)) {
           if (!hitFeedback.has(effect.target)) hitFeedback.set(effect.target, [])
           hitFeedback.get(effect.target).push(effect)
         }
         if (battle.over) continue
-        const color = effect.type === 'fire' ? '#ff8957' : effect.type === 'water' ? '#7bddff' : '#e1c8ff'
-        if (effect.kind === 'muzzle') drawBattleContact(context, effect.x, floor - 40, effect, renderTime)
+        const color = battleFxColor(effect.type)
+        if (effect.kind === 'move-cue') {
+          const fighter = battle.actors[effect.source]
+          const aroundCaster = effect.stage === 'windup'
+          const x = aroundCaster ? battlePositions.get(effect.source) ?? fighter?.x ?? effect.x : effect.x
+          const y = floor - (fighter?.boss ? 98 : 41)
+          drawMoveCue(context, particles, effect, x, y, renderTime)
+        } else if (effect.kind === 'muzzle') drawBattleContact(context, effect.x, floor - 40, effect, renderTime)
         else if (effect.kind === 'geyser') {
           const age = renderTime - effect.at
           context.save()
@@ -525,6 +538,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           context.restore()
         } else if (effect.kind === 'ultimate') drawUltimate(context, effect, width, floor, renderTime, color)
         else if (effect.visual === 'hyper') drawHyper(context, effect, width, floor, renderTime)
+        else if (effect.kind === 'charge') drawChannel(context, effect.x, floor - 40, renderTime, color)
+        else if (effect.kind === 'pierce') drawPiercingBeam(context, particles, effect, floor - 42, renderTime)
         else if (effect.kind === 'clash') drawClash(context, effect.x, floor, renderTime - effect.at)
         else if (effect.kind === 'hazard' && effect.visual === 'web') drawWeb(context, effect.x, floor - 7, 80, 29)
         else if (effect.kind === 'hazard') drawPoisonHazard(context, effect, floor, renderTime)
@@ -533,7 +548,11 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       }
       if (!battle.over) for (const shot of battle.projectiles) {
         const x = shot.x + shot.direction * 720 * ahead
-        if (renderTime < shot.end && x >= 0 && x <= width) drawProjectile(context, { ...shot, x }, floor - 40, renderTime)
+        if (renderTime >= shot.end || x < 0 || x > width) continue
+        const y = floor - 40 - (shot.move.visual === 'dreepy' ? 7 * Math.sin((renderTime - (shot.at ?? renderTime)) * 24) : 0)
+        const styled = drawSpellProjectile(context, particles, { ...shot, x }, y, renderTime)
+        if (shot.move.visual === 'dreepy' && sprite(context, battleClip(dreepy, 'Walk'), x, y, shot.direction, time, false, 2.1)) continue
+        if (!styled) drawProjectile(context, { ...shot, x }, y, renderTime)
       }
       for (const [index, fighter] of state.battle.actors.entries()) {
         const hits = hitFeedback.get(index)
@@ -571,20 +590,11 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           context.restore()
         }
         if (fighter.hp && fighter.rooted) drawWeb(context, x, y - 6, 41, 21)
-        if (fighter.hp && (fighter.physicalBarrier || fighter.specialBarrier)) {
-          context.save()
-          const glow = fighter.physicalBarrier && fighter.specialBarrier ? '#c9b0ff' : fighter.physicalBarrier ? '#ffba7a' : '#7fe6ff'
-          const height = Math.max(36, (y - top) * .62)
-          context.globalAlpha = .72 + .15 * Math.sin(renderTime * 8)
-          context.strokeStyle = context.shadowColor = glow
-          context.shadowBlur = 14
-          context.lineWidth = 3
-          context.fillStyle = glow + '24'
-          context.beginPath()
-          context.ellipse(x, y - height * .65, Math.max(35, height * .67), height, 0, 0, Math.PI * 2)
-          context.fill()
-          context.stroke()
-          context.restore()
+        if (fighter.hp) {
+          if (fighter.physicalBarrier || fighter.specialBarrier) {
+            drawBarrier(context, particles, x, y, top, renderTime, fighter.physicalBarrier, fighter.specialBarrier)
+          }
+          drawStageAura(context, particles, fighter, x, y, renderTime)
         }
         if (fighter.hp && fighter.maneuver?.kind === 'dig') drawDigMound(context, x, y, renderTime)
         else if (fighter.hp) {
@@ -619,23 +629,38 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
               context.restore()
             }
           }
-          if (!fighter.boss && hits?.some(hit => hit.damage > 0 && renderTime - hit.at < .12)) context.filter = 'brightness(0) invert(1)'
-          sprite(context, readyClip(clip, variant?.animations), x, y, fighter.direction, time, false, scale, false, true)
+          const activeHit = hits?.findLast(hit => hit.damage > 0 && feedbackTime >= hit.at && feedbackTime - hit.at < (hit.critical ? .095 : .065))
+          if (activeHit && !fighter.boss) context.filter = feedbackTime - activeHit.at < .045 ? 'brightness(1.85) saturate(.65)' : 'brightness(1.3)'
+          const poseTime = activeHit ? activeHit.at : renderTime
+          const motionTime = fighter.motionSince === undefined ? time : Math.max(0, (poseTime - fighter.motionSince) * 1000)
+          const oneShot = !['Idle', 'Walk', 'Run', 'Sleep'].includes(fighter.motion)
+          sprite(context, readyClip(clip, variant?.animations), x + (activeHit ? (activeHit.direction ?? 1) * 4 : 0),
+            y, fighter.direction, motionTime, false, scale, oneShot, true)
           context.restore()
           if (!clip) label(context, fighter.name[0], x, y, 25)
         }
         if (hits) hits.slice(-4).forEach((hit, slot) => {
           const age = Math.max(0, feedbackTime - hit.at)
           const anchor = top > 100 ? top - 28 : Math.min(height - 28, top + 55)
-          if (hit.damage > 0) drawBattleContact(context, x, y - Math.min(58, (y - top) * .48), hit, feedbackTime)
+          if (hit.damage > 0) drawImpact(context, particles, x, y - Math.min(fighter.boss ? 115 : 58, (y - top) * .48), hit, feedbackTime)
           context.save()
           context.globalAlpha = Math.min(1, (hit.expires - feedbackTime) * 5)
           context.lineJoin = 'round'
           const english = state.bot?.language === 'en'
           const value = hit.dodged ? (english ? 'DODGED' : 'ESQUIVÓ') :
-            hit.blocked ? (english ? 'BLOCKED' : 'BLOQUEÓ') : '-' + Math.round(hit.damage)
-          label(context, value, x + (slot % 2 ? 24 : -14) + (hit.critical ? Math.sin(age * 96) * Math.max(0, 8 - age * 35) : 0), Math.max(29, anchor - age * 53 - slot * 13),
-            hit.critical ? 39 : hit.dodged || hit.blocked ? 26 : 30, hit.dodged ? '#8beaff' : hit.blocked ? '#a6c0ff' : hit.critical ? '#ffcc51' : '#ffffff', hit.critical ? 7 : 5)
+            hit.blocked ? (english ? 'BLOCKED' : 'BLOQUEÓ') : hit.immune ? (english ? 'IMMUNE' : 'INMUNE') :
+              hit.absorbed ? (english ? 'ABSORBED' : 'ABSORBIÓ') : '−' + Math.round(hit.damage)
+          const tx = Math.min(width - 90, Math.max(90, x + (slot % 2 ? 40 : -18) + (hit.critical ? Math.sin(age * 96) * Math.max(0, 8 - age * 35) : 0)))
+          const ty = Math.max(40, anchor - age * 51 - slot * 20)
+          const pop = Math.max(0, 1 - age * 10) * 8
+          const tint = hit.dodged || hit.absorbed ? '#8beaff' : hit.blocked || hit.immune ? '#b4cdff' : hit.critical ? '#ffca58' : hit.superEffective ? '#b4ff88' : '#ffffff'
+          label(context, value, tx, ty, (hit.critical ? 38 : hit.damage > 0 ? 28 : 23) + pop, tint, hit.critical ? 7 : 5)
+          if (hit.critical || hit.superEffective) {
+            const critical = english ? 'CRITICAL' : 'CRÍTICO'
+            const effective = english ? 'SUPER EFFECTIVE' : 'SÚPER EFICAZ'
+            const badges = [hit.critical ? critical : '', hit.superEffective ? effective : ''].filter(Boolean).join(' · ')
+            label(context, badges, tx, ty - (hit.critical ? 32 : 25), hit.critical ? 19 : 17, tint, 4)
+          }
           context.restore()
         })
         if (!fighter.hp) {
@@ -654,9 +679,13 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           continue
         }
         if (fighter.ongoing) drawOngoing(context, fighter.ongoing, x, y, renderTime)
-        if (fighter.status) drawStatus(context, fighter.status, x, top - 55, renderTime, 26, 24)
+        if (fighter.status) {
+          drawStatus(context, fighter.status, x, top - 56, renderTime, 26, 24)
+          drawStatusParticles(particles, fighter.status, x, y - 35, renderTime)
+        }
         if (fighter.evasion || fighter.flinched) label(context, fighter.flinched ? '✦ ✦' : '≋', x + 32, top - 49, 20)
         if (fighter.boss) continue
+        drawStageMarks(context, fighter.stages, x, Math.max(11, top - 37), fighter.intimidated)
         label(context, (fighter.teamIndex ? '#T' + fighter.teamIndex + ' · ' : '') + (fighter.ownerName ? fighter.ownerName + ' | ' : '') + (appearance.disguised ? appearance.name : fighter.name) + ' · Lv. ' + fighter.level, x, top - 14, 21)
         const hp = fighter.hp / fighter.maxHp
         context.fillStyle = '#131b22'
@@ -671,11 +700,16 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           context.fillRect(x - 45, top + 3, 90 * charge / 100, 3)
         }
       }
+      particles.paint(context, width, height)
       if (battle.raid && battle.over) label(context, state.battle.actors.some(actor => actor.boss && actor.hp) ?
         (state.bot?.language === 'es' ? 'Incursión terminada' : 'Raid ended') : (state.bot?.language === 'es' ? '¡Jefe derrotado!' : 'Boss defeated!'), width / 2, height * .63, 49, '#ffe7a6')
       else if (state.battle.over && state.battle.winner) label(context, state.battle.winner +
         (state.bot?.language === 'es' ? ' gana la batalla' : ' wins the battle'), width / 2, height * .63, 49, '#ffe7a6')
       return
+    }
+    if (renderingBattle) {
+      particles.reset()
+      renderingBattle = false
     }
     battleSnapshot = undefined
     battlePositions.clear()

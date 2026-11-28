@@ -1,5 +1,5 @@
 import { writeFileSync, readFileSync } from 'node:fs'
-import { activeLearnsets, moveBaseReach, moveCooldown, moveDamageClass, moveElement, movePp, moves } from '../dev/battle.js'
+import { activeLearnsets, battleMovePp, moveBaseReach, moveCooldown, moveDamageClass, moveElement, movePp, moves } from '../dev/battle.js'
 import { tmLearn } from '../ui/tm.js'
 import raidBosses from '../ui/raid-bosses.json' with { type: 'json' }
 import combatBalance from '../ui/combat-balance.json' with { type: 'json' }
@@ -79,6 +79,7 @@ for (const [id, move] of Object.entries(moves).sort(([a], [b]) => a.localeCompar
   attacks[id] = {
     nombre: move.name, descripcion: describe(move), categorias: category, tipo: moveElement(move),
     clase: moveDamageClass(move), potenciaBase: move.power, pp: move.struggle ? null : movePp(move),
+    ppJugadorIncursion: move.struggle ? null : battleMovePp(move, true, false),
     alcance: moveBaseReach(move), recargaSegundos: move.ultimate ? null : moveCooldown(move),
     estado: move.effect ?? null, probabilidadEstado: move.effect ? move.chance ?? 0 : 0,
     etiquetas: move.tags ?? [], niveles: move.stages, duracionSegundos: move.duration

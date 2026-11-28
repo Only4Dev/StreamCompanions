@@ -524,6 +524,8 @@ export function arenaBaseStats(id, original) {
 
 export const moveCooldown = move => move.cooldown ?? (move.kind === 'area' ? 3.4 : move.kind === 'guard' ? 4.5 : 1.1)
 export const movePp = move => move.pp ?? (move.ultimate ? 2 : move.kind === 'support' ? 5 : 20)
+export const battleMovePp = (move, raid, boss) => movePp(move) *
+  (raid && !boss && move.power > 0 && !move.teamBoost && move.kind !== 'support' ? combatBalance.raidAttackPpMultiplier : 1)
 export const moveDamageClass = move => move.damageClass ?? (move.ultimate ? 'adaptive' : !move.power ? 'status' : move.kind === 'rush' ? 'physical' : 'special')
 export const moveElement = move => move.type ??
   ({ rain: 'water', sun: 'fire', hail: 'ice', sandstorm: 'rock', grass: 'grass', electric: 'electric' })[move.field] ??
@@ -592,9 +594,9 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       margin, x: clamp(150 + index * (arena.width - 300) / Math.max(1, entries.length - 1), margin, arena.width - margin),
       direction: index < entries.length / 2 ? 1 : -1, next: entry.boss ? .25 : .5 + index * .12,
       shield: 0, boosts: {}, stages: {}, fallenAllies: new Set(), status: null, knockback: 0, hurtUntil: 0, motion: 'Idle', motionSince: 0,
-      cast: null, dashUntil: 0, dashReady: 0, cooldowns: {}, ultimatePp: entry.boss ? entry.bossUltimatePp ?? 4 : equippedUltimate ? movePp(moves[equippedUltimate]) : 0, ultimateCharge: 0,
+      cast: null, dashUntil: 0, dashReady: 0, cooldowns: {}, ultimatePp: entry.boss ? entry.bossUltimatePp ?? 4 : equippedUltimate ? battleMovePp(moves[equippedUltimate], raid, false) : 0, ultimateCharge: 0,
       hasUltimate: Boolean(equippedUltimate), equippedUltimate,
-      kit, pp: Object.fromEntries(kit.filter(key => !moves[key].ultimate).map(key => [key, movePp(moves[key]) + (entry.heldItem === 'leppa-berry' && moves[key].kind !== 'support' ? 2 : 0)]))
+      kit, pp: Object.fromEntries(kit.filter(key => !moves[key].ultimate).map(key => [key, battleMovePp(moves[key], raid, entry.boss) + (entry.heldItem === 'leppa-berry' && moves[key].kind !== 'support' && !moves[key].teamBarrier && !moves[key].teamBoost ? 2 : 0)]))
     }
   })
 
@@ -646,7 +648,11 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const kit = target.kit.filter(key => !moves[key].ultimate || key === equippedUltimate)
     Object.assign(actor, { copiedSpecies: target.id, attack, defense, specialAttack, specialDefense, speed, equipmentForm,
       types: [...target.types], abilities: new Set(target.abilities), equippedUltimate, hasUltimate: Boolean(equippedUltimate),
-      kit, pp: Object.fromEntries(kit.filter(key => !moves[key].ultimate).map(key => [key, Math.min(5, movePp(moves[key]))])) })
+      ultimatePp: equippedUltimate ? battleMovePp(moves[equippedUltimate], raid, actor.boss) : 0,
+      kit, pp: Object.fromEntries(kit.filter(key => !moves[key].ultimate).map(key => {
+        const move = moves[key]
+        return [key, Math.min(5, movePp(move)) * (battleMovePp(move, raid, actor.boss) / movePp(move))]
+      })) })
     effects.push({ kind: 'clash', x: actor.x, at: time, expires: time + .6 })
   }
 
@@ -702,7 +708,10 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     return woundedSquadmates(actor).filter(ally => Math.abs(actor.x - ally.x) <= move.reach)
       .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0]
   }
-  for (const actor of actors) if (actors.some(enemy => rivals(actor, enemy) && enemy.abilities.has('intimidate'))) actor.attack *= .9
+  for (const actor of actors) if (actors.some(enemy => rivals(actor, enemy) && enemy.abilities.has('intimidate'))) {
+    actor.attack *= .9
+    actor.intimidated = true
+  }
 
   function closest(actor, eligible) {
     const focus = actors[actor.focusIndex]
@@ -819,11 +828,17 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   function hit(actor, defender, move, direction) {
     if (!rivals(actor, defender)) return
     if (battleManeuver(defender, time)) return
-    if (!move.ultimate && !move.struggle && defender.shield > time) return
+    if (!move.ultimate && !move.struggle && defender.shield > time) {
+      effects.push({ kind: 'hit', type: move.type, x: defender.x, target: defender.index, blocked: true, at: time, expires: time + .7 })
+      return
+    }
     if (move.needsSleep && defender.status?.kind !== 'sleep') return
     const type = move.type ?? actor.types[0]
     const matchup = effectiveness(actor, defender, move)
-    if (!matchup && !move.struggle) return false
+    if (!matchup && !move.struggle) {
+      effects.push({ kind: 'hit', type, x: defender.x, target: defender.index, immune: true, at: time, expires: time + .74 })
+      return false
+    }
     if (defender.ghostUntil > time) {
       confirmDodge(actor, defender, move, 'ghost')
       return false
@@ -833,6 +848,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       if (defender.abilities.has(absorbs)) {
         if (absorbs === 'flash-fire') defender.flashFire = true
         else defender.hp = Math.min(defender.maxHp, defender.hp + Math.round(defender.maxHp * .12))
+        effects.push({ kind: 'hit', type, x: defender.x, target: defender.index, absorbed: true, at: time, expires: time + .74 })
         return
       }
     }
@@ -967,8 +983,9 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         defender.knockback = 0
       }
     }
-    effects.push({ kind: 'hit', type, visual: move.visual, x: defender.x, target: defender.index, damage: dealt, critical,
-      bossImpact: Boolean(actor.boss && dealt), at: time, expires: time + .68 })
+    effects.push({ kind: 'hit', type, visual: move.visual, x: defender.x, target: defender.index, source: actor.index, direction, damage: dealt,
+      critical: Boolean(dealt && critical), superEffective: Boolean(dealt && !move.struggle && matchup > 1),
+      bossImpact: Boolean(actor.boss && dealt), at: time, expires: time + (critical || matchup > 1 ? .95 : .74) })
     return true
   }
 
@@ -992,6 +1009,10 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const target = move.kind === 'support' ? supportTarget(actor, move) : closest(actor)
     if (!target && move.kind !== 'guard') return false
     if (target) actor.direction = Math.sign(target.x - actor.x) || actor.direction
+    const cue = { kind: 'move-cue', source: actor.index, target: target?.index, x: actor.x, origin: actor.x,
+      direction: actor.direction, type: moveElement(move), visual: move.visual, style: move.kind,
+      status: move.effect, stage: 'windup', at: time, expires: time + .32 }
+    effects.push(cue)
     if (move.ultimate) {
       if (actor.id === 1024) { actor.usedStellar = true; updateForm(actor) }
       if (actor.boss) actor.nextBossUltimate = time + 14
@@ -1031,7 +1052,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       actor.stanceBlade = move.kind !== 'guard'
       updateForm(actor)
     }
-    actor.cast = { move, moveId, target, start: time, resolve: time + duration, origin: actor.x }
+    actor.cast = { move, moveId, target, start: time, resolve: time + duration, origin: actor.x, cue }
     actor.repeat = moveId === actor.lastMove ? actor.repeat + 1 : 1
     actor.lastMove = moveId
     actor.motionSince = time
@@ -1064,6 +1085,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       if (time < cast.resolve) return
       actor.cast = null
       const ally = cast.target
+      effects.push({ ...cast.cue, x: ally.x, origin: actor.x, stage: 'release', at: time, expires: time + .54 })
       if (move.reviveAlly && !ally.hp) {
         Object.assign(ally, { hp: Math.max(1, Math.round(ally.maxHp * move.reviveAlly)), faintedAt: undefined,
           cast: null, status: null, ongoing: null, leech: null, knockback: 0, rootedUntil: 0, hurtUntil: 0,
@@ -1097,7 +1119,10 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
           effects.push({ kind: 'target', visual: move.visual, x: target.x, at: time, expires: time + .55 })
         }
       }
-      if (time >= cast.resolve) actor.cast = null
+      if (time >= cast.resolve) {
+        effects.push({ ...cast.cue, x: actor.x, stage: 'release', at: time, expires: time + .4 })
+        actor.cast = null
+      }
       return
     }
     if (move.kind === 'rush') {
@@ -1108,6 +1133,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         enemy.x >= Math.min(prior, actor.x) - 32 - extraReach(enemy) - extraReach(actor) &&
         enemy.x <= Math.max(prior, actor.x) + 32 + extraReach(enemy) + extraReach(actor))
       if (contact) {
+        effects.push({ ...cast.cue, x: actor.x, stage: 'release', at: time, expires: time + .4 })
         const rival = contact.cast
         if (!actor.boss && !contact.boss && !move.struggle && !rival?.move.struggle && rival?.move.kind === 'rush' && time >= rival.start + (rival.move.channel ?? 0) &&
             actor.direction !== contact.direction && Math.abs(cast.resolve - rival.resolve) <= .16) {
@@ -1129,6 +1155,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
     if (time < cast.resolve) return
     actor.cast = null
+    const point = move.kind === 'target' && cast.target?.hp ? cast.target.x : actor.x
+    effects.push({ ...cast.cue, x: point, origin: actor.x, stage: 'release', at: time, expires: time + .5 })
     if (move.reward) onMoveReward(actor, move.reward)
     if (actor.id === 845 && move.type === 'water' && move.power) {
       actor.gulped = true
@@ -1172,13 +1200,14 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       const bonusHit = !move.count && move.power && actor.abilities.has('parental-bond')
       const count = move.count ? move.count * (actor.abilities.has('skill-link') ? 2 : 1) : bonusHit ? 2 : 1
       const followUp = bonusHit ? { ...move, power: Math.round(move.power * .3) } : move
-      for (let i = 1; i < count; i++) queuedShots.push({ actor, move: followUp, direction: actor.direction, at: time + i * .16 })
+      for (let i = 1; i < count; i++) queuedShots.push({ actor, move: followUp, direction: actor.direction,
+        target: move.visual === 'dreepy' ? cast.target : undefined, at: time + i * .16 })
     } else if (move.kind === 'pierce') {
       const direction = actor.direction
       actor.knockback = -direction * move.recoil
       actor.exhaustedUntil = time + move.recovery
       actor.dashUntil = 0
-      effects.push({ kind: 'pierce', visual: move.visual, x: actor.x, direction, at: time, expires: time + .68 })
+      effects.push({ kind: 'pierce', type: move.type, visual: move.visual, x: actor.x, direction, reach: move.reach, at: time, expires: time + .68 })
       const enemies = actors.filter(enemy => rivals(actor, enemy) && enemy.hp > 0 &&
         (enemy.x - actor.x) * direction >= -24 && Math.abs(enemy.x - actor.x) <= move.reach + extraReach(enemy))
       for (const enemy of areaTargets(actor, enemies, actor.x)) hit(actor, enemy, move, direction)
@@ -1229,7 +1258,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   }
 
   function launch(actor, move, direction) {
-    projectiles.push({ actor, move, x: actor.x, origin: actor.x, direction, end: time + move.reach / 720, evaded: new Set() })
+    projectiles.push({ actor, move, x: actor.x, origin: actor.x, direction, at: time, end: time + move.reach / 720, evaded: new Set() })
     effects.push({ kind: 'muzzle', type: move.type, x: actor.x, direction, at: time, expires: time + .16 })
   }
 
@@ -1739,6 +1768,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   return {
     actors, projectiles, effects, knockouts,
     aromaRange: actor => actor.abilities.has('aroma-fetido') ? abilityRules.aromaRange : 0,
+    hasTeamBoost: actor => teamBoosts.get(viewerTeamOf(actor))?.until > time,
     get time() { return time },
     raid,
     get remaining() { return Math.max(0, roundEnd - time) },
@@ -1818,7 +1848,10 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       for (let i = queuedShots.length - 1; i >= 0; i--) {
         const shot = queuedShots[i]
         if (shot.at > time) continue
-        if (shot.actor.hp > 0) launch(shot.actor, shot.move, shot.direction)
+        if (shot.actor.hp > 0) {
+          const direction = shot.target?.hp > 0 ? Math.sign(shot.target.x - shot.actor.x) || shot.direction : shot.direction
+          launch(shot.actor, shot.move, direction)
+        }
         queuedShots.splice(i, 1)
       }
       const destroyed = new Set()

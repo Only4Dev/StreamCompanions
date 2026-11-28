@@ -23,6 +23,7 @@
     "ultimateReceivedFraction": 14
   },
   "stages": { "perStage": 0.08, "max": 6 },
+  "raidAttackPpMultiplier": 3,
   "abilities": {
     "angerPointStages": 2,
     "truantRecovery": 1,

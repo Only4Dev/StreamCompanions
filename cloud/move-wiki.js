@@ -1,4 +1,4 @@
-import { activeLearnsets, moveBaseReach, moveCooldown, moveDamageClass, moveElement, movePp, moves } from '../dev/battle.js'
+import { activeLearnsets, battleMovePp, moveBaseReach, moveCooldown, moveDamageClass, moveElement, movePp, moves } from '../dev/battle.js'
 import combatBalance from '../ui/combat-balance.json' with { type: 'json' }
 
 const languagePair = {
@@ -59,6 +59,9 @@ export function renderMovesWiki(url, language, escape) {
       const stat = (es, english, value) => stats.push('<div><dt>' + l(es, english) + '</dt><dd>' + escape(String(value)) + '</dd></div>')
       stat('Potencia base (BP)', 'Base power (BP)', move.power + (move.count ? ' × ' + move.count : ''))
       if (!move.struggle) stat('PP', 'PP', movePp(move))
+      if (!move.struggle && battleMovePp(move, true, false) !== movePp(move)) {
+        stat('PP del jugador en incursión', 'Player raid PP', battleMovePp(move, true, false))
+      }
       if (!move.ultimate) stat('Recarga', 'Cooldown', seconds(moveCooldown(move)))
       else stat('Activación', 'Activation', l('Medidor de carga', 'Charge meter'))
       if (moveBaseReach(move) > 0) stat('Alcance', 'Range', number.format(moveBaseReach(move)))

@@ -205,7 +205,9 @@ if (!manifest && app.isPackaged) {
 manifest ??= { species: creatures.map(name => ({ name, normal: null, shiny: null })) }
 const catalogVersion = createHash('sha256').update(JSON.stringify(manifest.species))
   .update(await readFile(new URL('../ui/ui.js', import.meta.url)))
-  .update(await readFile(new URL('../ui/sprites.js', import.meta.url))).digest('hex').slice(0, 16)
+  .update(await readFile(new URL('../ui/sprites.js', import.meta.url)))
+  .update(await readFile(new URL('../ui/battle-fx.js', import.meta.url)))
+  .update(await readFile(new URL('../ui/battle-fx-gpu.js', import.meta.url))).digest('hex').slice(0, 16)
 let game
 let progress
 let checkpoint
@@ -842,11 +844,14 @@ function publicBattle(battle) {
   const ultimate = battle.ultimate
   return { over: battle.over, winner: battle.winner?.ownerName || battle.winner?.name,
     time: battle.time, raid: battle.raid, remaining: battle.remaining, field: battle.field, effects: battle.effects,
-    projectiles: battle.projectiles.map(({ x, origin, end, move, direction, actor }) => ({ x, origin, end, move: { type: move.type, effect: move.effect, visual: move.visual }, direction, actor: { types: actor.types } })),
+    projectiles: battle.projectiles.map(({ x, origin, at, end, move, direction, actor }) => ({ x, origin, at, end, move: { type: move.type, effect: move.effect, visual: move.visual }, direction, actor: { types: actor.types } })),
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
       return { name, ownerName, shiny, ulting: ultimate?.index === actor.index, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, bossHop: actor.boss && actor.dashUntil > battle.time ? Math.sin(Math.PI * Math.min(1, (actor.dashUntil - battle.time) / .24)) * 62 : 0, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying') || actor.abilities.has('levitate'), status: status?.kind,
         ultimateCharge: actor.hasUltimate && actor.ultimatePp > 0 ? actor.ultimateCharge : undefined,
+        motionSince: actor.motionSince, stages: actor.stages,
+        buffed: battle.hasTeamBoost(actor) || Object.values(boosts).some(until => until > battle.time),
+        slowed: actor.slowUntil > battle.time, intimidated: actor.intimidated,
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
         physicalBarrier: actor.teamShield?.hp > 0 && actor.teamShield.until > battle.time && actor.teamShield.kind !== 'special',
         specialBarrier: actor.teamShield?.hp > 0 && actor.teamShield.until > battle.time && actor.teamShield.kind !== 'physical',
@@ -1041,6 +1046,10 @@ const routes = new Map([
   ['/animation-preview.js', ['animation-preview.js', 'text/javascript']],
   ['/', ['index.html', 'text/html']],
   ['/sprites.js', ['sprites.js', 'text/javascript']],
+  ['/battle-fx.js', ['battle-fx.js', 'text/javascript']],
+  ['/battle-fx-gpu.js', ['battle-fx-gpu.js', 'text/javascript']],
+  ['/battle-render-r187.js', ['battle-render-r187.js', 'text/javascript']],
+  ['/battle-vfx-atlas.webp', ['battle-vfx-atlas.webp', 'image/webp']],
   ['/sfx/shiny.wav', ['sfx/shiny.wav', 'audio/wav']],
   ['/bot-copy.js', ['bot-copy.js', 'text/javascript']],
   ['/levels.js', ['levels.js', 'text/javascript']],
