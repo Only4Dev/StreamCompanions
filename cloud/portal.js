@@ -17,6 +17,8 @@ import { nationalDex } from './national-dex.js'
 import { kanto } from './kanto.js'
 import { baseStatsData, equippedMoves, moveCooldown, moveDamageClass, moveElement, movePp, moves } from '../dev/battle.js'
 import { renderMovesWiki } from './move-wiki.js'
+import { hatchAsset } from '../ui/hatch-assets.js'
+import { hatchDialog } from '../ui/hatch-ui.js'
 import { ancestralFragmentCost, tmLearn, tmOptions } from '../ui/tm.js'
 import { familyDnaCount, familyRoot, maxDnaBoosters, sharesRegionalBase } from '../ui/evolution.js'
 import { regionalSpecies } from '../ui/regional-species.js'
@@ -500,14 +502,6 @@ function submittingPurchase(en) {
   return '<span role="status" data-shop-submitting hidden>' + (en ? 'Sending order…' : 'Enviando pedido…') + '</span>'
 }
 
-function hatchDialog(en) {
-  return '<dialog class="egg-dialog" data-hatch aria-labelledby="egg-title" data-opening="' + (en ? 'The egg is hatching…' : '¡El huevo está eclosionando!') +
-    '" data-reveal="' + (en ? 'Your egg hatched!' : '¡Tu huevo eclosionó!') + '"><h2 id="egg-title"></h2>' +
-    '<p class="egg-rarity" data-hatch-rarity hidden></p><div class="egg-stage" aria-hidden="true"><div class="egg-aura"></div><div class="egg-rays"></div>' +
-    '<div class="egg-waves"><i></i><i></i></div><div class="egg-particles"></div><div class="egg-shell"><i></i><i></i><b></b></div><img width="112" height="112" alt=""></div>' +
-    '<p data-hatch-result aria-live="polite"></p><ol class="egg-summary" data-hatch-summary hidden></ol><form method="dialog"><button>' + (en ? 'Close' : 'Cerrar') + '</button></form></dialog>'
-}
-
 function pendingPurchase(en) {
   return ' data-order-pending aria-live="polite" data-waiting="' +
     (en ? 'Still waiting for the streamer’s app. Please wait.' : 'Seguimos esperando a la app del streamer. Espera un momento.') + '"'
@@ -516,6 +510,12 @@ function pendingPurchase(en) {
 const dexSearchText = value => value.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase()
 
 export async function portal(request, url, env) {
+  const asset = request.method === 'GET' && hatchAsset(url.pathname)
+  if (asset) return new Response(asset.source, { headers: {
+    'Content-Type': asset.type ?? 'text/javascript; charset=utf-8',
+    'Cache-Control': asset.immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
+    'X-Content-Type-Options': 'nosniff'
+  } })
   if (request.method === 'GET' && url.pathname === '/assets/dex-search.js') {
     return new Response(`
       const form = document.querySelector('[data-dex-search]');
@@ -586,77 +586,12 @@ export async function portal(request, url, env) {
       async function revealHatch(hatches) {
         if (!dialog || didHatch) return;
         didHatch = true;
-        const batch = Array.isArray(hatches) ? hatches : [hatches];
-        const en = document.documentElement.lang === 'en';
-        const title = dialog.querySelector('h2');
-        const result = dialog.querySelector('[data-hatch-result]');
-        const summary = dialog.querySelector('[data-hatch-summary]');
-        let stage = dialog.querySelector('.egg-stage');
-        const template = stage.cloneNode(true);
-        const tiers = {
-          common: { duration: 1450, particles: 7, names: ['Común', 'Common'] },
-          rare: { duration: 1950, particles: 17, names: ['Raro', 'Rare'] },
-          epic: { duration: 2320, particles: 25, names: ['Épico', 'Epic'] },
-          legendary: { duration: 2900, particles: 38, names: ['Legendario', 'Legendary'] }
-        };
-        const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const badge = dialog.querySelector('[data-hatch-rarity]');
-        const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-        const spriteUrl = id => 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' + id + '.png';
-        dialog.showModal();
-        for (const [position, hatch] of batch.entries()) {
-          const rarity = hatch.rarity === 'uncommon' ? 'rare' : Object.hasOwn(tiers, hatch.rarity) ? hatch.rarity : 'common';
-          const tier = tiers[rarity];
-          const suffix = batch.length > 1 ? ' · ' + (position + 1) + '/' + batch.length : '';
-          const name = hatch.name + (hatch.levelUp ? (en ? ' · +1 level' : ' · +1 nivel') : hatch.xp > 0 ? ' · +' + hatch.xp + ' XP' : '');
-          dialog.classList.remove('hatched');
-          dialog.dataset.rarity = rarity;
-          dialog.style.setProperty('--hatch-time', tier.duration + 'ms');
-          title.textContent = dialog.dataset.opening + suffix;
-          badge.hidden = true;
-          result.textContent = '';
-          const nextStage = template.cloneNode(true);
-          nextStage.querySelector('img').src = spriteUrl(hatch.id);
-          const particles = nextStage.querySelector('.egg-particles');
-          if (!reducedMotion) for (let index = 0; index < tier.particles; index++) {
-            const mote = document.createElement('i');
-            const angle = index * Math.PI * (3 - Math.sqrt(5));
-            const distance = 42 + index % 7 * 11 + (rarity === 'legendary' ? 27 : 0);
-            mote.style.setProperty('--x', Math.round(Math.cos(angle) * distance) + 'px');
-            mote.style.setProperty('--y', Math.round(Math.sin(angle) * distance * .78) + 'px');
-            mote.style.setProperty('--delay', index % 6 * 35 + 'ms');
-            mote.style.setProperty('--size', (3 + index % 4) + 'px');
-            particles.append(mote);
-          }
-          stage.replaceWith(nextStage);
-          stage = nextStage;
-          await wait(reducedMotion ? 0 : tier.duration);
-          if (!dialog.open) return;
-          dialog.classList.add('hatched');
-          title.textContent = dialog.dataset.reveal + suffix;
-          badge.textContent = tier.names[Number(en)];
-          badge.hidden = false;
-          result.textContent = name;
-          const item = document.createElement('li');
-          item.dataset.rarity = rarity;
-          const image = new Image(36, 36);
-          image.src = spriteUrl(hatch.id);
-          image.alt = '';
-          const label = document.createElement('strong');
-          label.textContent = name;
-          const tierLabel = document.createElement('small');
-          tierLabel.textContent = badge.textContent;
-          item.append(image, label, tierLabel);
-          summary.append(item);
-          await wait(1000);
-          if (!dialog.open) return;
+        try {
+          const { revealHatches } = await import('/assets/hatch-player.js');
+          await revealHatches(dialog, hatches);
+        } catch {
+          didHatch = false;
         }
-        delete dialog.dataset.rarity;
-        title.textContent = en ? 'Hatch summary' : 'Resumen de eclosión';
-        stage.remove();
-        badge.hidden = true;
-        result.hidden = true;
-        summary.hidden = false;
       }
       const receipt = document.querySelector('[data-order-pending], [data-order-receipt]');
       const wallet = document.querySelector('[data-shop-wallet]');
@@ -1660,7 +1595,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
           (product.ball ? ' data-shop-ball="' + product.ball + '"' : '') + (featured ? ' data-shop-feature' : '') + '>' +
           (product.ball ? '<span class="shop-count">' + (en ? 'In bag' : 'En la bolsa') + ' <strong data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</strong></span>' : '') + quantityInput + button + '</form>' + (featured ? '<small data-feature-upgrade' + (needsUpdate ? '' : ' hidden') + '>' + reasons.feature + '</small>' : '') + (id === 'master-ball' ? '<small data-shop-master-upgrade' + (available && needsUpdate ? '' : ' hidden') + '>' + escape(reasons.master) + '</small>' : '') +
           (available && !needsUpdate && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
-      }).join('') + '</ul>' + eggDialog + '</section><script src="/assets/shop-status.js?v=7" defer></script>'
+      }).join('') + '</ul>' + eggDialog + '</section><script src="/assets/shop-status.js?v=8" defer></script>'
   }
   const overviewLabel = language === 'en' ? 'Overview' : 'Resumen'
   const minutes = metrics.summonMinutes ?? 0

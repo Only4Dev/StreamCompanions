@@ -25,6 +25,7 @@
     <button type="button" data-view="data" data-copy="dataTab"></button>
     <button type="button" data-view="game" data-copy="config"></button>
     <button type="button" data-view="obs" data-copy="sourcesTab"></button>
+    <button type="button" data-view="animations" data-copy="animationTab"></button>
     <button type="button" data-view="bot" data-copy="botTab"></button>
     <button type="button" data-view="capture" data-copy="captureTab"></button>
     <button type="button" data-view="shop" data-copy="shopTab"></button>
@@ -211,6 +212,29 @@
     <button data-copy="send"></button>
   </form><button type="button" id="demo-master" data-copy="demoMaster" hidden></button><p id="notice" role="status"></p><pre id="inventory"></pre></section>
   <div id="battle-preview-mount"></div>
+  </div>
+  <div data-pane="animations" hidden>
+    <section><h2 data-copy="attackAnimationTitle"></h2>
+      <form id="attack-animation-form" class="settings-grid">
+        <label><span data-copy="animationMove"></span><select name="move" required></select></label>
+        <label><span data-copy="animationAttacker"></span><select name="attacker" required></select></label>
+        <label><span data-copy="animationTarget"></span><select name="target" required></select></label>
+        <button data-copy="animationPlay"></button>
+      </form>
+      <p id="attack-animation-status" role="status"></p>
+      <div id="attack-animation-stage"></div>
+    </section>
+    <section><h2 data-copy="eggAnimationTitle"></h2>
+      <form id="egg-animation-form" class="settings-grid">
+        <label><span data-copy="animationRarity"></span><select name="rarity">
+          <option value="common" data-copy="animationCommon"></option><option value="rare" data-copy="animationRare"></option>
+          <option value="epic" data-copy="animationEpic"></option><option value="legendary" data-copy="animationLegendary"></option>
+          <option value="batch" data-copy="animationBatch"></option>
+        </select></label>
+        <button data-copy="animationPlay"></button>
+      </form>
+      <p id="egg-animation-status" role="status"></p><div id="egg-animation-stage"></div>
+    </section>
   </div>
 </main>
 <canvas id="overlay" hidden></canvas>

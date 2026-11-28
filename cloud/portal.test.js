@@ -7,6 +7,22 @@ import { regionalSpecies } from '../ui/regional-species.js'
 import { portal } from './portal.js'
 import { moveBaseReach, moves } from '../dev/battle.js'
 
+test('egg previews share the player and serve a cacheable Three.js browser bundle', async () => {
+  for (const [path, marker] of [['/assets/hatch-player.js', 'revealHatches'], ['/assets/hatch-space.js', 'playHatchSpace']]) {
+    const url = new URL('https://example.test' + path)
+    const response = await portal(new Request(url), url, {})
+    const source = await response.text()
+    assert.equal(response.status, 200)
+    assert.match(response.headers.get('Content-Type'), /javascript/)
+    const module = await import('data:text/javascript,' + encodeURIComponent(source))
+    assert.equal(typeof module[marker], 'function')
+  }
+  const url = new URL('https://example.test/assets/three-hatch-r187.js')
+  const response = await portal(new Request(url), url, {})
+  assert.match(response.headers.get('Cache-Control'), /immutable/)
+  assert.match(await response.text(), /WebGLRenderer/)
+})
+
 test('the public move wiki filters by type and category and reports actual engine range', async () => {
   const url = new URL('https://example.test/wiki/movimientos?tipo=dark&categoria=special&q=darkpulse')
   const response = await portal(new Request(url), url, {})

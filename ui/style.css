@@ -88,3 +88,4 @@ body:has(#overlay:not([hidden])) { overflow: hidden; }
 .event-actions #legendary-event{margin-top:12px;padding-top:12px;border-top:1px solid #45606a}
 .data-files>p{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 0;margin:0;border-bottom:1px solid #45606a}
 .data-files>p a{margin-right:auto;overflow-wrap:anywhere}
+#attack-animation-stage iframe{display:block;width:100%;aspect-ratio:1920 / 550;border:1px solid #45606a;border-radius:10px;background:#121c2a}

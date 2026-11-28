@@ -144,10 +144,26 @@ function renderActivity(id, entries) {
   }))
 }
 
+Object.assign(labels.es, { animationTab: 'Animaciones', attackAnimationTitle: 'Probar efectos de ataques', eggAnimationTitle: 'Probar eclosión de huevos',
+  animationMove: 'Movimiento', animationAttacker: 'Atacante', animationTarget: 'Objetivo', animationPlay: 'Reproducir',
+  animationRarity: 'Rareza', animationCommon: 'Común', animationRare: 'Raro', animationEpic: 'Épico', animationLegendary: 'Legendario', animationBatch: 'Lote mixto' })
+Object.assign(labels.en, { animationTab: 'Animations', attackAnimationTitle: 'Preview attack effects', eggAnimationTitle: 'Preview egg hatches',
+  animationMove: 'Move', animationAttacker: 'Attacker', animationTarget: 'Target', animationPlay: 'Play',
+  animationRarity: 'Rarity', animationCommon: 'Common', animationRare: 'Rare', animationEpic: 'Epic', animationLegendary: 'Legendary', animationBatch: 'Mixed batch' })
+let animationPreview
+let animationLoading
 function showPane(name) {
   for (const pane of document.querySelectorAll('[data-pane]')) pane.hidden = pane.dataset.pane !== name
   for (const button of document.querySelectorAll('[data-view]')) {
     button.setAttribute('aria-pressed', String(button.dataset.view === name))
+  }
+  if (name !== 'animations') animationPreview?.stop()
+  else {
+    animationLoading ??= import('/animation-preview.js').then(({ mountAnimationPreview }) => {
+      animationPreview = mountAnimationPreview({ language: () => $('language').value })
+      return animationPreview
+    }).catch(() => { animationLoading = undefined })
+    void animationLoading.then(preview => preview?.prepare())
   }
 }
 
@@ -320,8 +336,10 @@ function connectionMessage(message) {
 }
 
 async function refresh() {
-  const previewMode = new URLSearchParams(location.search).get('preview')
-  const response = await fetch(panel ? '/state' : '/state?overlay=' + location.pathname.slice(1) + (previewMode ? '&preview=' + encodeURIComponent(previewMode) : ''))
+  const source = new URLSearchParams(location.search)
+  const params = new URLSearchParams({ overlay: location.pathname.slice(1) })
+  for (const key of ['preview', 'move', 'attacker', 'target', 'run']) if (source.has(key)) params.set(key, source.get(key))
+  const response = await fetch(panel ? '/state' : '/state?' + params)
   state = await response.json()
   if (!panel && state.catalogVersion && state.catalogVersion !== catalogVersion) {
     location.reload()

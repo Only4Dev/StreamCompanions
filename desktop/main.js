@@ -1,5 +1,6 @@
 import { parseTrainingCommand } from '../ui/training.js'
 import { learnedTmMoves, parseTmCommand } from '../ui/tm.js'
+import { hatchAsset } from '../ui/hatch-assets.js'
 import { app, BrowserWindow, dialog, safeStorage, session, shell } from 'electron'
 import { createHash, randomBytes } from 'node:crypto'
 import { dirname, join } from 'node:path'
@@ -66,6 +67,7 @@ const raidDifficulties = { easy: ['Fácil', 'Easy'], medium: ['Media', 'Medium']
 let communityBattle
 let lastTeamWinner
 let previewBattle
+const attackPreviews = new Map()
 let battleTimer
 let lastBattleEncounter = 0
 let battleDueAt = 0
@@ -757,6 +759,56 @@ function makeRaidBoss(boss) {
     bossForm: art.battleForms?.gigantamax ? 'gigantamax' : null, bossScale: game.config.raidSizePercent / 100 }
 }
 
+function previewEntry(id, team, ownerName) {
+  const name = manifest.species.find(item => Number(item.id) === id)?.name
+  if (!name || !battleStats(id)) return null
+  return { ...simEntry(id, 45, 0), name, team, ownerName }
+}
+
+function stepOverlayPreview(preview, now, limit = Infinity) {
+  const elapsed = Math.min(.25, Math.max(0, (now - preview.last) / 1000))
+  preview.last = now
+  preview.accumulator = (preview.accumulator ?? 0) + elapsed
+  while (!preview.battle.over && preview.battle.time < limit && preview.accumulator >= 1 / 60) {
+    preview.battle.step(1 / 60)
+    preview.accumulator -= 1 / 60
+  }
+  if (preview.battle.over) preview.finished ??= now
+  return publicBattle(preview.battle)
+}
+
+function previewAttack(params, now) {
+  const run = params.get('run') ?? ''
+  const id = params.get('move') ?? ''
+  if (!/^[a-f0-9-]{36}$/.test(run) || !Object.hasOwn(battleRules.moves, id)) return
+  let demo = attackPreviews.get(run)
+  if (!demo) {
+    const attacker = previewEntry(Number(params.get('attacker')) || 6, 'demo-team', 'A')
+    const target = previewEntry(Number(params.get('target')) || 9, 'demo-rivals', 'B')
+    if (!attacker || !target) return
+    const move = battleRules.moves[id]
+    const entries = [attacker, target]
+    if (move.tags?.includes('support')) entries.push(previewEntry(25, 'demo-team', 'A'), previewEntry(35, 'demo-team', 'A'))
+    const battle = battleRules.createBattle(entries.filter(Boolean), { auto: false })
+    const [source, rival, ...allies] = battle.actors
+    source.x = 790
+    rival.x = 790 + Math.min(235, Math.max(50, Math.floor((battleRules.moveBaseReach(move) ?? 260) * .75)))
+    allies.forEach((ally, index) => {
+      ally.x = 700 - index * 62
+      ally.hp = move.reviveAlly && index === 0 ? 0 : Math.round(ally.maxHp * .43)
+      if (!ally.hp) ally.faintedAt = 0
+      if (move.teamCleanse) ally.status = { kind: 'poison', ends: 10, tick: 2, severity: 0 }
+    })
+    if (move.heal) source.hp = Math.round(source.maxHp * .15)
+    if (move.needsSleep) rival.status = { kind: 'sleep', ends: 10 }
+    battle.manual(0, id)
+    demo = { battle, last: now }
+    if (attackPreviews.size >= 8) attackPreviews.delete(attackPreviews.keys().next().value)
+    attackPreviews.set(run, demo)
+  }
+  return stepOverlayPreview(demo, now, 12)
+}
+
 function launchBattlePreview(mode, species) {
   if (!['raid', 'team'].includes(mode)) return 400
   if (battleStarting || communityBattle && !communityBattle.battle.over) return 409
@@ -981,6 +1033,7 @@ function tickBattleSchedule() {
 
 const feedSpecies = new Map(manifest.species.map(entry => [entry.name, entry]))
 const routes = new Map([
+  ['/animation-preview.js', ['animation-preview.js', 'text/javascript']],
   ['/', ['index.html', 'text/html']],
   ['/sprites.js', ['sprites.js', 'text/javascript']],
   ['/sfx/shiny.wav', ['sfx/shiny.wav', 'audio/wav']],
@@ -1021,6 +1074,20 @@ const server = createServer(async (req, res) => {
   try {
     if (req.headers.host !== new URL(localOrigin).host) { res.writeHead(403).end(); return }
     const { pathname, searchParams } = new URL(req.url, 'http://localhost')
+    const asset = req.method === 'GET' && hatchAsset(pathname)
+    if (asset) {
+      res.writeHead(200, { 'Content-Type': asset.type ?? 'text/javascript; charset=utf-8',
+        'Cache-Control': asset.immutable ? 'public, max-age=31536000, immutable' : 'no-cache', 'X-Content-Type-Options': 'nosniff' })
+      res.end(asset.source)
+      return
+    }
+    if (req.method === 'GET' && pathname === '/animation-preview/options') {
+      if (!hasLocalControl(req)) return res.writeHead(403).end()
+      const moves = Object.entries(battleRules.moves).map(([id, move]) => ({ id, name: move.name, type: battleRules.moveElement(move) }))
+      const species = manifest.species.filter(item => battleStats(Number(item.id))).map(({ id, name }) => ({ id: Number(id), name }))
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      return res.end(JSON.stringify({ moves, species }))
+    }
     if (req.method === 'GET' && pathname === '/dev/community-battle' && battleRules) {
       if (!hasLocalControl(req)) { res.writeHead(403).end(); return }
       const data = communityBattle?.battle
@@ -1092,10 +1159,13 @@ const server = createServer(async (req, res) => {
           twitchConnected: twitchAllowed() && Boolean(disconnectTwitch?.connected()), kickConnected: Boolean(kickConnected), battleLab: !app.isPackaged, canInstallUpdate: app.isPackaged && process.platform === 'win32', activityLog, localChat, botTestStatus, canReset: syncDevice?.url === publicPortal, resettingCommunity: Boolean(pendingReset), raidBosses: raidBosses.bosses.map(boss => ({ ...boss, name: manifest.species.find(item => Number(item.id) === boss.species)?.name ?? boss.name })), live: setup.platform !== 'demo' }
       if (overlay === 'encounter' && state.encounter) state.encounter = { ...state.encounter,
         difficulty: game.encounterDifficulty(state.encounter.name, bot.language) }
-      if (overlay === 'companions' && ['summon', 'battle'].includes(searchParams.get('preview'))) {
+      if (overlay === 'companions' && searchParams.get('preview') === 'attack') {
+        state.viewers = {}
+        if (hasLocalControl(req)) state.battle = previewAttack(searchParams, Date.now())
+      } else if (overlay === 'companions' && ['summon', 'battle'].includes(searchParams.get('preview'))) {
         const demo = searchParams.get('preview')
         const samples = demo === 'battle'
-          ? [132, 774, 6].map(id => manifest.species.find(entry => Number(entry.id) === id)).filter(Boolean)
+          ? [6, 122, 149, 9, 94, 242].map(id => manifest.species.find(entry => Number(entry.id) === id)).filter(Boolean)
           : manifest.species.filter(entry => entry.normal && !evolutionParent(Number(entry.id))).slice(0, 3)
         state.viewers = Object.fromEntries(samples.map(({ name }, index) => [index, {
           displayName: 'Preview ' + (index + 1), active: { key: name, layer: index + 1, expires: Date.now() + 60_000 },
@@ -1104,18 +1174,12 @@ const server = createServer(async (req, res) => {
         if (demo === 'battle' && samples.length > 1) {
           const now = Date.now()
           if (!previewBattle || now - previewBattle.last > 5000 || previewBattle.finished && now - previewBattle.finished > 4000) {
-            const entries = samples.map(({name, id}, index) => {
-              const [, stats, types, final] = battleStats(Number(id))
-              return { id: Number(id), name, stats, types, final, level: 16, ownerName: 'Preview ' + (index + 1) }
-            })
-            previewBattle = { battle: battleRules.createBattle(entries), last: now }
+            const entries = samples.map(({id}, index) => previewEntry(Number(id), index < 3 ? 'a' : 'b', index < 3 ? 'A' : 'B')).filter(Boolean)
+            previewBattle = { battle: battleRules.createBattle(entries, {
+              hpMultiplier: game.config.battleHpMultiplier, spreadFocus: game.config.battleFocusSpread
+            }), last: now }
           }
-          const preview = previewBattle
-          const elapsed = Math.min(.25, Math.max(0, (now - preview.last) / 1000))
-          preview.last = now
-          if (elapsed) preview.battle.step(elapsed)
-          if (preview.battle.over) preview.finished ??= now
-          state.battle = publicBattle(preview.battle)
+          state.battle = stepOverlayPreview(previewBattle, now)
         }
       } else if (overlay === 'companions') {
         const roster = Object.values(state.viewers).map(({ active }) => ({ layer: active.layer, species: active.key }))
