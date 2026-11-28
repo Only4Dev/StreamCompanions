@@ -195,5 +195,6 @@ button.description-trigger[aria-expanded=true]{outline:2px solid var(--line);out
 @keyframes egg-particle{0%,64%{opacity:0;transform:rotate(45deg) scale(.15)}77%{opacity:1}to{opacity:.2;transform:translate(var(--x),var(--y)) rotate(145deg) scale(.78)}}
 @keyframes egg-reveal{0%{opacity:0;transform:translateY(11px) scale(.67)}69%{transform:translateY(-3px) scale(1.18)}to{opacity:1;transform:none}}
 @keyframes egg-after{from{opacity:calc(var(--aura)*.62);transform:scale(1.07)}to{opacity:calc(var(--aura)*.43);transform:scale(.97)}}
+.dex-search{margin-bottom:.75rem}.dex-search label{display:grid;gap:.35rem;max-width:32rem}.dex-search input{width:100%;box-sizing:border-box;padding:.55rem .7rem;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:.6rem}.dex-search-status:empty{display:none}
 @media(prefers-reduced-motion:reduce){.egg-dialog *{animation:none!important}.egg-dialog.hatched .egg-aura{opacity:calc(var(--aura)*.43)}.egg-dialog.hatched .egg-rays{opacity:calc(var(--beam)*.4)}}
 `

@@ -421,7 +421,7 @@ test('a cornered Alcremie relocates and raid allies separate without blocking da
 })
 
 test('the knockout feed keeps only the last three rival defeats with the responsible fighter', () => {
-  const battle = createBattle([{ ...example(9, 45), team: 'boss', boss: true, bossMoves: ['raidshellslam'] },
+  const battle = createBattle([{ ...example(9, 45), team: 'attackers' },
     ...Array.from({ length: 4 }, () => ({ ...example(19), team: 'viewers' }))],
   { auto: false, raid: true, random: () => .5 })
   battle.actors[0].x = 700
@@ -429,9 +429,26 @@ test('the knockout feed keeps only the last three rival defeats with the respons
     actor.x = 760 + index * 35
     actor.hp = 1
   })
-  assert.ok(battle.manual(0, 'raidshellslam'))
+  assert.ok(battle.manual(0, 'surf'))
   run(battle, 1)
   assert.deepEqual(battle.knockouts.map(({ killer, target }) => [killer, target]), [[0, 2], [0, 3], [0, 4]])
+})
+
+test('boss areas, geysers and multihit ultimates damage at most three distinct opponents per cast', () => {
+  for (const [move, positions, duration] of [
+    ['raidshellslam', [690, 730, 770, 810, 850], 1],
+    ['raidgeysers', [700, 790, 920, 1050, 1180], 3],
+    ['ultimate-water', [690, 730, 770, 810, 850], 4]
+  ]) {
+    const battle = createBattle([{ ...example(9, 45), team: 'boss', boss: true, bossMoves: [move] },
+      ...positions.map(() => ({ ...example(19, 100), team: 'party' }))],
+    { auto: false, raid: true, random: () => .5 })
+    battle.actors[0].x = 600
+    positions.forEach((x, i) => { battle.actors[i + 1].x = x })
+    assert.ok(battle.manual(0, move), move)
+    run(battle, duration)
+    assert.equal(battle.actors.slice(1).filter(actor => actor.hp < actor.maxHp).length, 3, move)
+  }
 })
 
 test('level increases stats, and the HP colors change at the intended thresholds', () => {

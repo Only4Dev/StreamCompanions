@@ -127,6 +127,14 @@ test('the portal uses the authenticated viewer and escapes synced display names'
   assert.match(html, /&lt;Viewer&gt;/)
   assert.match(html, /Weedle.*Lv\. 2/)
   assert.equal((html.match(/class="slot /g) ?? []).length, 151)
+  assert.match(html, /Buscar en todas las regiones/)
+  for (const [query, match] of [['greav', 'Greavard'], ['alolan exegg', 'Exeggutor'], ['#1000', 'Gholdengo']]) {
+    const searchUrl = new URL(url)
+    searchUrl.searchParams.set('q', query)
+    const filtered = await (await portal(new Request(searchUrl, { headers: { Cookie: 'sc_session=' + 'a'.repeat(64) } }), searchUrl, { DB: db })).text()
+    assert.match(filtered, new RegExp('<strong>' + match + '</strong>'))
+    assert.equal((filtered.match(/class="slot /g) ?? []).length, 1)
+  }
   assert.ok(html.indexOf('class="dex-number">#001') < html.indexOf('class="dex-number">#151'))
   assert.match(html, /class="slot locked"/)
   assert.match(html, /class="slot owned"/)

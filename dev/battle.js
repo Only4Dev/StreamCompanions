@@ -624,6 +624,12 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   const teams = entries.some(entry => entry.team != null)
   const teamOf = actor => actor.team ?? actor.index
   function rivals(a, b) { return a !== b && teamOf(a) !== teamOf(b) }
+  const bossAreaLimit = 3
+  function areaTargets(actor, candidates, center) {
+    if (!actor.boss) return candidates
+    return candidates.sort((a, b) => Number(b.index === actor.focusIndex) - Number(a.index === actor.focusIndex) ||
+      Math.abs(a.x - center) - Math.abs(b.x - center)).slice(0, bossAreaLimit)
+  }
   function canReceiveStatus(actor, kind) {
     return Boolean(kind && (!actor.boss || ['poison', 'burn'].includes(kind)) &&
       !actors.some(ally => ally.hp > 0 && teamOf(ally) === teamOf(actor) && ally.abilities.has('team-safeguard')))
@@ -1027,9 +1033,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       actor.exhaustedUntil = time + move.recovery
       actor.dashUntil = 0
       effects.push({ kind: 'pierce', visual: move.visual, x: actor.x, direction, at: time, expires: time + .68 })
-      for (const enemy of actors) {
-        if (rivals(actor, enemy) && enemy.hp > 0 && (enemy.x - actor.x) * direction >= -24) hit(actor, enemy, move, direction)
-      }
+      const enemies = actors.filter(enemy => rivals(actor, enemy) && enemy.hp > 0 && (enemy.x - actor.x) * direction >= -24)
+      for (const enemy of areaTargets(actor, enemies, actor.x)) hit(actor, enemy, move, direction)
     } else if (move.kind === 'target') {
       const target = cast.target.hp > 0 ? cast.target : actor.boss ? closest(actor) : undefined
       if (target?.hp > 0 && (actor.boss || cast.moveId === 'lightning' && field?.kind === 'rain' || Math.abs(target.x - actor.x) <= move.reach + 40 + extraReach(target))) {
@@ -1069,10 +1074,9 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     } else if (move.kind === 'area') {
       const center = actor.boss && cast.target?.hp > 0 ? cast.target.x : origin
       effects.push({ kind: 'area', type: move.type, visual: move.visual, x: center, reach: move.reach, at: time, expires: time + (move.visual === 'quake' ? 1.05 : .45) })
-      for (const enemy of actors) {
-        if (rivals(actor, enemy) && enemy.hp > 0 && Math.abs(enemy.x - center) <= move.reach + extraReach(enemy)) {
-          hit(actor, enemy, move, Math.sign(enemy.x - center) || actor.direction)
-        }
+      const enemies = actors.filter(enemy => rivals(actor, enemy) && enemy.hp > 0 && Math.abs(enemy.x - center) <= move.reach + extraReach(enemy))
+      for (const enemy of areaTargets(actor, enemies, center)) {
+        hit(actor, enemy, move, Math.sign(enemy.x - center) || actor.direction)
       }
     }
   }
@@ -1081,15 +1085,17 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     projectiles.push({ actor, move, x: actor.x, origin: actor.x, direction, end: time + move.reach / 720 })
   }
 
-  function placeSpikes(actor, x, seconds, kind = 'poison') {
-    hazards.push({ kind, x, owner: actor.index, expires: time + seconds, affected: new Set() })
+  function placeSpikes(actor, x, seconds, kind = 'poison', allowedTargets) {
+    hazards.push({ kind, x, owner: actor.index, expires: time + seconds, affected: new Set(), allowedTargets })
     effects.push({ kind: 'hazard', visual: kind, x, at: time, expires: time + seconds })
   }
 
   function stepOnSpikes(actor) {
     for (const hazard of hazards) {
-      if (hazard.expires <= time || !rivals(actors[hazard.owner], actor) || Math.abs(actor.x - hazard.x) > 85 ||
-          hazard.affected.has(actor.index)) continue
+      const owner = actors[hazard.owner]
+      if (hazard.expires <= time || !rivals(owner, actor) || Math.abs(actor.x - hazard.x) > 85 ||
+          (owner.boss && hazard.kind === 'poison' && hazard.affected.size >= bossAreaLimit) ||
+          hazard.affected.has(actor.index) || (hazard.allowedTargets && !hazard.allowedTargets.has(actor.index))) continue
       hazard.affected.add(actor.index)
       if (hazard.kind === 'web') {
         if (!actor.boss && !actor.types.includes('flying')) {
@@ -1115,7 +1121,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       const { target, x } = scene.landing
       if (target.hp > 0) hit(scene.actor, target, { ...scene.move, effect: 'poison', chance: .75, push: 340 },
         Math.sign(x - scene.anchor) || scene.direction)
-      placeSpikes(scene.actor, x, 6)
+      placeSpikes(scene.actor, x, 6, 'poison', scene.actor.boss ? scene.targets : undefined)
       scene.anchor = x
       scene.landing = null
     }
@@ -1124,7 +1130,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       return
     }
     const from = scene.anchor ?? scene.origin
-  const target = actors.filter(actor => rivals(scene.actor, actor) && actor.hp > 0 && !scene.targets.has(actor.index) &&
+    const target = scene.actor.boss && scene.targets.size >= bossAreaLimit ? undefined :
+      actors.filter(actor => rivals(scene.actor, actor) && actor.hp > 0 && !scene.targets.has(actor.index) &&
     effectiveness(scene.actor, actor, scene.move) > 0)
       .sort((a, b) => Math.abs(a.x - from) - Math.abs(b.x - from))[0]
     const duration = target ? .34 : .42
@@ -1166,7 +1173,12 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       return
     }
 
-    const enemies = actors.filter(enemy => rivals(actor, enemy) && enemy.hp > 0 && effectiveness(actor, enemy, move) > 0)
+    const eligible = actors.filter(enemy => rivals(actor, enemy) && enemy.hp > 0 && effectiveness(actor, enemy, move) > 0)
+    if (actor.boss && !scene.areaTargets) {
+      const inRange = move.visual === 'beam' ? eligible.filter(enemy => (enemy.x - origin) * direction >= -24) : eligible
+      scene.areaTargets = new Set(areaTargets(actor, inRange, scene.target?.x ?? origin).map(enemy => enemy.index))
+    }
+    const enemies = scene.areaTargets ? eligible.filter(enemy => scene.areaTargets.has(enemy.index)) : eligible
     const pulse = scene.pulse++
     const positions = enemies.map(enemy => enemy.x)
     let targets = enemies
@@ -1568,6 +1580,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         const wave = geysers[index]
         if (wave.at > time) continue
         if (wave.actor.hp) for (const target of actors) {
+          if (wave.actor.boss && wave.struck.size >= bossAreaLimit) break
           if (!target.hp || !rivals(wave.actor, target) || !wave.actor.boss && target.dashUntil > time || wave.struck.has(target.index) || Math.abs(target.x - wave.x) > 76) continue
           wave.struck.add(target.index)
           hit(wave.actor, target, wave.move, Math.sign(target.x - wave.x) || wave.actor.direction)

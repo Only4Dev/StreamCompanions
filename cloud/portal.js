@@ -509,7 +509,40 @@ function pendingPurchase(en) {
     (en ? 'Still waiting for the streamer’s app. Please wait.' : 'Seguimos esperando a la app del streamer. Espera un momento.') + '"'
 }
 
+const dexSearchText = value => value.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase()
+
 export async function portal(request, url, env) {
+  if (request.method === 'GET' && url.pathname === '/assets/dex-search.js') {
+    return new Response(`
+      const form = document.querySelector('[data-dex-search]');
+      const grid = document.querySelector('[data-dex-community]');
+      const feedback = document.querySelector('[data-dex-search-status]');
+      let timer, controller;
+      async function update() {
+        const request = new AbortController();
+        controller = request;
+        const url = new URL(location.href);
+        url.search = new URLSearchParams(new FormData(form)).toString();
+        try {
+          const response = await fetch(url, { signal: request.signal });
+          if (!response.ok) throw Error();
+          const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+          if (request.signal.aborted) return;
+          grid.replaceChildren(...page.querySelector('[data-dex-community]').children);
+          feedback.textContent = page.querySelector('[data-dex-search-status]').textContent;
+        } catch {
+          if (!request.signal.aborted) feedback.textContent = feedback.dataset.error;
+        }
+      }
+      function schedule() {
+        controller?.abort();
+        clearTimeout(timer);
+        timer = setTimeout(update, 180);
+      }
+      form.elements.q.addEventListener('input', schedule);
+      form.addEventListener('submit', event => { event.preventDefault(); schedule(); });
+    `, { headers: { 'Content-Type': 'text/javascript; charset=utf-8' } })
+  }
   if (request.method === 'GET' && url.pathname === '/assets/dex-new.js') {
     return new Response(`function dismiss(event) {
       const card = event.target.closest('[data-dex-new]');
@@ -1692,19 +1725,28 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     for (const row of seenRows.results) seen.set(row.species_id, row.seen_at)
     for (const row of eggs.results) eggAcquired.set(row.dex, row.acquired)
   }
-  const regionSpecies = [...nationalDex.slice(region[2] - 1, region[3]), ...dexEntries.slice(nationalDex.length)
-    .filter(([id, formRegion]) => !sharesRegionalBase(id) && (region[0] === 'all' || formRegion === region[0]))]
+  const dexQuery = (url.searchParams.get('q') ?? '').trim().slice(0, 80)
+  const terms = dexSearchText(dexQuery).split(/\s+/).filter(Boolean)
+  const regionSpecies = [...nationalDex.slice(terms.length ? 0 : region[2] - 1, terms.length ? nationalDex.length : region[3]), ...dexEntries.slice(nationalDex.length)
+    .filter(([id, formRegion]) => !sharesRegionalBase(id) && (terms.length || region[0] === 'all' || formRegion === region[0]))]
   const borders = tab === 'dex' ? '<style>' + [...new Set(regionSpecies.map(([dex]) => familyRoot(dex)))].map(root =>
     '.dex-grid:has([data-family="' + root + '"]:is(:hover,:focus-within)) [data-family="' + root + '"]{outline:2px solid #6664ac;outline-offset:1px}'
   ).join('') + '</style>' : ''
+  let dexMatches = 0
   const slots = tab === 'dex' ? regionSpecies.map(([dex, , label]) => {
     const key = kanto[dex - 1] ?? label
     const normal = collection[key]
     const shiny = collection[key + ' ✦']
     const regionalForms = regionalSpecies.filter(form => form.baseId === dex && sharesRegionalBase(form.id))
+    if (terms.length) {
+      const number = regionalBase.get(dex) ?? dex
+      const text = dexSearchText([key, label, '#' + String(number).padStart(3, '0'), number, ...regionalForms.map(form => form.name)].join(' '))
+      if (!terms.every(term => text.includes(term))) return ''
+    }
     const owned = normal !== undefined || shiny !== undefined || regionalForms.some(form =>
       Object.hasOwn(collection, form.name) || Object.hasOwn(collection, form.name + ' ✦'))
     if (caughtOnly && !owned) return ''
+    dexMatches++
     const sprite = spriteBase + 'pokemon/' +
       (normal === undefined && shiny !== undefined ? 'shiny/' : '') + dex + '.png'
     const summaryLink = (species, label, className = '') =>
@@ -1769,10 +1811,17 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       }).join('') + '</div><button form="save-battle-team">' + (en ? 'Save team' : 'Guardar equipo') + '</button><script src="/assets/battle-team.js?v=2" defer></script></section>'
   }
   const nav = communityTabs(selected.community_id, language, tab, region[0])
+  const dexSearch = '<form class="dex-search" method="get" data-dex-search><input type="hidden" name="tab" value="dex">' +
+    '<input type="hidden" name="community" value="' + escape(selected.community_id) + '"><input type="hidden" name="region" value="' + escape(region[0]) + '">' +
+    (caughtOnly ? '<input type="hidden" name="caught" value="1">' : '') +
+    '<label>' + (en ? 'Search all regions' : 'Buscar en todas las regiones') + '<input type="search" name="q" maxlength="80" autocomplete="off" placeholder="' +
+    (en ? 'Name or Pokédex number' : 'Nombre o número de Pokédex') + '" value="' + escape(dexQuery) + '"></label></form>' +
+    '<p class="meta dex-search-status" data-dex-search-status role="status" data-error="' + (en ? 'Search unavailable' : 'No se pudo buscar') + '">' +
+    (terms.length ? dexMatches ? dexMatches + (en ? ' results' : ' resultados') : (en ? 'No matches' : 'Sin coincidencias') : '') + '</p>'
   return page('<div class="toolbar"><div><p class="meta">Viewer · ' + escape(displayName) + '</p><h1>' + t("Tu álbum") + '</h1></div>' +
     actions + '</div><p class="meta community-label">' + t('Comunidad · ') + escape(selected.community_name ?? selected.community_id) + '</p>' + nav +
     (tab === 'dex' ? borders + '<section class="sheet"><div class="dex-heading"><h2>Pokédex</h2><a class="button"' + (caughtOnly ? ' aria-current="true"' : '') + ' href="' + escape(href('dex', region[0], !caughtOnly)) + '">' +
-      (en ? 'Unlocked' : 'Desbloqueados') + '</a></div><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><ol class="dex-grid" data-dex-community="' + escape(selected.community_id) + '">' + slots + '</ol></section><script src="/assets/dex-new.js" defer></script>'
+      (en ? 'Unlocked' : 'Desbloqueados') + '</a></div>' + dexSearch + '<nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><ol class="dex-grid" data-dex-community="' + escape(selected.community_id) + '">' + slots + '</ol></section><script src="/assets/dex-new.js" defer></script><script type="module" src="/assets/dex-search.js"></script>'
       : tab === 'team' ? teamPage : tab === 'overview' ? overview : tab === 'shop' ? shopPage : inventoryPage) +
     '<div class="toolbar"><p class="meta">' + (updated ? t('Última sincronización · ') + escape(updated) + ' (Lima)' : t('Todavía no hay progreso sincronizado')) +
     '</p></div>')
