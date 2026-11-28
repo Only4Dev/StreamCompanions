@@ -431,10 +431,10 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         else if (effect.visual === 'hyper') drawHyper(context, effect, width, floor, battle.time)
         else if (effect.kind === 'clash') drawClash(context, effect.x, floor, battle.time - effect.at)
         else if (effect.kind === 'hazard') drawPoisonHazard(context, effect, floor, battle.time)
-        else if (effect.kind === 'target') drawTarget(context, effect, floor, battle.time)
+        else if (effect.kind === 'target') drawTarget(context, effect, floor - 38, battle.time)
         else if (effect.kind === 'area') drawArea(context, effect, floor, color, battle.time)
       }
-      if (!battle.over) for (const shot of battle.projectiles) drawProjectile(context, shot, floor - 12, battle.time)
+      if (!battle.over) for (const shot of battle.projectiles) drawProjectile(context, shot, floor - 40, battle.time)
       for (const [index, fighter] of state.battle.actors.entries()) {
         const hits = hitFeedback.get(index)
         if (!fighter.hp && !hits) continue
@@ -451,8 +451,10 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         let scale = 3 * zoom * (fighter.boss ? fighter.bossScale ?? 4 : 1)
         if (fighter.boss && clip) {
           const base = appearance.form === 'gigantamax' && battleClip(entry?.normal?.animations, 'Idle')
-          if (base) scale *= Math.min(1, Math.max(base.width, base.height) / Math.max(clip.width, clip.height))
-          scale *= Math.min(1, Math.max(80, y - 60) / (clip.height * spriteScale(clip, scale)))
+          const reference = battleClip(variant?.animations, 'Idle') ?? clip
+          if (base) scale *= Math.min(1, Math.max(base.width, base.height) / Math.max(reference.width, reference.height))
+          const tallest = Math.max(...Object.values(variant?.animations ?? { Idle: reference }).map(frame => frame.height * spriteScale(frame, scale)))
+          scale *= Math.min(1, Math.max(80, floor - 60) / tallest)
         }
         const top = Math.max(28, y - Math.max(38, (clip?.height ?? 0) * spriteScale(clip, scale)))
         if (fighter.hp && fighter.maneuver?.kind === 'dig') drawDigMound(context, x, y, battle.time)
@@ -489,7 +491,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         if (fighter.ongoing) drawOngoing(context, fighter.ongoing, x, y, battle.time)
         if (fighter.status) drawStatus(context, fighter.status, x, top - 55, battle.time, 26, 24)
         if (fighter.evasion || fighter.flinched) label(context, fighter.flinched ? '✦ ✦' : '≋', x + 32, top - 49, 20)
-        label(context, (fighter.ownerName ? fighter.ownerName + ' | ' : '') + (appearance.disguised ? appearance.name : fighter.name) + ' · Lv. ' + fighter.level, x, top - 14, 21)
+        label(context, (fighter.teamIndex ? '#T' + fighter.teamIndex + ' · ' : '') + (fighter.ownerName ? fighter.ownerName + ' | ' : '') + (appearance.disguised ? appearance.name : fighter.name) + ' · Lv. ' + fighter.level, x, top - 14, 21)
         const hp = fighter.hp / fighter.maxHp
         context.fillStyle = '#131b22'
         context.fillRect(x - 46, top - 8, 92, 9)

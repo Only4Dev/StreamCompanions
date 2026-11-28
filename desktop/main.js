@@ -779,12 +779,13 @@ function launchBattlePreview(mode, species) {
 }
 
 function publicBattle(battle) {
+  const teams = [...new Set(battle.actors.map(actor => actor.team).filter(Boolean))]
   return { over: battle.over, winner: battle.winner?.ownerName || battle.winner?.name,
     time: battle.time, raid: battle.raid, remaining: battle.remaining, field: battle.field, effects: battle.effects,
     projectiles: battle.projectiles.map(({ x, move, direction, actor }) => ({ x, move, direction, actor: { types: actor.types } })),
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
-      return { name, ownerName, shiny, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
+      return { name, ownerName, shiny, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
         evasion: boosts.evasion > battle.time, flinched: flinchUntil > battle.time }
     }) }

@@ -24,6 +24,15 @@ test('a team’s damaging weather cannot hurt its own side', () => {
   }
 })
 
+test('allies and raid bosses do not create movement barriers', () => {
+  const battle = createBattle([{...example(6),team:'party'},{...example(9),team:'party'},
+    {...example(149),team:'boss',boss:true}], {auto:false,raid:true})
+  const positions = [521, 534, 548]
+  battle.actors.forEach((actor,index)=>{actor.x=positions[index]})
+  battle.step(1/30)
+  assert.deepEqual(battle.actors.map(actor=>actor.x),positions)
+})
+
 test('team support heals allies and area attacks cannot hurt them', () => {
   const battle = createBattle([{ ...example(6), team: 'a', support: 'healpulse' }, { ...example(7), team: 'a' },
     { ...example(19), team: 'b' }], { auto:false, random: () => .5 })

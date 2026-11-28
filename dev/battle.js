@@ -844,7 +844,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     actor.lastMove = moveId
     actor.motionSince = time
     actor.motion = move.animation ?? (isRanged(move) ? 'Shoot' : move.kind === 'guard' ? 'Idle' :
-      move.kind === 'area' ? 'Special0' : 'Attack')
+      ['area', 'target'].includes(move.kind) ? 'Special0' : 'Attack')
     const quickClaw = actor.heldItem === 'quick-claw' && random() < .18
     actor.next = time + duration + clamp(1.4 - actor.speed / 140, .45, 1.2) * (quickClaw ? .5 : 1) / weatherSpeed(actor)
     actor.cooldowns[moveId] = time + duration + moveCooldown(move)
@@ -964,7 +964,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
           const x = bound(target.x - actor.direction * Math.min(135, Math.abs(target.x - actor.x) * .44))
           placeSpikes(actor, x, 8)
         } else {
-          effects.push({ kind: 'target', visual: move.visual, x: target.x, at: time, expires: time + .52 })
+          effects.push({ kind: 'target', visual: move.visual, type: move.type, origin: actor.x, x: target.x, at: time, expires: time + .52 })
           hit(actor, target, move, Math.sign(target.x - actor.x) || actor.direction)
         }
       }
@@ -1244,7 +1244,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       (actor.status?.kind === 'paralysis' ? .55 : 1) * (actor.slowUntil > time ? .65 : 1)
     let next = bound(actor.x + direction * speed * dt, actor)
     for (const other of actors) {
-      if (other === actor || !other.hp || other.dashUntil > time || (other.x - actor.x) * direction < 0) continue
+      if (actor.boss || other.boss || !rivals(actor, other) || !other.hp || other.dashUntil > time || (other.x - actor.x) * direction < 0) continue
       if (direction > 0) next = Math.min(next, Math.max(actor.x, other.x - bodySpacing(actor, other)))
       else next = Math.max(next, Math.min(actor.x, other.x + bodySpacing(actor, other)))
     }
@@ -1255,11 +1255,12 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   }
 
   function separateBodies() {
-    const solid = actors.filter(actor => actor.hp > 0 && !(actor.dashUntil > time)).sort((a, b) => a.x - b.x)
+    const solid = actors.filter(actor => !actor.boss && actor.hp > 0 && !(actor.dashUntil > time)).sort((a, b) => a.x - b.x)
     const anchored = actor => actor.cast?.move.channel && actor.cast.start + actor.cast.move.channel > time
     for (let i = 1; i < solid.length; i++) {
       const left = solid[i - 1]
       const right = solid[i]
+      if (!rivals(left, right)) continue
       const gap = bodySpacing(left, right)
       const overlap = gap - (right.x - left.x)
       if (overlap <= 0) continue
@@ -1268,7 +1269,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
     for (let i = solid.length - 2; i >= 0; i--) {
       const left = solid[i]
-      if (!anchored(left)) left.x = bound(Math.min(left.x, solid[i + 1].x - bodySpacing(left, solid[i + 1])), left)
+      if (rivals(left, solid[i + 1]) && !anchored(left)) left.x = bound(Math.min(left.x, solid[i + 1].x - bodySpacing(left, solid[i + 1])), left)
     }
   }
 

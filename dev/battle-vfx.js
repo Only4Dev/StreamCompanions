@@ -40,7 +40,9 @@ export function drawProjectile(ctx, shot, y, time) {
   const type = move.effect === 'sleep' ? 'sleep' : move.type
   ctx.save()
   ctx.translate(x, y)
-  ctx.scale(direction, 1)
+  ctx.scale(direction * 1.35, 1.35)
+  ctx.shadowColor = ({ fire:'#ff734b', water:'#55d8ff', psychic:'#ff8cf1', grass:'#8cff75', electric:'#ffe16e' })[type] ?? '#cacaff'
+  ctx.shadowBlur = 15
   ctx.lineCap = 'round'
   const silhouette = silhouettes[type]
   if (move.visual === 'dreepy') {
@@ -322,6 +324,19 @@ export function drawTarget(ctx, effect, y, time) {
         fire ? '#a477ff' : '#aff395', fire ? '#f2a2ff' : '#e7ffc3')
     }
   } else if (effect.visual === 'psychic') {
+    if (Number.isFinite(effect.origin)) {
+      const lift = Math.min(92, Math.abs(x - effect.origin) * .26)
+      ctx.shadowColor = '#ff5cec'
+      ctx.shadowBlur = 24
+      for (const [width, color] of [[15, '#d14ae2'], [5, '#fff1ff']]) {
+        ctx.lineWidth = width
+        ctx.strokeStyle = color
+        ctx.beginPath()
+        ctx.moveTo(effect.origin, y)
+        ctx.quadraticCurveTo((x + effect.origin) / 2, y - lift, x, y - 12)
+        ctx.stroke()
+      }
+    }
     for (let i = 0; i < 5; i++) {
       const t = age * 1.55 - i * .13
       if (t <= 0 || t >= 1) continue
