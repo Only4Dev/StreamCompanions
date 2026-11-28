@@ -1,5 +1,5 @@
 {
-  "notes": "Moves and ultimate are IDs from learnsets.json. Boss level follows the highest level or average in the participating team. The HP multiplier is calibrated for three Pokémon and scales with the size of the party.",
+  "notes": "Moves and ultimate are IDs from learnsets.json. Boss level follows the highest level or average in the participating team. The HP multiplier is calibrated for three Pokémon and scales with the size of the party. Boss ultimates recharge normally and have a 14-second reuse delay. Each moveset can contain up to seven regular moves.",
   "bosses": [
     {
       "species": 1,
@@ -11,8 +11,7 @@
         "giga",
         "leaf"
       ],
-      "ultimate": "ultimate-grass",
-      "ultimatePp": 4
+      "ultimate": "ultimate-grass"
     },
     {
       "species": 7,
@@ -24,8 +23,7 @@
         "aquatail",
         "rain"
       ],
-      "ultimate": "ultimate-water",
-      "ultimatePp": 4
+      "ultimate": "ultimate-water"
     },
     {
       "species": 25,
@@ -37,21 +35,20 @@
         "thunderpunch",
         "lightning"
       ],
-      "ultimate": "ultimate-electric",
-      "ultimatePp": 4
+      "ultimate": "ultimate-electric"
     },
     {
       "species": 9,
       "name": "Blastoise",
       "difficulty": "hard",
       "moves": [
+        "raidcannons",
+        "raidgeysers",
         "raidshellslam",
         "surf",
-        "hydro",
         "aquatail"
       ],
-      "ultimate": "ultimate-water",
-      "ultimatePp": 4
+      "ultimate": "ultimate-water"
     },
     {
       "species": 6,
@@ -64,8 +61,7 @@
         "fireblast",
         "dragonclaw"
       ],
-      "ultimate": "ultimate-fire",
-      "ultimatePp": 4
+      "ultimate": "ultimate-fire"
     },
     {
       "species": 149,
@@ -77,8 +73,7 @@
         "dragonclaw",
         "dragonpulse"
       ],
-      "ultimate": "ultimate-dragon",
-      "ultimatePp": 4
+      "ultimate": "ultimate-dragon"
     },
     {
       "species": 376,
@@ -90,8 +85,7 @@
         "meteor",
         "psychic"
       ],
-      "ultimate": "ultimate-steel",
-      "ultimatePp": 4
+      "ultimate": "ultimate-steel"
     },
     {
       "species": 869,
@@ -104,8 +98,7 @@
         "kiss",
         "psychic"
       ],
-      "ultimate": "ultimate-fairy",
-      "ultimatePp": 4
+      "ultimate": "ultimate-fairy"
     }
   ]
 }

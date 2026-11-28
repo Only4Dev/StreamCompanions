@@ -114,9 +114,13 @@ export const darkStyles = `
 .shop-grid .egg-shop-icon{width:75px;height:75px}
 .description-hint{display:grid;max-width:100%;min-width:0;justify-items:center}
 button.description-trigger{background:none;box-shadow:none;border:0;padding:0;color:inherit;display:inline-grid;justify-items:center}
-.description-slot{display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden;transition:grid-template-rows .18s ease,opacity .18s ease,visibility .18s;min-width:0}
+.training{margin:1rem 0;padding:.75rem;border:1px solid var(--line);border-radius:12px}.training-actions,.training li{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}.training ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));list-style:none;padding:0;gap:.35rem}.training button{padding:.25rem .55rem}
+.summary-abilities{display:flex;align-items:flex-start;flex-wrap:wrap;gap:.35rem .65rem;margin:.5rem 0}
+.summary-abilities .description-trigger{text-decoration:underline;text-decoration-style:dotted}
+.description-slot{display:block;max-height:0;overflow:hidden;opacity:0;visibility:hidden;transition:max-height .18s ease,opacity .18s ease,visibility .18s;min-width:0}
+@media(hover:hover){.description-trigger:hover+.description-slot{max-height:9rem;opacity:1;visibility:visible;transition-delay:2s}}
 .description-slot>span{overflow:hidden;font-size:.8rem;color:var(--muted);overflow-wrap:anywhere}
-.description-hint.is-visible>.description-slot{grid-template-rows:1fr;opacity:1;visibility:visible}
+.description-hint.is-visible>.description-slot{max-height:9rem;opacity:1;visibility:visible;transition-delay:0s}
 .bag-slot:has(.description-hint){grid-template-columns:minmax(40px,auto) 1fr auto}
 .held-choice{display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center}
 @media(prefers-reduced-motion:reduce){.description-slot{transition:none}}

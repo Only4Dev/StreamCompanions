@@ -23,7 +23,7 @@ export async function readBattleTeams(db, community, viewerIds) {
   return Object.fromEntries(results.map(({ viewer_id, slots }) => [viewer_id, JSON.parse(slots).map(({ pokemon }) => ({ pokemon }))]))
 }
 
-export function creatureMoves(speciesKey, xp, dna = 0) {
+export function creatureMoves(speciesKey, xp, dna = 0, training) {
   const id = idsByName.get(speciesKey.replace(/ ✦$/, ''))
   if (!id) return null
   const rank = level(xp)
@@ -35,7 +35,7 @@ export function creatureMoves(speciesKey, xp, dna = 0) {
     }
   }
   return {
-    id, form, rank, types, final, stats: battleStatsAtLevel(id, stats, rank, dna),
+    id, form, rank, types, final, stats: battleStatsAtLevel(id, stats, rank, dna, training),
     unlockedAt,
     options: moveOptions(form, types, final, rank).filter(key => !moves[key].ultimate),
     ultimates: ultimateOptions(types, rank)

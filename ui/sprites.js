@@ -371,6 +371,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
   const context = canvas.getContext('2d')
   const actors = new Map()
   const battlePositions = new Map()
+  const defeats = new Map()
+  let battleEndedAt
   const species = new Map(catalog.map(entry => [entry.name, entry]))
   let previous = 0
   let shownEncounter
@@ -417,17 +419,46 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
     if (state.battle && !state.battleStart) {
       const floor = height - 2
       const battle = state.battle
+      if (battle.over) battleEndedAt ??= time
+      else battleEndedAt = undefined
+      const feedbackTime = battle.time + (battleEndedAt === undefined ? 0 : (time - battleEndedAt) / 1000)
       actors.clear()
       if (battle.field && !battle.over) drawField(context, battle.field, width, height, floor, battle.time)
       const hitFeedback = new Map()
-      if (!battle.over) for (const effect of battle.effects) {
-        if (effect.expires <= battle.time) continue
+      for (const effect of battle.effects) {
+        if (effect.expires <= feedbackTime) continue
         if (effect.kind === 'hit' && effect.damage > 0 && Number.isInteger(effect.target)) {
           if (!hitFeedback.has(effect.target)) hitFeedback.set(effect.target, [])
           hitFeedback.get(effect.target).push(effect)
         }
+        if (battle.over) continue
         const color = effect.type === 'fire' ? '#ff8957' : effect.type === 'water' ? '#7bddff' : '#e1c8ff'
-        if (effect.kind === 'ultimate') drawUltimate(context, effect, width, floor, battle.time, color)
+        if (effect.kind === 'geyser') {
+          const age = battle.time - effect.at
+          context.save()
+          context.shadowColor = '#66eaff'
+          context.shadowBlur = 20
+          if (age < 0) {
+            context.strokeStyle = '#74e4ff'
+            context.lineWidth = 4
+            context.beginPath()
+            context.ellipse(effect.x, floor - 12, 47, 10, 0, 0, Math.PI * 2)
+            context.stroke()
+          } else {
+            const rise = Math.sin(Math.min(1, age / .55) * Math.PI)
+            const plume = context.createLinearGradient(0, floor - rise * 125 - 12, 0, floor - 12)
+            plume.addColorStop(0, '#e8fbff00')
+            plume.addColorStop(.25, '#e2fbff')
+            plume.addColorStop(1, '#147dda')
+            context.fillStyle = plume
+            for (const dx of [-18, 0, 18]) {
+              context.beginPath()
+              context.ellipse(effect.x + dx, floor - 16 - rise * 54, 24, 15 + rise * (58 - Math.abs(dx)), dx * .012, 0, Math.PI * 2)
+              context.fill()
+            }
+          }
+          context.restore()
+        } else if (effect.kind === 'ultimate') drawUltimate(context, effect, width, floor, battle.time, color)
         else if (effect.visual === 'hyper') drawHyper(context, effect, width, floor, battle.time)
         else if (effect.kind === 'clash') drawClash(context, effect.x, floor, battle.time - effect.at)
         else if (effect.kind === 'hazard') drawPoisonHazard(context, effect, floor, battle.time)
@@ -437,7 +468,10 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       if (!battle.over) for (const shot of battle.projectiles) drawProjectile(context, shot, floor - 40, battle.time)
       for (const [index, fighter] of state.battle.actors.entries()) {
         const hits = hitFeedback.get(index)
-        if (!fighter.hp && !hits) continue
+        if (fighter.hp) defeats.delete(index)
+        else if (!defeats.has(index)) defeats.set(index, time)
+        const faintAge = fighter.hp ? 0 : (time - defeats.get(index)) / 1000
+        if (!fighter.hp && !hits && faintAge > .65) continue
         const appearance = fighter.appearance ?? fighter
         const entry = species.get(appearance.name)
         const form = entry?.battleForms?.[appearance.form]
@@ -447,7 +481,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         const x = start + (fighter.x - start) * Math.min(1, elapsed * 13)
         battlePositions.set(index, x)
         const baseY = fighter.flying && !fighter.boss ? floor - 28 + Math.sin(time / 280 + index) * 5 : floor
-        const y = fighter.maneuver?.kind === 'fly' ? baseY - Math.sin(Math.PI * fighter.maneuver.phase) * 130 : baseY
+        const y = (fighter.maneuver?.kind === 'fly' ? baseY - Math.sin(Math.PI * fighter.maneuver.phase) * 130 : baseY) - (fighter.bossHop ?? 0)
         let scale = 3 * zoom * (fighter.boss ? fighter.bossScale ?? 4 : 1)
         if (fighter.boss && clip) {
           const base = appearance.form === 'gigantamax' && battleClip(entry?.normal?.animations, 'Idle')
@@ -478,16 +512,30 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           if (!clip) label(context, fighter.name[0], x, y, 25)
         }
         if (hits) hits.slice(-4).forEach((hit, slot) => {
-          const age = Math.max(0, battle.time - hit.at)
+          const age = Math.max(0, feedbackTime - hit.at)
           const anchor = top > 100 ? top - 28 : Math.min(height - 28, top + 55)
           context.save()
-          context.globalAlpha = Math.min(1, (hit.expires - battle.time) * 5)
+          context.globalAlpha = Math.min(1, (hit.expires - feedbackTime) * 5)
           context.lineJoin = 'round'
           label(context, '-' + Math.round(hit.damage), x + (slot % 2 ? 24 : -14) + (hit.critical ? Math.sin(age * 96) * Math.max(0, 8 - age * 35) : 0), Math.max(29, anchor - age * 53 - slot * 13),
             hit.critical ? 39 : 30, hit.critical ? '#ffcc51' : '#ffffff', hit.critical ? 7 : 5)
           context.restore()
         })
-        if (!fighter.hp) continue
+        if (!fighter.hp) {
+          const age = faintAge
+          context.save()
+          context.globalAlpha = Math.max(0, 1 - age * 1.8)
+          if (age < .35) sprite(context, readyClip(clip, variant?.animations), x, y - age * 30, fighter.direction, time, false, scale, false, true)
+          context.fillStyle = '#eee2ff'
+          context.shadowBlur = 14
+          context.shadowColor = '#a26aff'
+          for (let i = 0; i < 9; i++) {
+            const angle = i * .698
+            context.fillRect(x + Math.cos(angle) * (18 + age * 75), top + 28 + Math.sin(angle) * (18 + age * 75) - age * 38, 6, 6)
+          }
+          context.restore()
+          continue
+        }
         if (fighter.ongoing) drawOngoing(context, fighter.ongoing, x, y, battle.time)
         if (fighter.status) drawStatus(context, fighter.status, x, top - 55, battle.time, 26, 24)
         if (fighter.evasion || fighter.flinched) label(context, fighter.flinched ? '✦ ✦' : '≋', x + 32, top - 49, 20)
@@ -506,6 +554,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       return
     }
     battlePositions.clear()
+    defeats.clear()
+    battleEndedAt = undefined
     if (state.battleStart) label(context, state.bot?.language === 'es' ? '¡Empieza la batalla!' : 'Battle Start!', width / 2, height * .62, 64, '#ffe7a6')
     const active = Object.entries(state.viewers).filter(([, data]) => data.active && data.active.expires > Date.now())
       .sort((a, b) => a[1].active.layer - b[1].active.layer)

@@ -11,6 +11,7 @@ import { isFirstStage } from '../ui/evolution.js'
 import { battleSpecies } from '../dev/battle.js'
 import { eggPoolTier } from '../ui/egg-rules.js'
 import { eggRarity, specialEncounterTag } from '../ui/capture-rates.js'
+import { validTraining } from '../ui/training.js'
 import { featuredShopItems, normalizeShopPrices } from '../ui/shop.js'
 
 const json = (data, status = 200) => Response.json(data, {
@@ -117,6 +118,9 @@ function viewerWrites(db, device, viewers) {
     const rareCandies = viewer.rareCandies ?? 0
     const legendaryTrackers = viewer.legendaryTrackers ?? 0
     const shinyDust = viewer.shinyDust ?? 0
+    const vitamins = viewer.vitamins ?? 0
+    const training = viewer.training ?? {}
+    if (!training || Array.isArray(training) || typeof training !== 'object' || Object.entries(training).some(([id,row]) => !/^\d{1,5}$/.test(id) || !validTraining(row))) return json({error:'invalid training'},400)
     const pokeDollars = viewer.pokeDollars ?? 0
     const dnaBoosters = viewer.dnaBoosters ?? {}
     const dexAcquired = viewer.dexAcquired ?? {}
@@ -124,7 +128,7 @@ function viewerWrites(db, device, viewers) {
       !Object.hasOwn(viewer.collection, name) || !Number.isSafeInteger(at) || at < 0)) return json({ error: 'invalid dex acquisitions' }, 400)
     if (typeof dnaBoosters !== 'object' || Array.isArray(dnaBoosters) || Object.entries(dnaBoosters).some(([key, count]) =>
       !Object.hasOwn(viewer.collection, key) || !Number.isInteger(count) || count < 0 || count > 10)) return json({ error: 'invalid DNA boosters' }, 400)
-    if (![rareCandies, legendaryTrackers, shinyDust, pokeDollars].every(value => Number.isSafeInteger(value) && value >= 0)) return json({ error: 'invalid rewards' }, 400)
+    if (![rareCandies, legendaryTrackers, shinyDust, vitamins, pokeDollars].every(value => Number.isSafeInteger(value) && value >= 0)) return json({ error: 'invalid rewards' }, 400)
     if (!Array.isArray(items) || items.length > Object.keys(heldItems).length ||
         items.some(item => typeof item !== 'string' || !Object.hasOwn(heldItems, item))) return json({ error: 'invalid items' }, 400)
     const generation = viewer.generation ?? 0
@@ -150,8 +154,8 @@ function viewerWrites(db, device, viewers) {
       'ON CONFLICT(community_id, viewer_id) DO UPDATE SET revision = excluded.revision, payload = excluded.payload, updated_at = excluded.updated_at ' +
       'WHERE excluded.revision > viewer_progress.revision'
     ).bind(device.community_id, viewer.id, viewer.revision,
-        JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters, ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(shinyDust ? { shinyDust } : {}),
-          ...(Object.keys(dexAcquired).length ? { dexAcquired } : {}), log: log.map(({ at, platform, action, result, capture }) => ({
+        JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters, ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(shinyDust ? { shinyDust } : {}), ...(vitamins ? { vitamins } : {}), ...(Object.keys(training).length ? { training } : {}),
+          ...(Object.keys(dexAcquired).length ? { dexAcquired } : {}), log: log.slice(-8).map(({ at, platform, action, result, capture }) => ({
             at, platform, action, result, ...(capture ? { capture: { ball: capture.ball, remaining: capture.remaining, pokemon: capture.pokemon } } : {})
           })), metrics: { wins: metrics.wins, losses: metrics.losses, summonMinutes: metrics.summonMinutes } }), Date.now(), viewer.id, generation, generation, viewer.id, device.key_hash))
     writes.push(db.prepare('INSERT OR IGNORE INTO erasure_devices SELECT ?, viewer_id FROM erased_viewers WHERE viewer_id = ?')
@@ -352,16 +356,6 @@ export default {
       if (!Array.isArray(events) || !events.length || events.length > 12 || events.some(event =>
         !/^[a-f0-9]{32}$/.test(event?.id ?? '') || typeof event.message !== 'string' ||
         !event.message.trim() || event.message.length > 500)) return json({ error: 'invalid announcements' }, 400)
-      const now = Date.now()
-      await env.DB.batch([
-        ...events.map(({ id, message }, index) => env.DB.prepare(
-          'INSERT OR IGNORE INTO portal_announcements SELECT ?, ?, ?, ? ' +
-          'WHERE EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
-        ).bind(device.community_id, id, message, now + index, device.key_hash)),
-        env.DB.prepare('DELETE FROM portal_announcements WHERE community_id = ? AND id NOT IN ' +
-          '(SELECT id FROM portal_announcements WHERE community_id = ? ORDER BY created_at DESC, id DESC LIMIT 30)')
-          .bind(device.community_id, device.community_id)
-      ])
       return json({ received: events.length })
     }
     if (path === '/api/shiny-cue') {
@@ -398,7 +392,10 @@ export default {
       if (!device) return json({ error: 'unauthorized' }, 401)
       let receipts
       try { receipts = await readBatch(request) } catch { return json({ error: 'invalid receipts' }, 400) }
-      const received = await finishWebGame(request, env.DB, device, receipts)
+      const updates = Array.isArray(receipts) ? receipts.flatMap(receipt => receipt?.viewer ? [receipt.viewer] : []) : []
+      const writes = viewerWrites(env.DB, device, updates)
+      if (writes instanceof Response) return writes
+      const received = await finishWebGame(request, env.DB, device, receipts, writes)
       return received ? json({ received }) : json({ error: 'invalid receipts' }, 400)
     }
     if (request.method === 'POST' && path === '/api/sync') return synchronize(request, env.DB)

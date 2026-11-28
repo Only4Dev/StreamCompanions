@@ -2,6 +2,7 @@ import { adminCommunities, adminPortal } from './admin.js'
 import { expireShopOrders } from './shop-queue.js'
 import { enqueueWebGame, webActionLock, webGameStatus, webGameViewer } from './web-game.js'
 import learnsetData from '../ui/learnsets.json' with { type: 'json' }
+import { normalizeTraining, trainingKey, trainingRules } from '../ui/training.js'
 import { eggPool } from '../ui/egg-rules.js'
 import { catchRates } from '../ui/capture-rates.js'
 import { encounterRarities } from '../ui/species-rules.js'
@@ -26,55 +27,11 @@ import { featuredShopItems, legendaryEggChance, maxShopQuantity, shopIconUrl, sh
 function communityTabs(community, language, current, region = 'kanto') {
   const en = language === 'en'
   const tabs = [['dex', 'Pokédex'], ['inventory', en ? 'Inventory' : 'Inventario'], ['shop', en ? 'Shop' : 'Tienda'],
-    ['overview', en ? 'Overview' : 'Resumen'], ['log', en ? 'Log' : 'Registro'], ['team', en ? 'Battle team' : 'Equipo'], ['live', en ? 'Play on the web' : 'Jugar en web'],
+    ['overview', en ? 'Overview' : 'Resumen'], ['team', en ? 'Battle team' : 'Equipo'], ['live', en ? 'Play on the web' : 'Jugar en web'],
     ['help', en ? 'Help' : 'Ayuda']]
   return '<nav class="tabs community-tabs" aria-label="' + (en ? 'Community' : 'Comunidad') + '">' + tabs.map(([tab, label]) =>
     '<a href="/?' + escape(new URLSearchParams({ community, tab, region })) + '"' + (current === tab ? ' aria-current="page"' : '') +
     '>' + label + '</a>').join('') + '</nav>'
-}
-
-const announcementsScript = `(() => {
-const feed = document.querySelector('[data-announcements]');
-const query = new URLSearchParams({community: feed.dataset.announcements});
-const list = feed.querySelector('ol');
-const empty = feed.querySelector('[data-announcements-empty]');
-let latest = '';
-async function refresh() {
-  try {
-    if (!document.hidden) {
-      const response = await fetch('/live/announcements?' + query);
-      if (!response.ok) throw new Error('HTTP ' + response.status);
-      const { events } = await response.json();
-      const key = events.map(event => event.id).join(',');
-      if (key !== latest) {
-        latest = key;
-        list.replaceChildren(...events.map(({ message }) => {
-          const row = document.createElement('li');
-          row.textContent = message;
-          return row;
-        }));
-        empty.hidden = events.length > 0;
-      }
-    }
-  } catch {}
-  setTimeout(refresh, document.hidden ? 10000 : 2500);
-}
-refresh();
-})();`
-
-function renderAnnouncements(community, language, combined) {
-  const en = language === 'en'
-  return '<section class="sheet" data-announcements="' + escape(community) + '"><h2>' +
-    (en ? 'Bot announcements' : 'Avisos del bot') + '</h2><p class="meta" data-announcements-empty>' +
-    (en ? 'No announcements yet.' : 'Todavía no hay avisos.') +
-    '</p><ol class="announcement-feed" role="log" aria-live="polite" aria-relevant="additions"></ol></section>' +
-    (combined ? '' : '<script src="/assets/announcements.js" defer></script>')
-}
-
-async function recentAnnouncements(db, community) {
-  const { results } = await db.prepare('SELECT id, message FROM portal_announcements WHERE community_id = ? AND created_at >= ? ' +
-    'ORDER BY created_at DESC, id DESC LIMIT 12').bind(community, Date.now() - 6 * 60 * 60_000).all()
-  return results.reverse()
 }
 
 function encounterSprite(id, shiny) {
@@ -94,8 +51,6 @@ const endpoint = new URL('/live/status', location.origin);
 endpoint.search = location.search;
 let submitting = false;
 let locked = false;
-let lastAnnouncements = '';
-const announcements = document.querySelector('[data-announcements]');
 let timer;
 let version = 0;
 let lastLog = '';
@@ -176,7 +131,6 @@ async function refresh() {
   try {
     if (document.hidden && !endpoint.searchParams.has('game')) return schedule(5000);
     const url = new URL(endpoint);
-    if (announcements && !locked && !url.searchParams.has('game')) url.searchParams.set('announcements', '1');
     const response = await fetch(url, {cache: 'no-store', signal: AbortSignal.timeout(8000)});
     if (current !== version) return;
     if (response.status === 401 || response.status === 404) {
@@ -188,18 +142,6 @@ async function refresh() {
     if (current !== version) return;
     if (lastEncounter !== undefined && state.encounter && state.encounter !== lastEncounter && state.shiny && shinyOptIn.checked) {
       playShiny().catch(() => {});
-    }
-    if (announcements && state.events) {
-      const key = state.events.map(event => event.id).join(',');
-      if (key !== lastAnnouncements) {
-        lastAnnouncements = key;
-        announcements.querySelector('ol').replaceChildren(...state.events.map(event => {
-          const item = document.createElement('li');
-          item.textContent = event.message;
-          return item;
-        }));
-        announcements.querySelector('[data-announcements-empty]').hidden = state.events.length > 0;
-      }
     }
     lastEncounter = state.encounter;
     capture.querySelector('input[name="encounter"]').value = state.encounter || '';
@@ -367,7 +309,7 @@ async function renderLiveGame(request, db, url, language) {
     (legendaryTrackers ? disabled : ' disabled') + '>' + (en ? 'Use Legendary Tracker' : 'Usar Legendary Tracker') + '</button></form>' + open('shiny') + '<p class="meta live-item-count">' + itemIcon('stardust') + ' Shiny Dust <strong data-shiny-dust-count>×' + shinyDust + '</strong></p><button data-shiny-use' +
     (shinyDust ? disabled : ' disabled') + '>' + (en ? 'Use Shiny Dust' : 'Usar Shiny Dust') + '</button></form></section>' +
     '</div><label><input type="checkbox" data-shiny-audio> ' + (en ? 'Play shiny sounds' : 'Reproducir sonidos shiny') + '</label><details class="live-activity" open><summary>' + (en ? 'Your game activity' : 'Tu actividad de juego') +
-    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=10" defer></script>'
+    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=11" defer></script>'
 
 }
 
@@ -689,17 +631,23 @@ export async function portal(request, url, env) {
       form.addEventListener('change', update);
       update();`, { headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=300' } })
   }
-  if (request.method === 'GET' && url.pathname === '/assets/announcements.js') return new Response(announcementsScript, {
-    headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff' }
-  })
-  if (request.method === 'GET' && url.pathname === '/live/announcements') {
-    const community = url.searchParams.get('community')
-    if (!community || community.length > 100) return new Response(null, { status: 400 })
-    return Response.json({ events: await recentAnnouncements(env.DB, community) }, { headers: { 'Cache-Control': 'public, max-age=1' } })
-  }
+  if (request.method === 'GET' && url.pathname === '/assets/announcements.js') return new Response('', {headers:{'Content-Type':'text/javascript'}})
+  if (request.method === 'GET' && url.pathname === '/live/announcements') return Response.json({events:[]})
   if (request.method === 'GET' && url.pathname === '/assets/web-game.js') return new Response(webGameScript, {
     headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff' }
   })
+  if (request.method === 'GET' && url.pathname === '/assets/training.js') return new Response(`
+const receipt = document.querySelector('[data-training-receipt]');
+let tries = 0;
+async function check() {
+  try {
+    const response = await fetch(receipt.dataset.trainingReceipt, {cache:'no-store'});
+    if (response.ok && !(await response.json()).pending) { location.reload(); return; }
+  } catch {}
+  if (++tries < 24) setTimeout(check,750); else location.reload();
+}
+setTimeout(check,500);
+`, {headers:{'Content-Type':'text/javascript; charset=utf-8'}})
   if (request.method === 'GET' && url.pathname === '/assets/descriptions.js') return new Response(`
 let active, timer;
 function clear() {
@@ -740,7 +688,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
   update();
 }
 `, { headers: { 'Content-Type': 'text/javascript; charset=utf-8' } })
-  const data = url.pathname === '/data/base-stats.json' ? baseStatsData : url.pathname === '/data/learnsets.json' ? learnsetData : url.pathname === '/data/pokemon-abilities.json' ? abilitiesData : url.pathname === '/data/egg-pool.json' ? eggPool : url.pathname === '/data/catch-rates.json' ? catchRates : url.pathname === '/data/encounter-rarities.json' ? encounterRarities : null
+  const data = url.pathname === '/data/training.json' ? trainingRules : url.pathname === '/data/base-stats.json' ? baseStatsData : url.pathname === '/data/learnsets.json' ? learnsetData : url.pathname === '/data/pokemon-abilities.json' ? abilitiesData : url.pathname === '/data/egg-pool.json' ? eggPool : url.pathname === '/data/catch-rates.json' ? catchRates : url.pathname === '/data/encounter-rarities.json' ? encounterRarities : null
   if (request.method === 'GET' && data) return Response.json(data)
   const requested = url.searchParams.get('lang') ?? getCookie(request, 'sc_lang')
   const language = requested === 'en' ? 'en' : 'es'
@@ -798,8 +746,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     if (community && !platform) url.searchParams.set('platform', 'twitch')
     const game = community ? await renderLiveGame(request, env.DB, url, language) : ''
     return page((community ? communityTabs(community, language, 'live', url.searchParams.get('region') ?? 'kanto') : '') +
-      (game ? '<div class="live-layout">' + watch + game + '</div>' : watch) +
-      (selectedStream ? renderAnnouncements(selectedStream.community_id, language, game.includes('data-web-game')) : ''))
+      (game ? '<div class="live-layout">' + watch + game + '</div>' : watch) )
   }
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'about') {
     const about = aboutCopy[language]
@@ -910,6 +857,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
         const state = webGameState(null, id ? { created_at: Date.now() } : { result }, language)
         return Response.json({ id, message: state.message, ...(state.result ? { result: state.result } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
       }
+      if (form.get('action') === 'train') return redirect('/?' + new URLSearchParams({ community, pokemon: form.get('pokemon'), training: result }), [])
       return redirect('/?' + new URLSearchParams({ tab: 'live', community, platform, game: result }) + '#play-web', [])
     }
     if (request.method !== 'GET' || url.pathname !== '/live/status') return new Response(null, { status: 405 })
@@ -921,8 +869,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     const activity = log.slice(-8).reverse().map(({ action, result }) => ({ action,
       message: webGameState(null, { result: result === 'caught' || result === 'duplicateReward' ? 'catchSuccess' : result }, language).message }))
     const lock = await webActionLock(env.DB, identity.account_id, community)
-    const events = url.searchParams.get('announcements') === '1' ? await recentAnnouncements(env.DB, community) : undefined
-    return Response.json({ ...webGameState(runtime, row, language), ...(events ? { events } : {}), locked: lock.pending, cooldown: lock.cooldown, balls, activity, ...(shinyDust ? { shinyDust } : {}), ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(rareCandies ? { rareCandies } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
+    return Response.json({ ...webGameState(runtime, row, language), locked: lock.pending, cooldown: lock.cooldown, balls, activity, ...(shinyDust ? { shinyDust } : {}), ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(rareCandies ? { rareCandies } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
   }
 
   if (route) {
@@ -1065,7 +1012,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
         '<p class="empty">' + t("Aún no tienes comunidades sincronizadas. Usa !poke join en el chat de un streamer participante.") + '</p>') +
       '</section>')
   }
-  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, legendaryTrackers = 0, shinyDust = 0, pokeDollars = 0, dnaBoosters = {}, log = [], dexAcquired = {} } = JSON.parse(selected.payload)
+  const { displayName, balls, collection, metrics = {}, heldItems: ownedItems = [], rareCandies = 0, legendaryTrackers = 0, shinyDust = 0, vitamins = 0, training = {}, pokeDollars = 0, dnaBoosters = {}, log = [], dexAcquired = {} } = JSON.parse(selected.payload)
   const teamUrl = '/?' + new URLSearchParams({ community: selected.community_id, tab: 'team' })
   if (editingTeam) {
     const body = await request.text()
@@ -1157,7 +1104,10 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
   const locationParams = { community: selected.community_id, ...(regionQuery ? { region: regionQuery } : {}) }
   const speciesKey = url.searchParams.get('pokemon')
   const dna = speciesKey ? sharedDna(dnaBoosters, speciesKey) : 0
-  const detail = speciesKey && Object.hasOwn(collection, speciesKey) ? creatureMoves(speciesKey, collection[speciesKey], dna) : null
+  const speciesId = speciesKey && dexByName.get(speciesKey.replace(/ ✦$/, ''))
+  const learned = speciesId ? normalizeTraining(training[trainingKey(speciesId)], dna) : null
+  const supportsVitamins = Object.hasOwn(published ?? {}, 'vitamin-complex')
+  const detail = speciesKey && Object.hasOwn(collection, speciesKey) ? creatureMoves(speciesKey, collection[speciesKey], dna, supportsVitamins ? learned?.stats : undefined) : null
   if (editing) {
     if (!detail || !selected.viewer_id) return new Response(null, { status: 404 })
     const raw = await request.text()
@@ -1245,6 +1195,33 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     const xpBar = detail.rank === maxLevel ? '<p class="xp-cap">' + (en ? 'Maximum level' : 'Nivel máximo') + '</p>' :
       '<div class="xp-track"><label for="creature-xp">XP <strong>' + xp + ' / ' + span + '</strong></label>' +
       '<progress id="creature-xp" value="' + xp + '" max="' + span + '">' + xp + ' / ' + span + '</progress></div>'
+    let trainingSection = ''
+    if (supportsVitamins) {
+      const free = learned.points - Object.values(learned.stats).reduce((a,b)=>a+b,0)
+      const platform = selected.viewer_id.startsWith('kick:') ? 'kick' : 'twitch'
+      const trainingAction = '/live/action?' + new URLSearchParams({community:selected.community_id,platform})
+      const trainingId = url.searchParams.get('training')
+      const row = trainingId && await webGameStatus(env.DB, identity.account_id, selected.community_id, trainingId)
+      const pending = Boolean(row && !row.result && row.created_at > Date.now() - 15000)
+      const form = (operation, label, disabled, stat = '') => '<form method="post" action="' + escape(trainingAction) + '">' +
+        '<input type="hidden" name="id" value="' + crypto.randomUUID() + '"><input type="hidden" name="action" value="train">' +
+        '<input type="hidden" name="pokemon" value="' + escape(speciesKey) + '"><input type="hidden" name="operation" value="' + operation +
+        '">' + (stat ? '<input type="hidden" name="stat" value="' + stat + '">' : '') +
+        '<button' + (disabled || pending ? ' disabled' : '') + ' aria-label="' + escape(operation === 'plus' || operation === 'minus' ? label + ' ' + stat : label) + '">' + label + '</button></form>'
+      const message = pending ? (en ? 'Applying…' : 'Aplicando…') : row?.result ? botCopy[language][row.result] :
+        trainingId === 'offline' ? (en ? 'The streamer’s app is offline.' : 'La app del streamer está desconectada.') : ''
+      const receiptUrl = '/live/status?' + new URLSearchParams({community:selected.community_id,platform,game:trainingId ?? ''})
+      trainingSection = '<section class="training"><h2>' + (en ? 'Training points' : 'Puntos de entrenamiento') + '</h2><p>' +
+        (en ? 'Available ' : 'Disponibles ') + free + ' · ' + learned.points + '/' + trainingRules.maxPoints + ' · ' +
+        (en ? 'Vitamin Complexes ' : 'Complejos de Vitaminas ') + vitamins + '</p>' +
+        (message ? '<p role="status"' + (pending ? ' data-training-receipt="' + escape(receiptUrl) + '"' : '') + '>' + escape(message) + '</p>' : '') +
+        '<div class="training-actions">' + form('apply', en ? 'Use vitamin' : 'Usar vitamina', !vitamins || learned.points >= trainingRules.maxPoints) +
+        form('reset', en ? 'Reset free' : 'Reiniciar gratis', free === learned.points) + '</div><ul>' +
+        trainingRules.stats.map((stat,index) => '<li><strong>' + [en ? 'HP' : 'PS','ATK','DEF','SPA','SPD','SPE'][index] +
+          '</strong><span>' + (learned.stats[stat] ?? 0) + '/' + trainingRules.maxPerStat + '</span>' +
+          form('minus','−',!learned.stats[stat],stat) + form('plus','+',!free || learned.stats[stat] >= trainingRules.maxPerStat,stat) + '</li>').join('') +
+        '</ul></section>' + (pending ? '<script src="/assets/training.js" defer></script>' : '')
+    }
     const stats = [['PS', 'HP', 'maxHp'], ['ATK', 'ATK', 'attack'], ['SPA', 'SPA', 'specialAttack'],
       ['DEF', 'DEF', 'defense'], ['SPD', 'SPD', 'specialDefense'], ['SPE', 'SPE', 'speed']]
     const returnToDex = '/?' + new URLSearchParams(locationParams)
@@ -1267,8 +1244,8 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       '"><div><h1>' + escape(speciesKey) + '</h1><p class="summary-meta">#' + String(regionalBase.get(detail.id) ?? detail.id).padStart(3, '0') + ' · Lv. ' + detail.rank +
       detail.types.map(type => typeIcon(type, en)).join('') + '</p>' + (description ? '<p>' + escape(description) + '</p>' : '') +
       (detail.form === detail.id ? '' : '<p>' + (en ? 'Battle form · ' : 'Forma en combate · ') + escape(speciesName(detail.form)) + '</p>') +
-      '<p><strong>' + (en ? 'Abilities' : 'Habilidades') + '</strong> · ' + abilityDetails(detail.form, en).map(ability => descriptionHint(escape(ability.name), ability.effect, ability.name)).join('') + '</p>' + xpBar + '</div><div class="summary-equipment">' + itemFrame + '</div></div><dl class="battle-stats">' + stats.map(([es, english, key]) => '<div><dt>' + (en ? english : es) +
-        '</dt><dd>' + Math.round(detail.stats[key]) + '</dd></div>').join('') + '</dl>' + dnaSection +
+      '<div class="summary-abilities"><strong>' + (en ? 'Abilities' : 'Habilidades') + '</strong>' + abilityDetails(detail.form, en).map(ability => descriptionHint(escape(ability.name), ability.effect, ability.name)).join('') + '</div>' + xpBar + '</div><div class="summary-equipment">' + itemFrame + '</div></div><dl class="battle-stats">' + stats.map(([es, english, key]) => '<div><dt>' + (en ? english : es) +
+        '</dt><dd>' + Math.round(detail.stats[key]) + '</dd></div>').join('') + '</dl>' + (supportsVitamins ? trainingSection : dnaSection) +
       '<div class="section-with-help"><h2>' + (en ? 'Moveset' : 'Ataques activos') + '</h2>' + helpHint(en ? 'About cooldowns and PP' : 'Sobre recarga y PP', en ? 'CD is the cooldown in seconds after the move finishes. PP is how many times the move can be used per battle. Ultimates use a charge meter.' : 'CD es la recarga en segundos después del ataque. PP indica cuántas veces puedes usarlo por batalla. Los ataques definitivos requieren carga.') + '</div><form class="moveset-form" method="post" action="' + escape(action) +
       '"><fieldset><legend>' + (en ? 'Choose up to four' : 'Elige hasta cuatro') + ' · <output>' + active.length + ' / 4</output></legend><div class="move-options">' +
       [...detail.unlockedAt].map(([key, rank]) => moveCard(key, active.includes(key), en, rank > detail.rank ? rank : 0)).join('') +
@@ -1282,7 +1259,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       '</section><script src="/assets/moveset.js" defer></script><script src="/assets/shop-status.js" defer></script>')
   }
   const requestedTab = url.searchParams.get('tab')
-  const tab = ['inventory', 'overview', 'shop', 'log', 'team'].includes(requestedTab) ? requestedTab : 'dex'
+  const tab = ['inventory', 'overview', 'shop', 'team'].includes(requestedTab) ? requestedTab : 'dex'
   const shopLabel = language === 'en' ? 'Shop' : 'Tienda'
   let shopPage = ''
   if (tab === 'shop') {
@@ -1325,7 +1302,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
         const action = '/shop/buy?' + new URLSearchParams({ community: selected.community_id, item: id, order: crypto.randomUUID(), price })
         const button = '<button data-buy="' + (en ? 'Buy' : 'Comprar') + '" data-owned="' + (en ? 'Owned' : 'Ya lo tienes') + '"' + (!available || pending || owned || needsUpdate || pokeDollars < price ? ' disabled' : '') + '>' +
           (owned ? (en ? 'Owned' : 'Ya lo tienes') : (en ? 'Buy' : 'Comprar')) + '</button>'
-        const quantityInput = product.ball
+        const quantityInput = product.ball || product.bulk
           ? quantityField(en, price, Math.min(maxShopQuantity, Math.floor(pokeDollars / price))) : ''
         const graphic = '<img class="bag-icon' + (id === 'poke-egg' ? ' egg-shop-icon' : '') + '" src="' + shopIconUrl(id) + '" alt="" width="30" height="30">'
         return '<li>' + itemTooltip(id, en, graphic) + '<strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
@@ -1335,20 +1312,6 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
           (available && !needsUpdate && !owned && pokeDollars < price ? '<small>' + escape(fundsText) + '</small>' : '') + '</li>'
       }).join('') + '</ul>' + eggDialog + '</section><script src="/assets/shop-status.js?v=6" defer></script>'
   }
-  const logDescription = entry => {
-    const outcome = Object.hasOwn(outcomes, entry.result) ? outcomes[entry.result] : ''
-    if (!entry.capture) return [entry.action, outcome].filter(Boolean).join(' · ')
-    const { ball, remaining, pokemon } = entry.capture
-    const names = { normal: 'Poké Ball', great: en ? 'Great Ball' : 'Super Ball', ultra: 'Ultra Ball', master: 'Master Ball' }
-    const name = names[ball]
-    const viewer = displayName || identity.login || (en ? 'Viewer' : 'Espectador')
-    return [en ? viewer + ' threw a ' + name : viewer + ' lanzó una ' + name,
-      pokemon ? outcome + ' · ' + pokemon : outcome,
-      en ? 'Remaining (' + name + '): ' + remaining : 'Restantes (' + name + '): ' + remaining].filter(Boolean).join(' · ')
-  }
-  const outcomes = en ?
-    { joined: 'Joined', caught: 'Caught', escaped: 'Escaped', noBalls: 'Out of Poké Balls', noEncounter: 'No wild Pokémon', summoned: 'Summoned', removed: 'Withdrawn', duplicateReward: 'Gained one level', alreadyCaught: 'Already caught', candyUsed: 'Used Rare Candy' } :
-    { joined: 'Registro', caught: 'Captura', escaped: 'Se escapó', noBalls: 'Sin Poké Balls', noEncounter: 'Sin encuentro activo', summoned: 'Invocado', removed: 'Retirado', duplicateReward: 'Subió un nivel', alreadyCaught: 'Ya capturado', candyUsed: 'Usó Caramelo Raro' }
   const overviewLabel = language === 'en' ? 'Overview' : 'Resumen'
   const minutes = metrics.summonMinutes ?? 0
   const overview = '<section class="sheet"><h2>' + overviewLabel + '</h2><dl class="overview-stats">' +
@@ -1379,8 +1342,8 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
   const pocket = pockets.some(([id]) => id === url.searchParams.get('pocket')) ? url.searchParams.get('pocket') : 'balls'
   const wallet = '<p class="meta">Pokédólares · <strong>$' + escape(pokeDollars) + '</strong></p>'
   const consumables = [['rare-candy', language === 'en' ? 'Rare Candy' : 'Caramelo Raro', rareCandies],
-    ['dowsing-machine', 'Legendary Tracker', legendaryTrackers], ['stardust', 'Shiny Dust', shinyDust]].map(([icon, label, amount]) =>
-    '<li class="bag-slot">' + itemTooltip(({ 'dowsing-machine': 'legendary-tracker', stardust: 'shiny-dust' })[icon] ?? icon, en, itemIcon(icon), label) + '<span>' + label + '</span><strong>×' + escape(amount) + '</strong></li>').join('')
+    ['dowsing-machine', 'Legendary Tracker', legendaryTrackers], ['stardust', 'Shiny Dust', shinyDust], ['protein', en ? 'Vitamin Complex' : 'Complejo de Vitaminas', vitamins]].map(([icon, label, amount]) =>
+    '<li class="bag-slot">' + itemTooltip(({ 'dowsing-machine': 'legendary-tracker', stardust: 'shiny-dust', protein: 'vitamin-complex' })[icon] ?? icon, en, itemIcon(icon), label) + '<span>' + label + '</span><strong>×' + escape(amount) + '</strong></li>').join('')
   const inventoryPage = '<section class="sheet"><h2>' + (language === 'en' ? 'Inventory' : 'Inventario') + '</h2>' + wallet + '<nav class="tabs pockets" aria-label="Inventory">' + pockets.map(([id, label]) =>
     '<a href="?' + escape(new URLSearchParams({ community: selected.community_id, tab: 'inventory', pocket: id })) + '"' +
     (id === pocket ? ' aria-current="page"' : '') + '>' + label + '</a>').join('') + '</nav>' +
@@ -1469,10 +1432,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     actions + '</div><p class="meta community-label">' + t('Comunidad · ') + escape(selected.community_name ?? selected.community_id) + '</p>' + nav +
     (tab === 'dex' ? borders + '<section class="sheet"><div class="dex-heading"><h2>Pokédex</h2><a class="button"' + (caughtOnly ? ' aria-current="true"' : '') + ' href="' + escape(href('dex', region[0], !caughtOnly)) + '">' +
       (en ? 'Unlocked' : 'Desbloqueados') + '</a></div><nav class="tabs generations" aria-label="' + t('Región') + '">' + regionNav + '</nav><ol class="dex-grid" data-dex-community="' + escape(selected.community_id) + '">' + slots + '</ol></section><script src="/assets/dex-new.js" defer></script>'
-      : tab === 'team' ? teamPage : tab === 'overview' ? overview : tab === 'shop' ? shopPage : tab === 'log' ?
-        '<section class="sheet"><h2>' + (en ? 'Activity log' : 'Registro de actividad') + '</h2><ul>' +
-        [...log].reverse().map(entry => '<li><time>' + escape(new Date(entry.at).toLocaleString(language, { timeZone: 'America/Lima' })) +
-          '</time> · ' + escape(entry.platform + ' · ' + logDescription(entry)) + '</li>').join('') + '</ul></section>' : inventoryPage) +
+      : tab === 'team' ? teamPage : tab === 'overview' ? overview : tab === 'shop' ? shopPage : inventoryPage) +
     '<div class="toolbar"><p class="meta">' + (updated ? t('Última sincronización · ') + escape(updated) + ' (Lima)' : t('Todavía no hay progreso sincronizado')) +
     '</p></div>')
 }

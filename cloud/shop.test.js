@@ -162,11 +162,15 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.equal((await announce()).status, 401)
   assert.equal((await announce({ Authorization: 'Bearer ' + token })).status, 200)
   assert.equal((await announce({ Authorization: 'Bearer ' + token })).status, 200)
-  assert.deepEqual(await (await worker.fetch(new Request(feed), { DB: D1 })).json(), { events: [event] })
-  assert.match(liveHtml, /data-announcements="stream"/)
+  assert.deepEqual(await (await worker.fetch(new Request(feed), { DB: D1 })).json(), { events: [] })
+  assert.doesNotMatch(liveHtml, /data-announcements="stream"|tab=log/)
   assert.doesNotMatch(liveHtml, /src="\/assets\/announcements\.js"/)
   const combined = await worker.fetch(new Request(base + '/live/status?community=stream&platform=twitch&announcements=1', { headers: cookie }), { DB: D1 })
-  assert.deepEqual((await combined.json()).events, [event])
+  assert.equal((await combined.json()).events, undefined)
+  const trainingRequest = await worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
+    method:'POST',headers:{ ...cookie, Origin:base },body:new URLSearchParams({id:crypto.randomUUID(),action:'train',pokemon:'not-owned',operation:'apply'})
+  }),{DB:D1})
+  assert.equal(trainingRequest.status,400)
   const actionId = crypto.randomUUID()
   const webAction = (encounter, origin = base, json = false) => worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
     method: 'POST', headers: { Origin: origin, Cookie: 'sc_session=' + session, ...(json && { Accept: 'application/json' }) },
@@ -224,7 +228,7 @@ test('a signed-in viewer can submit one shop order while their device is online'
   const logPage = await worker.fetch(new Request(base + '/?community=stream&tab=log', {
     headers: { Cookie: 'sc_session=' + session }
   }), { DB: D1 })
-  assert.match(await logPage.text(), /viewer lanzó una Super Ball · Se escapó · Restantes \(Super Ball\): 0/)
+  assert.doesNotMatch(await logPage.text(), /Registro de actividad/)
   db.prepare("UPDATE viewer_progress SET payload = json_set(payload, '$.pokeDollars', 120000, '$.rareCandies', 3) WHERE viewer_id = ?").run('twitch:1')
   await device('GET', undefined, { 'poke-egg': 5000, 'legendary-tracker': 100000 })
   const channels = db.prepare('SELECT platforms FROM community_stream_status WHERE community_id = ?').get('stream').platforms

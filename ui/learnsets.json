@@ -1085,6 +1085,8 @@
     "10253": {"name":"Paldean Wooper","moves":[["amnesia",15],["bulldoze",15],["guard",15],["hydro",15],["jab",12],["kick",15],["mud",1],["quake",15],["rain",15],["spikes",6],["surf",15],["tackle",2],["earthpower",16]]}
   },
   "moves": {
+    "raidcannons": {"name":"Hidrobomba de Cañones","notes":"Two cannon shots.","mechanics":{"type":"water","kind":"projectile","visual":"hydro","power":78,"reach":720,"pp":16,"count":2,"cooldown":5.5,"push":510}},
+    "raidgeysers": {"name":"Cadena de Géiseres","notes":"Warns, then erupts in a moving line. Dash to avoid it.","mechanics":{"type":"water","kind":"area","visual":"raid-geysers","power":61,"reach":540,"pp":15,"cooldown":7}},
     "raidvinewave": {"name":"Ola de Enredaderas","notes":"Reserved for boss movesets.","mechanics":{"type":"grass","kind":"area","power":54,"reach":300,"pp":12,"cooldown":5,"visual":"storm"}},
     "raidtorrent": {"name":"Marea Dinamax","notes":"Reserved for boss movesets.","mechanics":{"type":"water","kind":"area","power":57,"reach":330,"pp":12,"cooldown":5.3,"visual":"storm"}},
     "raidthunder": {"name":"Trueno de la Cumbre","notes":"Reserved for boss movesets.","mechanics":{"type":"electric","kind":"area","power":64,"reach":340,"pp":10,"cooldown":6.5,"visual":"electric"}},

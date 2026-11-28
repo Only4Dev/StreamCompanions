@@ -1,3 +1,4 @@
+import { trainingRules } from '../ui/training.js'
 import { captureCategories, catchDifficulty } from '../ui/capture-rates.js'
 import { encounterRarities, rarityFor, specialRarities } from '../ui/species-rules.js'
 import { battleSpecies } from '../dev/battle.js'
@@ -59,13 +60,13 @@ export async function deviceWebGame(db, device, header) {
   return pending.results
 }
 
-export async function finishWebGame(request, db, device, receipts) {
+export async function finishWebGame(request, db, device, receipts, writes = []) {
   if (request.method !== 'POST' || !Array.isArray(receipts) || !receipts.length || receipts.length > 10 ||
       receipts.some(receipt => !actionId.test(receipt?.id ?? '') || !/^[a-zA-Z]{1,40}$/.test(receipt?.result ?? ''))) return null
-  await db.batch(receipts.map(({ id, result }) => db.prepare(
+  await db.batch([...writes, ...receipts.map(({ id, result }) => db.prepare(
     'UPDATE web_game_actions SET result = ?, finished_at = ? WHERE community_id = ? AND id = ? AND result IS NULL ' +
     'AND EXISTS (SELECT 1 FROM devices WHERE key_hash = ? AND revoked_at IS NULL)'
-  ).bind(result, Date.now(), device.community_id, id, device.key_hash)))
+  ).bind(result, Date.now(), device.community_id, id, device.key_hash))])
   for (const { id, result } of receipts) console.info(JSON.stringify({ event: 'web_game_receipt', requestId: id, result }))
   return receipts.map(({ id }) => id)
 }
@@ -86,17 +87,25 @@ export async function enqueueWebGame(db, account, community, platform, form) {
   const viewer = await webGameViewer(db, account, community, platform)
   if (!viewerId.test(viewer?.viewer_id ?? '')) return null
   const progress = JSON.parse(viewer.payload)
+  const training = action === 'train'
   const runtime = await db.prepare('SELECT seen_at, encounter_id FROM web_game_runtime WHERE community_id = ?')
     .bind(community).first()
   if (!runtime || runtime.seen_at <= Date.now() - 20000) return 'offline'
   const stream = await db.prepare('SELECT platforms, seen_at FROM community_stream_status WHERE community_id = ?')
     .bind(community).first()
-  if (!(stream?.seen_at > Date.now() - 90000 && JSON.parse(stream.platforms).some(channel => channel.live && channel.provider === platform))) {
+  if (!training && !(stream?.seen_at > Date.now() - 90000 && JSON.parse(stream.platforms).some(channel => channel.live && channel.provider === platform))) {
     return 'offline'
   }
   let command
   let encounter = null
-  if (action === 'catch' && ['normal', 'great', 'ultra', 'master'].includes(form.get('ball'))) {
+  if (training) {
+    const pokemon = form.get('pokemon') ?? ''
+    const operation = form.get('operation')
+    const stat = form.get('stat') ?? '-'
+    if (!Object.hasOwn(progress.collection, pokemon) || !['apply','plus','minus','reset'].includes(operation) ||
+        (['plus','minus'].includes(operation) && !trainingRules.stats.includes(stat))) return null
+    command = '!training ' + operation + ' ' + stat + ' ' + pokemon
+  } else if (action === 'catch' && ['normal', 'great', 'ultra', 'master'].includes(form.get('ball'))) {
     encounter = form.get('encounter')
     if (!encounter || encounter !== runtime.encounter_id) return 'expired'
     command = '!catch ' + form.get('ball')
@@ -117,8 +126,8 @@ export async function enqueueWebGame(db, account, community, platform, form) {
     db.prepare('DELETE FROM web_game_actions WHERE community_id = ? AND created_at < ?').bind(community, Date.now() - 3600000),
     db.prepare('INSERT OR IGNORE INTO web_game_actions (id, community_id, viewer_id, platform, command, encounter_id, created_at) ' +
       'SELECT ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM web_game_actions a JOIN account_identities i ON i.viewer_id = a.viewer_id ' +
-      'WHERE a.community_id = ? AND i.account_id = ? AND ((a.result IS NULL AND a.created_at > ?) OR a.finished_at > ?))')
-      .bind(id, community, viewer.viewer_id, platform, command, encounter, now, community, account, now - pendingMs, now - cooldownMs)
+      'WHERE a.community_id = ? AND i.account_id = ? AND ((a.result IS NULL AND a.created_at > ?) OR (? = 0 AND a.finished_at > ?)))')
+      .bind(id, community, viewer.viewer_id, platform, command, encounter, now, community, account, now - pendingMs, Number(training), now - cooldownMs)
   ])
   const order = await webGameStatus(db, account, community, id)
   console.info(JSON.stringify({ event: 'web_game_queue', requestId: id, platform, action, result: order?.id ? 'accepted' : 'pending' }))

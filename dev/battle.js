@@ -1,3 +1,4 @@
+import { trainingRules } from '../ui/training.js'
 import baseStatsData from '../ui/base-stats.json' with { type: 'json' }
 import bundledLearnsets from '../ui/learnsets.json' with { type: 'json' }
 import { nationalStats, typeChart } from './national-stats.js'
@@ -33,6 +34,8 @@ const ultimates = Object.fromEntries(Object.entries(ultimateSpecs).map(([type, [
   ['ultimate-' + type, { name, visual, power, pulses, type, kind: 'ultimate', ultimate: type, reach: arena.width }]))
 let learnsets = bundledLearnsets
 const moves = {
+  raidcannons: { name: 'Hidrobomba de Cañones', type: 'water', kind: 'projectile', visual: 'hydro', power: 78, reach: 720, pp: 16, count: 2, cooldown: 5.5, push: 510 },
+  raidgeysers: { name: 'Cadena de Géiseres', type: 'water', kind: 'area', visual: 'raid-geysers', power: 61, reach: 540, pp: 15, cooldown: 7 },
   raidvinewave: { name: 'Ola de Enredaderas', type: 'grass', kind: 'area', power: 54, reach: 300, pp: 12, cooldown: 5, visual: 'storm' },
   raidtorrent: { name: 'Marea Dinamax', type: 'water', kind: 'area', power: 57, reach: 330, pp: 12, cooldown: 5.3, visual: 'storm' },
   raidthunder: { name: 'Trueno de la Cumbre', type: 'electric', kind: 'area', power: 64, reach: 340, pp: 10, cooldown: 6.5, visual: 'electric' },
@@ -470,9 +473,10 @@ export function arenaBaseStats(id, original) {
 export const moveCooldown = move => move.cooldown ?? (move.kind === 'area' ? 3.4 : move.kind === 'guard' ? 4.5 : 1.1)
 export const movePp = move => move.ultimate ? 2 : (move.pp ?? 20)
 
-export function battleStatsAtLevel(id, stats, level, dna = 0) {
-  const [hp, attack, defense, specialAttack, specialDefense, speed] = arenaBaseStats(id, stats).map(stat => stat + dna * 10)
-  const factor = 1 + (level - 1) * .02
+export function battleStatsAtLevel(id, stats, level, dna = 0, training) {
+  const [hp, attack, defense, specialAttack, specialDefense, speed] = arenaBaseStats(id, stats).map((stat, index) => stat + (training ? (training[trainingRules.stats[index]] ?? 0) * trainingRules.statPerPoint : dna * 10))
+  const levelDelta = level - 1
+  const factor = 1 + levelDelta * .02 + levelDelta ** 2 * .000025
   return { maxHp: Math.round((55 + hp) * factor), attack: attack * factor, defense: defense * factor,
     specialAttack: specialAttack * factor, specialDefense: specialDefense * factor, speed: speed * factor }
 }
@@ -503,10 +507,11 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   let ultimate = null
   const projectiles = []
   const queuedShots = []
+  const geysers = []
   const effects = []
   const hazards = []
   const actors = entries.map((entry, index) => {
-    const stats = battleStatsAtLevel(entry.id, entry.stats, entry.level, entry.dna)
+    const stats = battleStatsAtLevel(entry.id, entry.stats, entry.level, entry.dna, entry.training)
     stats.maxHp = Math.round(stats.maxHp * (entry.boss ? entry.hpBoost ?? 1 : hpMultiplier * (entry.hpBoost ?? 1)))
     if (entry.boss && entry.statBoost !== undefined) {
       for (const key of ['attack', 'defense', 'specialAttack', 'specialDefense', 'speed']) stats[key] *= entry.statBoost
@@ -606,15 +611,18 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
 
   function closest(actor, eligible) {
     let target
+    let best = Infinity
     for (const enemy of actors) {
       if (!rivals(actor, enemy) || enemy.hp <= 0 || eligible && !eligible(enemy)) continue
-      if (!target || Math.abs(enemy.x - actor.x) < Math.abs(target.x - actor.x)) target = enemy
+      const range = Math.abs(enemy.x - actor.x)
+      const score = range + (actor.boss ? enemy.hp / enemy.maxHp * 120 : 0)
+      if (score < best) { target = enemy; best = score }
     }
     return target
   }
 
   function charge(actor, amount) {
-    if (actor.hasUltimate && actor.ultimatePp > 0 && actor.hp > 0) {
+    if (actor.hasUltimate && (actor.boss || actor.ultimatePp > 0) && actor.hp > 0) {
       actor.ultimateCharge = Math.min(100, actor.ultimateCharge + amount)
     }
   }
@@ -717,11 +725,11 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const solarCharge = ultimate?.actor === defender && ultimate.move.type === 'grass' && ultimate.pulse === 0
     const stab = actor.types.includes(type) ? 1.25 : 1
     const itemMultiplier = type && heldItems[actor.heldItem]?.[2] === type || actor.heldItem === 'wise-glasses' && !usesPhysical ? 1.1 : 1
-    const abilityMultiplier = abilityDamage(actor, defender, move, type, usesPhysical, matchup)
+    const abilityMultiplier = abilityDamage(actor, defender, move, type, usesPhysical, matchup) * (actor.boss && !move.ultimate ? 1.24 : 1)
     const variance = move.power && matchup ? .9 + random() * .2 : 1
     const ultimateDamage = Math.min(move.power, 78) * (.65 + actor.level / 100) * statRatio *
       Math.min(matchup, 2) * stab * fieldMultiplier * itemMultiplier * abilityMultiplier * variance
-    const damage = move.ultimate ? Math.min(Math.round(ultimateDamage), Math.floor(defender.maxHp * .6)) : move.struggle ? Math.ceil(defender.maxHp * .2) :
+    const damage = move.ultimate ? Math.min(Math.round(ultimateDamage * (actor.boss ? 1.28 : 1)), Math.floor(defender.maxHp * .6)) : move.struggle ? Math.ceil(defender.maxHp * .2) :
       Math.round(move.power * (0.5 + actor.level / 100) * statRatio * reduced * stab *
         (solarCharge ? .7 : 1) * sleepMultiplier * fieldMultiplier * (critical ? 1.45 : 1) * itemMultiplier * abilityMultiplier * variance)
     if (move.struggle) {
@@ -799,14 +807,15 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         actor.exhaustedUntil > time || actor.flinchUntil > time ||
         (!force && (actor.next > time || actor.cooldowns[moveId] > time)) ||
         (move.ultimate && ((!force && (moveId !== actor.equippedUltimate || actor.ultimateCharge < 100)) ||
-          actor.ultimatePp <= 0 || (actor.level < ultimateLevel && !actor.boss))) ||
+          (actor.boss ? actor.nextBossUltimate > time : actor.ultimatePp <= 0 || actor.level < ultimateLevel))) ||
         (!force && actor.pp[moveId] === 0) || (move.heal && (actor.recovered || actor.hp > actor.maxHp * .2))) return false
     const target = move.kind === 'support' ? supportTarget(actor, move) : closest(actor)
     if (!target && move.kind !== 'guard') return false
     if (target) actor.direction = Math.sign(target.x - actor.x) || actor.direction
     if (move.ultimate) {
       if (actor.id === 1024) { actor.usedStellar = true; updateForm(actor) }
-      actor.ultimatePp--
+      if (actor.boss) actor.nextBossUltimate = time + 14
+      else actor.ultimatePp--
       actor.ultimateCharge = 0
       actor.motion = 'Special0'
       actor.motionSince = time
@@ -967,6 +976,14 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
           effects.push({ kind: 'target', visual: move.visual, type: move.type, origin: actor.x, x: target.x, at: time, expires: time + .52 })
           hit(actor, target, move, Math.sign(target.x - actor.x) || actor.direction)
         }
+      }
+    } else if (move.visual === 'raid-geysers') {
+      const struck = new Set()
+      for (let index = 0; index < 6; index++) {
+        const x = bound(origin + actor.direction * (75 + index * 88))
+        const at = time + .28 + index * .16
+        geysers.push({ actor, move, x, at, struck })
+        effects.push({ kind: 'geyser', x, at, expires: at + .55 })
       }
     } else if (move.kind === 'area') {
       effects.push({ kind: 'area', type: move.type, visual: move.visual, x: origin, reach: move.reach, at: time, expires: time + .45 })
@@ -1282,7 +1299,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     let meleeScore = 0
     let rangedReady = 0
     let meleeReady = 0
-    const available = actor.kit.filter(id => moves[id].ultimate ? actor.ultimatePp > 0 && actor.ultimateCharge >= 100 : actor.pp[id] > 0)
+    const available = actor.kit.filter(id => moves[id].ultimate ? (actor.boss ? !(actor.nextBossUltimate > time) : actor.ultimatePp > 0) && actor.ultimateCharge >= 100 : actor.pp[id] > 0)
     const choices = available.some(id => !moves[id].ultimate) ? available : [...available, 'struggle']
     let fallback
     for (const id of choices) {
@@ -1428,6 +1445,16 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         if (ultimate) return
       }
       separateBodies()
+      for (let index = geysers.length - 1; index >= 0; index--) {
+        const wave = geysers[index]
+        if (wave.at > time) continue
+        if (wave.actor.hp) for (const target of actors) {
+          if (!target.hp || !rivals(wave.actor, target) || target.dashUntil > time || wave.struck.has(target.index) || Math.abs(target.x - wave.x) > 76) continue
+          wave.struck.add(target.index)
+          hit(wave.actor, target, wave.move, Math.sign(target.x - wave.x) || wave.actor.direction)
+        }
+        geysers.splice(index, 1)
+      }
       if (hazards.length) for (const actor of actors) if (actor.hp > 0) stepOnSpikes(actor)
       for (let i = hazards.length - 1; i >= 0; i--) if (hazards[i].expires <= time) hazards.splice(i, 1)
       for (let i = queuedShots.length - 1; i >= 0; i--) {

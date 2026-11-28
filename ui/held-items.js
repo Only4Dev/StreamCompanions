@@ -1,6 +1,7 @@
 export const arenaShopItems = ['toxic-orb', 'quick-claw', 'damp-rock', 'heat-rock', 'grip-claw', 'wise-glasses', 'shell-bell', 'leppa-berry', 'leftovers', 'rusted-sword', 'rusted-shield', 'douse-drive', 'shock-drive', 'burn-drive', 'chill-drive']
 
 const effects = {
+  'vitamin-complex': ['Otorga un punto de entrenamiento para asignar en la ficha de un Pokémon.', 'Grants one training point to allocate from a Pokémon card.'],
   'shiny-dust': ['Convierte tu compañero invocado en shiny con !shiny.', 'Makes your summoned companion shiny with !shiny.'],
   'poke-ball': ['Poké Ball con probabilidad de captura básica.', 'Poké Ball with a basic catch chance.'],
   'great-ball': ['Mejora la probabilidad de captura de una Poké Ball.', 'Has a higher catch chance than a Poké Ball.'],

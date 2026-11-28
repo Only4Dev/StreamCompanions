@@ -46,7 +46,7 @@ function validateRaidBosses(data) {
   for (const gmax of defaultRaidBosses.bosses.filter(boss => boss.gigantamax)) {
     if (!bosses.some(boss => boss.species === gmax.species)) bosses.push(gmax)
   }
-  if (bosses.some(boss => (boss.moves && (!Array.isArray(boss.moves) || !boss.moves.length || boss.moves.length > 4 ||
+  if (bosses.some(boss => (boss.moves && (!Array.isArray(boss.moves) || !boss.moves.length || boss.moves.length > 7 ||
       new Set(boss.moves).size !== boss.moves.length || boss.moves.some(id => !Object.hasOwn(battleRules.moves, id) || battleRules.moves[id].ultimate))) ||
       (boss.ultimate && !battleRules.moves[boss.ultimate]?.ultimate) ||
       (boss.ultimatePp !== undefined && (!Number.isInteger(boss.ultimatePp) || boss.ultimatePp < 1 || boss.ultimatePp > 10)))) throw new Error('Invalid boss moveset')
@@ -258,8 +258,6 @@ let setup
 let setupFile
 let botFile
 let bot = defaultBot
-const portalAnnouncements = []
-let publishingAnnouncements = false
 let setupComplete = false
 let noticeTimer
 
@@ -321,7 +319,6 @@ async function pollShop() {
       }
     }
     if (!stopSync) return
-    void flushPortalAnnouncements()
     if (kickAbort.signal.aborted || game.config.running === false) return
     const encounter = game.currentEncounter()
     const webGame = encounter ? { id: encounter.id, speciesId: game.encounterSpecies(encounter.name), rarity: encounter.rarity, shiny: Boolean(encounter.shiny), en: game.encounterDifficulty(encounter.name, 'en'), es: game.encounterDifficulty(encounter.name, 'es') } : {}
@@ -442,20 +439,24 @@ async function processAdminActions(actions) {
 
 async function processWebGame(actions) {
   const receipts = []
+  const trainingViewers = new Map()
   const announcements = []
   for (const action of actions.slice(0, 10)) {
     const { id, viewerId, platform, command, encounterId, twitchId, kickId } = action
     if (!/^[a-f0-9-]{36}$/.test(id) || !/^(twitch|kick):\d{1,24}$/.test(viewerId) ||
-        !['twitch', 'kick'].includes(platform) || typeof command !== 'string' || command.length > 90 ||
-        !/^!(?:catch (?:normal|great|ultra|master)|summon .+|summonshiny .+|candy \d{1,2}|legendaryticket|shiny)$/.test(command)) continue
+        !['twitch', 'kick'].includes(platform) || typeof command !== 'string' || command.length > 120 ||
+        !/^!(?:catch (?:normal|great|ultra|master)|summon .+|summonshiny .+|candy \d{1,2}|legendaryticket|shiny|training (?:apply|plus|minus|reset) (?:-|[A-Za-z]+) .+)$/.test(command)) continue
     let result = game.webReceipt(id)
     const replay = Boolean(result)
-    if (!result) {
-      const linked = /^twitch:\d{1,24}$/.test(twitchId ?? '') && /^kick:\d{1,24}$/.test(kickId ?? '') &&
+    const linked = /^twitch:\d{1,24}$/.test(twitchId ?? '') && /^kick:\d{1,24}$/.test(kickId ?? '') &&
         [twitchId, kickId].includes(viewerId)
+    const owner = linked ? twitchId : viewerId
+    const training = /^!training (apply|plus|minus|reset) (-|[A-Za-z]+) (.+)$/.exec(command)
+    if (training) trainingViewers.set(id, owner)
+    if (!result) {
       if (linked) mergeLinkedViewers(kickId, twitchId)
-      const owner = linked ? twitchId : viewerId
-      if (!isLive(platform)) result = 'offline'
+      if (training) result = game.train(owner, training[3], training[1], training[2])
+      else if (!isLive(platform)) result = 'offline'
       else if (encounterId && game.currentEncounter()?.id !== encounterId) result = 'expired'
       else {
         const response = chatAction(owner, undefined, command, platform, false, true)
@@ -478,7 +479,8 @@ async function processWebGame(actions) {
   }
   const response = await fetch(new URL('/api/web-game', syncDevice.url), {
     method: 'POST', redirect: 'error', headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ viewers: receipts }), signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(8000)])
+    body: JSON.stringify({ viewers: receipts.map(receipt => trainingViewers.has(receipt.id) ?
+      { ...receipt, viewer: progress.viewer(trainingViewers.get(receipt.id)) } : receipt) }), signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(8000)])
   })
   if (!response.ok) {
     logDiagnostic('web_game_ack_error', { status: response.status, count: receipts.length })
@@ -644,31 +646,8 @@ function deviceRequest(path, body) {
   })
 }
 
-async function flushPortalAnnouncements() {
-  if (!syncDevice || pendingReset || kickAbort.signal.aborted || publishingAnnouncements || !portalAnnouncements.length) return
-  publishingAnnouncements = true
-  const community = syncDevice
-  const events = portalAnnouncements.filter(event => event.community === community).slice(0, 12)
-  try {
-    if (!events.length) return
-    const response = await deviceRequest('/api/announcements', { viewers: events.map(({ id, message }) => ({ id, message })) })
-    if (response.ok && community === syncDevice) {
-      const sent = new Set(events.map(event => event.id))
-      for (let i = portalAnnouncements.length - 1; i >= 0; i--) {
-        if (sent.has(portalAnnouncements[i].id)) portalAnnouncements.splice(i, 1)
-      }
-    }
-  } catch { /* retry on the next shop poll */ }
-  finally { publishingAnnouncements = false }
-}
-
 function publishPortalMessage(message) {
-  if (!message) return
-  if (syncDevice && !pendingReset) {
-    portalAnnouncements.push({ community: syncDevice, id: randomBytes(16).toString('hex'), message: message.slice(0, 500) })
-    if (portalAnnouncements.length > 24) portalAnnouncements.shift()
-    void flushPortalAnnouncements()
-  }
+  if (message) logDiagnostic('bot_message', { message })
 }
 
 function announceInLiveChats(message) {
@@ -785,7 +764,7 @@ function publicBattle(battle) {
     projectiles: battle.projectiles.map(({ x, move, direction, actor }) => ({ x, move, direction, actor: { types: actor.types } })),
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
-      return { name, ownerName, shiny, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
+      return { name, ownerName, shiny, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, bossHop: actor.boss && actor.dashUntil > battle.time ? Math.sin(Math.PI * Math.min(1, (actor.dashUntil - battle.time) / .24)) * 62 : 0, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
         evasion: boosts.evasion > battle.time, flinched: flinchUntil > battle.time }
     }) }
@@ -832,7 +811,7 @@ async function runCommunityBattle(waitForBanner, raidBoss, manual) {
     const form = manifest.species.find(item => Number(item.id) === id) ?? species
     const variant = pokemon.endsWith(' ✦') ? form.shiny ?? form.normal : form.normal
     return { viewerId, speciesKey: pokemon, team: teamMode ? viewerId : 'raid-party', id, stats, types, final, level: rank,
-      dna: game.dnaCount(viewer, pokemon),
+      training: game.battleTraining(viewer, pokemon, id),
       ownedHeldItems: viewer.heldItems ?? [],
       name: form.name, margin: Math.max(75, ...Object.values(variant?.animations ?? {}).map(clip => clip.width * spriteScale(clip, 3) / 2 + 18)),
       ownerName: viewer.displayName,
@@ -975,6 +954,8 @@ const routes = new Map([
   ['/ui/egg-rules.js', ['egg-rules.js', 'text/javascript']],
   ['/ui/egg-pool.json', ['egg-pool.json', 'application/json']],
   ['/ui/learnsets.json', ['learnsets.json', 'application/json']],
+  ['/ui/training.js', ['training.js', 'text/javascript']],
+  ['/ui/training.json', ['training.json', 'application/json']],
   ['/ui/shop.js', ['shop.js', 'text/javascript']],
   ['/ui/catch-rates.json', ['catch-rates.json', 'application/json']],
   ['/ui/encounter-rarities.json', ['encounter-rarities.json', 'application/json']],

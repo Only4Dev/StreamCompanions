@@ -35,6 +35,20 @@ test('Shiny Dust unlocks later evolved forms and the trailing shiny summon alias
   assert.equal(restored.snapshot().viewers.A.shinyDust, 0)
 })
 
+test('vitamins persist, release allocations on reset and preserve legacy DNA training', () => {
+  const game = createGame({now:()=>1000,catalog:[{id:19,name:'Rattata'}],progress:{viewers:{
+    a:{collection:{Rattata:0},pokeDollars:2500,dnaBoosters:{Rattata:2}}
+  }}})
+  assert.equal(game.fulfillOrder({id:'vitamin',viewerId:'a',item:'vitamin-complex',price:2500}),'purchased')
+  assert.equal(game.train('a','Rattata','apply','-'),'trainingUpdated')
+  assert.equal(game.train('a','Rattata','plus','attack'),'trainingUpdated')
+  assert.equal(game.progress().viewers.a.training['19'].stats.attack,3)
+  assert.equal(game.train('a','Rattata','reset','-'),'trainingUpdated')
+  const row=game.progress().viewers.a
+  assert.deepEqual(row.training['19'],{points:13,stats:{}})
+  assert.equal(row.vitamins,0)
+})
+
 test('Shiny Dust upgrades the active companion once, preserving XP and its normal dex entry', () => {
   const catalog = [{ id: 19, name: 'Rattata', shiny: true }]
   const game = createGame({ catalog, now: () => 0, progress: { viewers: { A: { collection: { Rattata: 120 }, pokeDollars: 1_000_000 } } } })

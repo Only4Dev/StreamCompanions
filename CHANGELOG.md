@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.5
+
+- Keep gameplay activity in Play on the Web and remove the separate viewer log and bot announcements.
+- Improve tooltips, battle visuals and boss movement. Give Blastoise cannon attacks and a dodgeable geyser line.
+- Add configurable Vitamin Complex purchases and reversible training allocations. Preserve existing DNA training when upgrading.
+
 ## 1.2.4
 
 - Add team battles, configurable Dynamax raids, live event controls and a headless balance simulator.

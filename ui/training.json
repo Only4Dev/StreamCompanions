@@ -1,0 +1,8 @@
+{
+  "notes": "One Vitamin Complex gives one assignable point. A reset releases spent points without consuming vitamins.",
+  "maxPoints": 75,
+  "maxPerStat": 25,
+  "statPerPoint": 10,
+  "dnaPointsPerBooster": 6,
+  "stats": ["hp", "attack", "defense", "specialAttack", "specialDefense", "speed"]
+}

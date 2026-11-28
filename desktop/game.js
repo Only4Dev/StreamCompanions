@@ -1,4 +1,5 @@
 import { encounterRarities, normalizeSpeciesRules, rarityFor, specialRarities } from '../ui/species-rules.js'
+import { normalizeTraining, trainingRules, trainingKey } from '../ui/training.js'
 import { regionalSpecies } from '../ui/regional-species.js'
 import { hasPickup } from '../ui/abilities.js'
 import { normalizeCommand } from './commands.js'
@@ -466,6 +467,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
             for (const key of keys) delete viewer.dnaBoosters[key]
             viewer.dnaBoosters[keys[0]] = dna + quantity
           }
+          else if (item === 'vitamin-complex') viewer.vitamins = (viewer.vitamins ?? 0) + quantity
           else if (item === 'shiny-dust') viewer.shinyDust = (viewer.shinyDust ?? 0) + 1
           else if (item === 'legendary-tracker') viewer.legendaryTrackers = (viewer.legendaryTrackers ?? 0) + 1
           else if (item === 'poke-egg') {
@@ -523,6 +525,27 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       viewer[key] = total
       return true
     },
+    train(viewerId, pokemon, operation, stat) {
+      const viewer = viewers.get(viewerId)
+      const id = byName.get(pokemon.replace(/ ✦$/, ''))?.id
+      if (!id || !viewer || !Object.hasOwn(viewer.collection, pokemon)) return 'missingCreature'
+      if (battleActive) return 'battleLocked'
+      const key = trainingKey(id)
+      const legacy = familyDnaCount(viewer.dnaBoosters, dnaKeys(viewer, pokemon))
+      const row = normalizeTraining(viewer.training?.[key], legacy)
+      const spent = Object.values(row.stats).reduce((a,b)=>a+b,0)
+      if (operation === 'apply') {
+        if (!viewer.vitamins || row.points >= trainingRules.maxPoints) return 'trainingUnavailable'
+        viewer.vitamins--
+        row.points++
+      } else if (operation === 'reset') row.stats = {}
+      else if (operation === 'plus' && trainingRules.stats.includes(stat) && row.points > spent && (row.stats[stat] ?? 0) < trainingRules.maxPerStat) row.stats[stat] = (row.stats[stat] ?? 0) + 1
+      else if (operation === 'minus' && trainingRules.stats.includes(stat) && row.stats[stat] > 0) row.stats[stat]--
+      else return 'trainingUnavailable'
+      ;(viewer.training ??= {})[key] = row
+      return 'trainingUpdated'
+    },
+    battleTraining: (viewer, pokemon, id) => normalizeTraining(viewer.training?.[trainingKey(id)], familyDnaCount(viewer.dnaBoosters, dnaKeys(viewer, pokemon))).stats,
     shopHatch: id => shopReceipts.get(id)?.hatch,
     dnaCount: (viewer, key) => familyDnaCount(viewer.dnaBoosters, dnaKeys(viewer, key)),
     acknowledgeOrders(ids) {
@@ -638,6 +661,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         target.heldItems = [...new Set([...(target.heldItems ?? []), ...(source.heldItems ?? [])])]
         target.shinyFamilies = [...new Set([...(target.shinyFamilies ?? []), ...(source.shinyFamilies ?? [])])]
         for (const root of target.shinyFamilies) syncShinyUnlocks(target, root)
+        target.vitamins = Math.max(target.vitamins ?? 0, source.vitamins ?? 0)
+        target.training = { ...source.training, ...target.training }
         target.shinyDust = Math.max(target.shinyDust ?? 0, source.shinyDust ?? 0)
         target.legendaryTrackers = Math.max(target.legendaryTrackers ?? 0, source.legendaryTrackers ?? 0)
         target.rareCandies = Math.max(target.rareCandies ?? 0, source.rareCandies ?? 0)
@@ -692,8 +717,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         erasedViewers: [...erasedViewers],
         viewerGenerations: Object.fromEntries(viewerGenerations),
         shopReceipts: Object.fromEntries(shopReceipts),
-        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, pokeDollars, dnaBoosters, log, dexAcquired }]) =>
-          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, pokeDollars, dnaBoosters, log, dexAcquired }]))
+        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, vitamins, training, pokeDollars, dnaBoosters, log, dexAcquired }]) =>
+          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, vitamins, training, pokeDollars, dnaBoosters, log, dexAcquired }]))
       }
     },
     recordBattle(participants, winner, speciesKey, performances = []) {
