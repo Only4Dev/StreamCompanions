@@ -744,16 +744,16 @@ if (editor) {
     event.preventDefault();
     if (busy || (form === editor ? editor.elements.save.disabled : apply.disabled)) return;
     const data = new URLSearchParams(new FormData(form));
+    const url = new URL(form.getAttribute('action'), location.href);
     busy = true;
     feedback.textContent = feedback.dataset.waiting;
     render();
     try {
-      const response = await fetch(form.action, { method: 'POST', body: data,
+      const response = await fetch(url, { method: 'POST', body: data,
         headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
       if (!response.ok) throw Error('Training rejected');
       const queued = await response.json();
       if (!queued.id) { feedback.textContent = queued.message || feedback.dataset.failed; return; }
-      const url = new URL(form.action);
       url.pathname = '/live/status';
       url.searchParams.set('game', queued.id);
       url.searchParams.set('trainingPokemon', data.get('pokemon'));
