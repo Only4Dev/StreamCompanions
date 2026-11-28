@@ -72,6 +72,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   config.battleEveryEncounters ??= 5
   config.battleEnabled ??= 0
   config.battleHpMultiplier ??= 1
+  config.battleFocusSpread ??= false
   config.capturePercentages = normalizeCapturePercentages(config.capturePercentages) ??
     Object.fromEntries(captureCategories.map(({ id, defaults }) => [id, [...defaults]]))
   config.shopPrices = normalizeShopPrices(config.shopPrices ?? {}) ?? normalizeShopPrices({})
@@ -838,6 +839,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       if (Number.isInteger(values.raidDuration) && values.raidDuration >= 30 && values.raidDuration <= 600) config.raidDuration = values.raidDuration
       for (const name of ['showPokemonName', 'showViewerName', 'raidCatch', 'wildEnabled', 'raidEnabled']) if (typeof values[name] === 'boolean') config[name] = values[name]
       Object.assign(config, { summonMoneyPerMinute, summonXpPerSecond, battleXpPercentPerWin, battleMoneyPerWin, battleEveryEncounters, battleEnabled, battleHpMultiplier })
+      if (typeof values.battleFocusSpread === 'boolean') config.battleFocusSpread = values.battleFocusSpread
       if (Object.hasOwn(values, 'summonXpPerSecond')) config.summonXpTuned = true
       nextAt = Math.max(trackerAt ?? now() + interval * 60_000, encounter?.catchUntil ?? 0)
     }

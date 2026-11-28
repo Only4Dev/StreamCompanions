@@ -837,8 +837,8 @@ test('Triple Oleaje sweeps both rivals toward the same wall while the ultimate i
   assert.ok(near.x > 1750 && far.x <= 1845)
 })
 
-test('Double Team raises evasion above the base five percent', () => {
-  const battle = createBattle([example(19), example(26)], { auto: false, random: () => .15 })
+test('Double Team can dodge at a roll above the three percent baseline', () => {
+  const battle = createBattle([example(19), example(26)], { auto: false, random: () => .12 })
   const [actor, target] = battle.actors
   actor.x = 800
   target.x = 950
@@ -847,7 +847,23 @@ test('Double Team raises evasion above the base five percent', () => {
   battle.manual(0, 'water')
   run(battle, .7)
   assert.equal(target.hp, target.maxHp)
-  assert.ok(battle.effects.some(effect => effect.dodged))
+  assert.ok(battle.effects.some(effect => effect.dodged && effect.target === target.index))
+})
+
+test('a projectile reports one effective dash dodge and does not damage the dodger', () => {
+  const events = []
+  const battle = createBattle([example(9), example(19)], { auto: false, random: () => .5,
+    onCombatEvent: event => events.push(event) })
+  const [attacker, target] = battle.actors
+  attacker.x = 700
+  target.x = 840
+  target.dodgeUntil = 1
+  assert.ok(battle.manual(0, 'water'))
+  run(battle, .9)
+  assert.equal(target.hp, target.maxHp)
+  assert.deepEqual(events.filter(event => event.kind === 'dodge').map(({ target, reason }) => [target, reason]), [[1, 'dash']])
+  assert.ok(battle.effects.some(effect => effect.dodged && effect.target === 1))
+  assert.ok(target.dodgeReady > battle.time + 7)
 })
 
 test('a melee dash closes the gap and then waits five seconds to recharge', () => {

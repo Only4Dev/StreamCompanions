@@ -34,6 +34,41 @@ const silhouettes = {
   dragon: { shape: [[-20, 8], [-8, -7], [-2, 1], [10, -11], [14, 1], [1, 10]], fill: '#ffad79', stroke: '#9b4e62' }
 }
 
+const impactColors = { fire: '#ff935e', water: '#61d6ff', ice: '#a3f1ff', grass: '#a1ef7a',
+  electric: '#ffe577', psychic: '#ff9ce6', poison: '#db94ff', ground: '#efd39c', dark: '#bcadff' }
+
+export function drawBattleContact(ctx, x, y, effect, time) {
+  const launch = effect.kind === 'muzzle'
+  const age = Math.max(0, time - effect.at)
+  const phase = age / (launch ? .16 : .30)
+  if (phase >= 1) return
+  const color = effect.bossImpact ? '#ff7195' : impactColors[effect.type] ?? '#e4d8ff'
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.globalAlpha = 1 - phase
+  ctx.lineWidth = 4
+  if (launch) {
+    ctx.scale(effect.direction, 1)
+    polygon(ctx, [[0, -10], [10, -4], [34 + phase * 20, 0], [10, 4], [0, 10]], '#ffffff', color)
+  } else {
+    const radius = 12 + phase * 42
+    ctx.strokeStyle = color
+    ctx.beginPath()
+    ctx.ellipse(0, 0, radius, radius * .75, 0, 0, tau)
+    ctx.stroke()
+    for (let index = 0; index < 6; index++) {
+      const angle = index * tau / 6 + .3
+      const dx = Math.cos(angle), dy = Math.sin(angle)
+      ctx.strokeStyle = index % 2 ? color : '#ffffff'
+      ctx.beginPath()
+      ctx.moveTo(dx * radius * .65, dy * radius * .65)
+      ctx.lineTo(dx * (radius + 8), dy * (radius + 8))
+      ctx.stroke()
+    }
+  }
+  ctx.restore()
+}
+
 export function drawProjectile(ctx, shot, y, time) {
   const { move, x, direction } = shot
   const phase = time * 22 + x * .015
@@ -44,6 +79,13 @@ export function drawProjectile(ctx, shot, y, time) {
   ctx.shadowColor = ({ fire:'#ff734b', water:'#55d8ff', psychic:'#ff8cf1', grass:'#8cff75', electric:'#ffe16e' })[type] ?? '#cacaff'
   ctx.shadowBlur = 15
   ctx.lineCap = 'round'
+  const length = Math.min(65, Math.max(14, Math.abs(x - shot.origin)))
+  const color = impactColors[type] ?? '#ded5ff'
+  const trail = ctx.createLinearGradient(-length, 0, 12, 0)
+  trail.addColorStop(0, color + '00')
+  trail.addColorStop(.68, color + 'bf')
+  trail.addColorStop(1, '#ffffff')
+  polygon(ctx, [[-length, 0], [-9, -6], [12, -3], [12, 3], [-9, 6]], trail)
   const silhouette = silhouettes[type]
   if (move.visual === 'dreepy') {
     polygon(ctx, [[-34, 4], [-18, -3], [-10, -2], [1, -11], [17, -8], [10, -1], [21, 3], [5, 9], [-8, 5]], '#7fe0a5', '#254f52')

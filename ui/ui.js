@@ -59,6 +59,8 @@ Object.assign(labels.en, { battleEveryEncounters: 'Wild encounters per battle (0
 
 Object.assign(labels.es, { battleEnabled: 'Batallas automáticas', battleOff: 'Deshabilitadas', battleOn: 'Habilitadas', battleHpMultiplier: 'Multiplicador de PS', battleMoneyPerWin: 'Pokédólares por victoria', battleUnavailable: 'Habilita las batallas, inicia el juego y espera a que termine la ronda anterior.' })
 Object.assign(labels.en, { battleEnabled: 'Automatic battles', battleOff: 'Disabled', battleOn: 'Enabled', battleHpMultiplier: 'HP multiplier', battleMoneyPerWin: 'Pokédollars per win', battleUnavailable: 'Enable battles, start the game, and wait for the previous round to finish.' })
+labels.es.battleFocusSpread = 'Repartir el foco entre rivales cercanos'
+labels.en.battleFocusSpread = 'Spread focus among nearby opponents'
 
 Object.assign(labels.es, { queueLegendary: 'Programar próxima aparición especial', queuedLegendary: 'Próxima aparición especial', demoMaster: 'Dar Master Ball de prueba', candyUsed: 'Caramelo usado. El Pokémon subió un nivel.', noCandy: 'No tienes Caramelos Raros.', candyMaxLevel: 'Ese Pokémon alcanzó el nivel máximo.' })
 Object.assign(labels.en, { queueLegendary: 'Queue next special encounter', queuedLegendary: 'Next special encounter', demoMaster: 'Give test Master Ball', candyUsed: 'Candy used. The Pokémon gained a level.', noCandy: 'You have no Rare Candies.', candyMaxLevel: 'That Pokémon is already at the level cap.' })
@@ -107,7 +109,7 @@ const tips = {
   battleEveryEncounters: ['Intenta iniciar tras este número de encuentros si hay dos compañeros. Usa 0 para inicio manual.', 'Tries to start after this many encounters with two companions. Use 0 for manual only.'],
   battleEnabled: ['Programa batallas según el número de encuentros indicado.', 'Schedules battles based on the configured encounter count.'],
   battleMoneyPerWin: ['Premio para el ganador al cerrar la batalla. 0 desactiva el premio.', 'Paid to the winner when the battle ends. Set to 0 to disable.'],
-  battleHpMultiplier: ['Multiplica los PS iniciales de todos los participantes.', 'Multiplies starting HP for all fighters.'],
+  battleHpMultiplier: ['Multiplica los PS iniciales en batallas por equipos.', 'Multiplies starting HP in team battles.'],
   gameToggle: ['Activa encuentros automáticos y comandos del chat. Al detenerlo se limpian los overlays.', 'Enables automatic encounters and gameplay chat. Stopping clears the overlays.'],
   previewLocal: ['Solo aparece en este panel. No modifica el directo ni el progreso.', 'Only shown in this panel. Does not affect the stream or progress.'],
   obsTitle: ['Encuentros muestra el retrato y el reloj. Compañeros también muestra las batallas.', 'Encounters shows the portrait and timer. Companions also shows battles.'],

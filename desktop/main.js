@@ -769,7 +769,8 @@ function launchBattlePreview(mode, species) {
     if (!boss) return 404
     entries = [...party, makeRaidBoss(boss)]
   } else entries = [...party.slice(0,3), ...[94, 130, 65].map((id,index) => info(id, 45, 'b', { support: index === 1 ? 'pollenpuff' : null }))]
-  const battle = battleRules.createBattle(entries, { raid: mode === 'raid', duration: mode === 'raid' ? game.config.raidDuration : 60 })
+  const battle = battleRules.createBattle(entries, mode === 'raid' ? { raid: true, duration: game.config.raidDuration } :
+    { hpMultiplier: game.config.battleHpMultiplier, spreadFocus: game.config.battleFocusSpread })
   const current = { battle, finishedAt: 0 }
   communityBattle = current
   battleTimer = battleTicker(battle, () => {
@@ -886,8 +887,8 @@ async function runCommunityBattle(waitForBanner, raidBoss, manual) {
   if (new Set(entries.map(entry => entry.viewerId)).size < (raidBoss ? 1 : 2)) return 422
   if (raidBoss) entries.push(makeRaidBoss(raidBoss))
   const battle = battleRules.createBattle(entries, {
-    hpMultiplier: game.config.battleHpMultiplier,
-    ...(raidBoss ? { raid: true, duration: game.config.raidDuration } : {}),
+    ...(raidBoss ? { raid: true, duration: game.config.raidDuration } :
+      { hpMultiplier: game.config.battleHpMultiplier, spreadFocus: game.config.battleFocusSpread }),
     onMoveReward(actor, amount) {
       if (game.creditBattleMove(actor.viewerId, amount)) {
         logDiagnostic('battle_move_reward', { species: actor.id, amount })

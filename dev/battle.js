@@ -516,7 +516,7 @@ function heldForm(id, item) {
   return null
 }
 
-export function createBattle(entries, { auto = true, random = Math.random, hpMultiplier = 1, duration = 60, raid = false, onMoveReward = () => {}, onCombatEvent } = {}) {
+export function createBattle(entries, { auto = true, random = Math.random, hpMultiplier = 1, duration = 60, raid = false, spreadFocus = false, onMoveReward = () => {}, onCombatEvent } = {}) {
   let time = 0
   let winner = null
   let over = false
@@ -657,14 +657,30 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     if (actor.boss && !eligible && focus?.hp > 0) return focus
     let target
     let best = Infinity
+    const spread = auto && spreadFocus && !raid && !eligible
+    const claimed = new Map()
+    if (spread) for (const other of actors) {
+      if (other === actor || !other.hp) continue
+      const index = other.cast?.target?.index ?? other.intentIndex
+      const aimed = actors[index]
+      if (aimed?.hp && rivals(other, aimed)) claimed.set(index, (claimed.get(index) ?? 0) + 1)
+    }
     for (const enemy of actors) {
       if (!rivals(actor, enemy) || enemy.hp <= 0 || eligible && !eligible(enemy)) continue
       const range = Math.abs(enemy.x - actor.x)
-      const score = range + (actor.boss ? enemy.hp / enemy.maxHp * 120 : 0)
+      const pressure = spread && (claimed.get(enemy.index) ?? 0) >= 2 ? 225 : 0
+      const score = range + pressure + (actor.boss ? enemy.hp / enemy.maxHp * 120 : 0) -
+        (spread && actor.intentIndex === enemy.index ? 50 : 0)
       if (score < best) { target = enemy; best = score }
     }
     if (actor.boss && !eligible) actor.focusIndex = target?.index
+    if (spread) actor.intentIndex = target?.index
     return target
+  }
+
+  function confirmDodge(source, target, move, reason) {
+    effects.push({ kind: 'hit', type: move.type, x: target.x, target: target.index, dodged: true, at: time, expires: time + .85 })
+    onCombatEvent?.({ kind: 'dodge', time, source: source.index, target: target.index, move: move.name, reason })
   }
 
   function charge(actor, amount) {
@@ -746,8 +762,9 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const fieldEvasion = field?.kind === 'sandstorm' && defender.abilities.has('sand-veil') ||
       field?.kind === 'hail' && defender.abilities.has('snow-cloak')
     const accurate = field?.kind === 'rain' && move === moves.lightning || field?.kind === 'hail' && move === moves.blizzard
-    if (!actor.boss && !accurate && !move.ultimate && !move.struggle && matchup && random() < (defender.boosts.evasion > time ? .25 : fieldEvasion ? .15 : .05)) {
-      effects.push({ kind: 'hit', type, x: defender.x, dodged: true, at: time, expires: time + .58 })
+    if (!actor.boss && !accurate && !move.ultimate && !move.struggle && matchup &&
+        random() < (defender.boosts.evasion > time ? .15 : fieldEvasion ? .10 : .03)) {
+      confirmDodge(actor, defender, move, 'evasion')
       return
     }
     const reduced = matchup === 0 ? 0 : clamp(matchup, 0.5, 1.6)
@@ -803,6 +820,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       const absorbed = Math.min(damage, shield.hp)
       shield.hp -= absorbed
       damage -= absorbed
+      if (!damage) effects.push({ kind: 'hit', type, x: defender.x, target: defender.index, blocked: true, at: time, expires: time + .70 })
       onCombatEvent?.({ kind: 'absorbed', time, source: actor.index, target: defender.index, amount: absorbed })
     }
     let dealt = 0
@@ -1107,7 +1125,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   }
 
   function launch(actor, move, direction) {
-    projectiles.push({ actor, move, x: actor.x, origin: actor.x, direction, end: time + move.reach / 720 })
+    projectiles.push({ actor, move, x: actor.x, origin: actor.x, direction, end: time + move.reach / 720, evaded: new Set() })
+    effects.push({ kind: 'muzzle', type: move.type, x: actor.x, direction, at: time, expires: time + .16 })
   }
 
   function placeSpikes(actor, x, seconds, kind = 'poison', allowedTargets) {
@@ -1417,7 +1436,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   function startDash(actor, direction, dodging = false) {
     actor.dashReady = time + (actor.boss ? 3.6 : 5)
     actor.dashUntil = time + .24
-    actor.dodgeUntil = dodging ? actor.dashUntil : 0
+    actor.dodgeUntil = dodging && !(actor.dodgeReady > time) ? time + .15 : 0
     actor.dashDirection = direction
     actor.direction = direction
     return 'Run'
@@ -1532,7 +1551,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const prefersRange = pureRange || (rangedScore > 0 && rangedScore >= meleeScore * (distance < 135 ? 1.25 : .85) &&
       (rangedReady > 0 || !meleeReady || distance > 250))
     const threat = enemy.cast?.move.kind === 'rush' && distance < 195
-    const incoming = projectiles.find(shot => rivals(shot.actor, actor) &&
+    const incoming = !(actor.dodgeReady > time) && projectiles.find(shot => rivals(shot.actor, actor) &&
       (actor.x - shot.x) * shot.direction > 0 && (actor.x - shot.x) * shot.direction < 115)
     const castArea = enemy.cast?.move.kind === 'area' && distance < enemy.cast.move.reach &&
       distance + 185 > enemy.cast.move.reach
@@ -1663,17 +1682,18 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         if (destroyed.has(shot)) { projectiles.splice(i, 1); continue }
         const prior = shot.x
         shot.x += shot.direction * 720 * dt
-        let enemy
-        let nearest = Infinity
         const left = Math.min(prior, shot.x) - 25
         const right = Math.max(prior, shot.x) + 25
-        for (const actor of actors) {
-          if (!actor.hp || !rivals(shot.actor, actor) || actor.dodgeUntil > time ||
-              actor.x < left - extraReach(actor) || actor.x > right + extraReach(actor)) continue
-          const distance = Math.abs(actor.x - prior)
-          if (distance >= nearest) continue
-          nearest = distance
-          enemy = actor
+        const contacts = actors.filter(actor => actor.hp && rivals(shot.actor, actor) && !shot.evaded.has(actor.index) &&
+          actor.x >= left - extraReach(actor) && actor.x <= right + extraReach(actor))
+          .sort((a, b) => Math.abs(a.x - prior) - Math.abs(b.x - prior))
+        let enemy
+        for (const target of contacts) {
+          if (!(target.dodgeUntil > time) || !effectiveness(shot.actor, target, shot.move)) { enemy = target; break }
+          shot.evaded.add(target.index)
+          target.dodgeUntil = 0
+          target.dodgeReady = time + 8
+          confirmDodge(shot.actor, target, shot.move, 'dash')
         }
         if (enemy) hit(shot.actor, enemy, shot.move, shot.direction)
         if (enemy || time >= shot.end || shot.x < 0 || shot.x > arena.width) projectiles.splice(i, 1)
@@ -1715,7 +1735,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         finalists.forEach((actor, index) => {
           Object.assign(actor, { hp: Math.ceil(actor.maxHp * .25), x: bound(arena.width / 2 + (index - (finalists.length - 1) / 2) * 130, actor),
             status: null, leech: null, ongoing: null, orbActivated: false, boosts: {}, cast: null, shield: 0, knockback: 0, hurtUntil: 0, faintedAt: undefined,
-            cooldowns: {}, confusion: null, flinchUntil: 0, slowUntil: 0, dashUntil: 0, dodgeUntil: 0, exhaustedUntil: 0, dashReady: time, next: time + .6 })
+            cooldowns: {}, confusion: null, flinchUntil: 0, slowUntil: 0, dashUntil: 0, dodgeUntil: 0, dodgeReady: 0, exhaustedUntil: 0, dashReady: time, next: time + .6 })
         })
       } else if (alive.length <= 1 || timedOut) {
         over = true

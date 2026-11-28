@@ -1,7 +1,7 @@
 import { battleClip, sprite, spriteScale } from '/sprites.js'
 import { arena, battleRoster, battleManeuver, createBattle, formAtLevel, hpColor, moveOptions, moves, movesFor, ultimateOptions } from './battle.js'
 import { maxLevel, ultimateLevel } from '/levels.js'
-import { drawArea, drawChannel, drawClash, drawDigMound, drawField, drawGraveyard, drawHeavyFireImpact, drawHyper, drawOngoing, drawPoisonHazard, drawProjectile, drawPunch, drawStatus, drawTarget, drawUltimate, drawWaterImpact } from './battle-vfx.js'
+import { drawArea, drawBattleContact, drawChannel, drawClash, drawDigMound, drawField, drawGraveyard, drawHeavyFireImpact, drawHyper, drawOngoing, drawPoisonHazard, drawProjectile, drawPunch, drawStatus, drawTarget, drawUltimate, drawWaterImpact } from './battle-vfx.js'
 
 const colors = { fire: '#ff8754', water: '#63b5ff', grass: '#9af36b', normal: '#fff3c1',
   electric: '#ffd454', ice: '#b3f3ff', poison: '#d599ff', ground: '#e7b176', fairy: '#ffc5e6',
@@ -308,6 +308,7 @@ export function mountBattleLab({ catalog, mount, language, advanced = false }) {
     }
     for (const effect of battle.effects) {
       if (effect.expires <= visualTime || effect.kind === 'hit') continue
+      if (effect.kind === 'muzzle') { drawBattleContact(ctx, effect.x, arena.floor, effect, visualTime); continue }
       if (effect.kind === 'ultimate') {
         drawUltimate(ctx, effect, arena.width, arena.floor, visualTime, palette(effect.type))
         continue

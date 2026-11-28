@@ -1,5 +1,5 @@
 import { level, maxLevel, xpAtLevel } from './levels.js'
-import { drawArea, drawClash, drawDigMound, drawField, drawHyper, drawOngoing, drawPoisonHazard, drawProjectile, drawStatus, drawTarget, drawUltimate } from '../dev/battle-vfx.js'
+import { drawArea, drawBattleContact, drawClash, drawDigMound, drawField, drawHyper, drawOngoing, drawPoisonHazard, drawProjectile, drawStatus, drawTarget, drawUltimate } from '../dev/battle-vfx.js'
 
 const images = new Map()
 
@@ -466,24 +466,14 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       const hitFeedback = new Map()
       for (const effect of battle.effects) {
         if (effect.expires <= feedbackTime) continue
-        if (effect.kind === 'hit' && effect.damage > 0 && Number.isInteger(effect.target)) {
+        if (effect.kind === 'hit' && (effect.damage > 0 || effect.dodged || effect.blocked) && Number.isInteger(effect.target)) {
           if (!hitFeedback.has(effect.target)) hitFeedback.set(effect.target, [])
           hitFeedback.get(effect.target).push(effect)
         }
-        if (effect.bossImpact && !battle.over) {
-          const age = Math.max(0, feedbackTime - effect.at)
-          context.save()
-          context.globalAlpha = Math.max(0, 1 - age / .4)
-          context.strokeStyle = '#ff7195'
-          context.lineWidth = 5
-          context.beginPath()
-          context.ellipse(effect.x, floor - 40, 23 + age * 100, 16 + age * 65, 0, 0, Math.PI * 2)
-          context.stroke()
-          context.restore()
-        }
         if (battle.over) continue
         const color = effect.type === 'fire' ? '#ff8957' : effect.type === 'water' ? '#7bddff' : '#e1c8ff'
-        if (effect.kind === 'geyser') {
+        if (effect.kind === 'muzzle') drawBattleContact(context, effect.x, floor - 40, effect, renderTime)
+        else if (effect.kind === 'geyser') {
           const age = renderTime - effect.at
           context.save()
           context.shadowColor = '#66eaff'
@@ -613,7 +603,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
               context.restore()
             }
           }
-          if (!fighter.boss && hits?.some(hit => renderTime - hit.at < .17)) context.filter = 'brightness(0) invert(1)'
+          if (!fighter.boss && hits?.some(hit => hit.damage > 0 && renderTime - hit.at < .12)) context.filter = 'brightness(0) invert(1)'
           sprite(context, readyClip(clip, variant?.animations), x, y, fighter.direction, time, false, scale, false, true)
           context.restore()
           if (!clip) label(context, fighter.name[0], x, y, 25)
@@ -621,11 +611,15 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         if (hits) hits.slice(-4).forEach((hit, slot) => {
           const age = Math.max(0, feedbackTime - hit.at)
           const anchor = top > 100 ? top - 28 : Math.min(height - 28, top + 55)
+          if (hit.damage > 0) drawBattleContact(context, x, y - Math.min(58, (y - top) * .48), hit, feedbackTime)
           context.save()
           context.globalAlpha = Math.min(1, (hit.expires - feedbackTime) * 5)
           context.lineJoin = 'round'
-          label(context, '-' + Math.round(hit.damage), x + (slot % 2 ? 24 : -14) + (hit.critical ? Math.sin(age * 96) * Math.max(0, 8 - age * 35) : 0), Math.max(29, anchor - age * 53 - slot * 13),
-            hit.critical ? 39 : 30, hit.critical ? '#ffcc51' : '#ffffff', hit.critical ? 7 : 5)
+          const english = state.bot?.language === 'en'
+          const value = hit.dodged ? (english ? 'DODGED' : 'ESQUIVÓ') :
+            hit.blocked ? (english ? 'BLOCKED' : 'BLOQUEÓ') : '-' + Math.round(hit.damage)
+          label(context, value, x + (slot % 2 ? 24 : -14) + (hit.critical ? Math.sin(age * 96) * Math.max(0, 8 - age * 35) : 0), Math.max(29, anchor - age * 53 - slot * 13),
+            hit.critical ? 39 : hit.dodged || hit.blocked ? 26 : 30, hit.dodged ? '#8beaff' : hit.blocked ? '#a6c0ff' : hit.critical ? '#ffcc51' : '#ffffff', hit.critical ? 7 : 5)
           context.restore()
         })
         if (!fighter.hp) {
