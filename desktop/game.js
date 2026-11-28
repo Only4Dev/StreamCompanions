@@ -64,7 +64,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   delete savedConfig.duplicateMode
   delete savedConfig.duplicateXpPercent
   delete savedConfig.duplicateXp
-  const config = { interval: 30, duration: 3, catchGraceSeconds: 10, legendaryChancePercent: .01, shiny: 128, nameLimit: 50, showPokemonName: true, showViewerName: true, visibleLimit: 100, spriteScale: 100, wildEnabled: true, raidEnabled: (savedConfig.raidChance ?? 0) > 0, raidChance: 0, raidDuration: 120, raidSizePercent: 400, raidHpMultiplier: 5, raidStatMultiplier: 1.2, raidLevelMode: 'highest', raidCatch: false, raidRewards: [{ kind: 'money', amount: 2500 }, { kind: 'candy', amount: 1 }], teamBattles: true, ...savedConfig }
+  const config = { interval: 30, duration: 3, catchGraceSeconds: 10, legendaryChancePercent: .01, shiny: 128, nameLimit: 50, showPokemonName: true, showViewerName: true, visibleLimit: 100, spriteScale: 100, wildEnabled: true, raidEnabled: (savedConfig.raidChance ?? 0) > 0, raidChance: 0, raidDuration: 120, raidSizePercent: 400, raidHpMultiplier: 5, raidViewerHpPercent: 3, raidStatMultiplier: 1.2, raidLevelMode: 'highest', raidCatch: false, raidRewards: [{ kind: 'money', amount: 2500 }, { kind: 'candy', amount: 1 }], teamBattles: true, ...savedConfig }
   if (!savedConfig.summonXpTuned && config.summonXpPerSecond === 1) config.summonXpPerSecond = defaultSummonXpPerSecond
   config.summonXpPerSecond ??= defaultSummonXpPerSecond
   delete config.battleXpPerOpponent
@@ -781,13 +781,13 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
           !Number.isFinite(battleXpPercentPerWin) || battleXpPercentPerWin < 0 || battleXpPercentPerWin > 100 ||
           !Number.isSafeInteger(battleEveryEncounters) || battleEveryEncounters < 0 || battleEveryEncounters > 100 ||
           ![0, 1].includes(battleEnabled) || ![1, 1.5, 2].includes(battleHpMultiplier)) throw new Error('Invalid configuration')
-      for (const [name, min, max, whole] of [['raidSizePercent', 100, 600, true], ['raidHpMultiplier', 1, 50, false], ['raidStatMultiplier', .1, 5, false], ]) {
+      for (const [name, min, max, whole] of [['raidSizePercent', 100, 600, true], ['raidHpMultiplier', 1, 50, false], ['raidViewerHpPercent', 0, 100, false], ['raidStatMultiplier', .1, 5, false], ]) {
         const value = values[name] ?? config[name]
         if (!Number.isFinite(value) || value < min || value > max || (whole && !Number.isInteger(value))) throw new Error('Invalid boss configuration')
       }
       Object.assign(config, { interval, duration, catchGraceSeconds, legendaryChancePercent, shiny, nameLimit, visibleLimit, spriteScale })
       if (Number.isFinite(values.raidChance) && values.raidChance >= 0 && values.raidChance <= 100) config.raidChance = values.raidChance
-      for (const name of ['raidSizePercent', 'raidHpMultiplier', 'raidStatMultiplier']) if (values[name] !== undefined) config[name] = values[name]
+      for (const name of ['raidSizePercent', 'raidHpMultiplier', 'raidViewerHpPercent', 'raidStatMultiplier']) if (values[name] !== undefined) config[name] = values[name]
       if (['highest', 'average'].includes(values.raidLevelMode)) config.raidLevelMode = values.raidLevelMode
       if (Number.isInteger(values.raidDuration) && values.raidDuration >= 30 && values.raidDuration <= 600) config.raidDuration = values.raidDuration
       for (const name of ['showPokemonName', 'showViewerName', 'raidCatch', 'wildEnabled', 'raidEnabled']) if (typeof values[name] === 'boolean') config[name] = values[name]

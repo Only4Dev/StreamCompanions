@@ -1,5 +1,5 @@
 {
-  "notes": "Moves and ultimate are IDs from learnsets.json. Boss level follows the highest level or average in the participating team. The HP multiplier is calibrated for three Pokémon and scales with the size of the party. Boss ultimates recharge normally and have a 14-second reuse delay. Each moveset can contain up to seven regular moves.",
+  "notes": "Moves and ultimate are IDs from learnsets.json. Boss level follows the highest level or average in the participating team. The base HP multiplier gains a configurable percentage for each distinct participating viewer (default 3%). Boss ultimates recharge normally and have a 14-second reuse delay. Each moveset can contain up to seven regular moves.",
   "bosses": [
     {
       "species": 1,

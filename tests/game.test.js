@@ -1,3 +1,4 @@
+import { parseTrainingCommand } from '../ui/training.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { catchChance, createGame } from '../desktop/game.js'
@@ -53,9 +54,12 @@ test('training applies several vitamins and saves a complete allocation atomical
   const game = createGame({catalog:[{id:19,name:'Rattata'}],progress:{viewers:{
     a:{collection:{Rattata:0},vitamins:10}
   }}})
-  assert.equal(game.train('a','Rattata','apply','4'),'trainingUpdated')
+  for (const command of ['!training apply 4 Rattata', '!training save 2,1,1,0,0,0 Rattata']) {
+    const action = parseTrainingCommand(command)
+    assert.ok(action)
+    assert.equal(game.train('a', action.pokemon, action.operation, action.value), 'trainingUpdated')
+  }
   assert.equal(game.train('a','Rattata','apply','7'),'trainingUnavailable')
-  assert.equal(game.train('a','Rattata','save','2,1,1,0,0,0'),'trainingUpdated')
   assert.equal(game.train('a','Rattata','save','2,1,1,0,0,1'),'trainingUnavailable')
   assert.equal(game.train('a','Rattata','save','0,26,0,0,0,0'),'trainingUnavailable')
   const viewer = game.progress().viewers.a

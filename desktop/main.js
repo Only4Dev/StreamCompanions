@@ -1,3 +1,4 @@
+import { parseTrainingCommand } from '../ui/training.js'
 import { app, BrowserWindow, dialog, safeStorage, session, shell } from 'electron'
 import { createHash, randomBytes } from 'node:crypto'
 import { dirname, join } from 'node:path'
@@ -202,6 +203,7 @@ let checkpoint
 let stopSync
 let shopTimer
 let nextShopMaintenance = 0
+let publishedEncounter
 let nextIdentitySync = 0
 let nextAdminPoll = 0
 let syncStatus = ''
@@ -323,17 +325,19 @@ async function pollShop() {
     const encounter = game.currentEncounter()
     const webGame = encounter ? { id: encounter.id, speciesId: game.encounterSpecies(encounter.name), rarity: encounter.rarity, shiny: Boolean(encounter.shiny), en: game.encounterDifficulty(encounter.name, 'en'), es: game.encounterDifficulty(encounter.name, 'es') } : {}
     const endpoint = new URL('/api/shop', syncDevice.url)
+    const encounterSignal = endpoint.href + ':' + JSON.stringify(webGame)
     const fetchLinks = Date.now() >= nextIdentitySync
     const fetchAdmin = Date.now() >= nextAdminPoll
     const request = body => fetch(endpoint, {
       method: body ? 'POST' : 'GET', redirect: 'error',
       headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json',
-        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '3', 'X-Shop-Quantity': '1', 'X-Web-Game': 'v2:' + Buffer.from(JSON.stringify(webGame)).toString('base64url'), 'X-Identity-Orders': '1', ...(fetchAdmin ? { 'X-Admin-Actions': '1' } : {}), ...(fetchLinks ? { 'X-Identity-Links': '1' } : {}) } : {}) },
+        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '3', 'X-Shop-Quantity': '1', 'X-Web-Game': 'v2:' + Buffer.from(JSON.stringify(webGame)).toString('base64url'), 'X-Identity-Orders': '1', ...(publishedEncounter !== encounterSignal ? { 'X-Encounter-Changed': '1' } : {}), ...(fetchAdmin ? { 'X-Admin-Actions': '1' } : {}), ...(fetchLinks ? { 'X-Identity-Links': '1' } : {}) } : {}) },
       body: body && JSON.stringify({ viewers: body }),
       signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(8000)])
     })
     const response = await request()
     if (!response.ok || pendingReset || kickAbort.signal.aborted || game.config.running === false) return
+    publishedEncounter = encounterSignal
     const { orders, webActions, links, adminActions } = await response.json()
     if (pendingReset || kickAbort.signal.aborted || game.config.running === false) return
     const linkedKickAccounts = new Map()
@@ -443,19 +447,19 @@ async function processWebGame(actions) {
   const announcements = []
   for (const action of actions.slice(0, 10)) {
     const { id, viewerId, platform, command, encounterId, twitchId, kickId } = action
+    const training = parseTrainingCommand(command)
     if (!/^[a-f0-9-]{36}$/.test(id) || !/^(twitch|kick):\d{1,24}$/.test(viewerId) ||
         !['twitch', 'kick'].includes(platform) || typeof command !== 'string' || command.length > 120 ||
-        !/^!(?:catch (?:normal|great|ultra|master)|summon .+|summonshiny .+|candy \d{1,2}|legendaryticket|shiny|training (?:apply|plus|minus|reset) (?:-|[A-Za-z]+) .+)$/.test(command)) continue
+        (!training && !/^!(?:catch (?:normal|great|ultra|master)|summon .+|summonshiny .+|candy \d{1,2}|legendaryticket|shiny)$/.test(command))) continue
     let result = game.webReceipt(id)
     const replay = Boolean(result)
     const linked = /^twitch:\d{1,24}$/.test(twitchId ?? '') && /^kick:\d{1,24}$/.test(kickId ?? '') &&
         [twitchId, kickId].includes(viewerId)
     const owner = linked ? twitchId : viewerId
-    const training = /^!training (apply|plus|minus|reset|save) (-|[A-Za-z]+|[0-9,]{1,17}) (.+)$/.exec(command)
     if (training) trainingViewers.set(id, owner)
     if (!result) {
       if (linked) mergeLinkedViewers(kickId, twitchId)
-      if (training) result = game.train(owner, training[3], training[1], training[2])
+      if (training) result = game.train(owner, training.pokemon, training.operation, training.value)
       else if (!isLive(platform)) result = 'offline'
       else if (encounterId && game.currentEncounter()?.id !== encounterId) result = 'expired'
       else {
@@ -724,7 +728,8 @@ function makeRaidBoss(boss, party) {
   const config = game.config
   const levels = party.map(entry => entry.level)
   const level = config.raidLevelMode === 'average' ? Math.round(levels.reduce((sum, rank) => sum + rank, 0) / levels.length) : Math.max(...levels)
-  const partyScale = Math.max(.6, Math.sqrt(party.length / 3))
+  const viewers = new Set(party.map((entry, index) => entry.viewerId ?? index)).size
+  const partyScale = 1 + viewers * config.raidViewerHpPercent / 100
   const art = manifest.species.find(entry => Number(entry.id) === boss.species)
   return { ...simEntry(boss.species, level, 0), name: art.name, team: 'raid-boss', boss: true,
     bossForm: art.battleForms?.gigantamax ? 'gigantamax' : null, bossScale: config.raidSizePercent / 100,

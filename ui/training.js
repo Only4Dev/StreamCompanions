@@ -26,3 +26,9 @@ export function decodeAllocation(raw) {
   const stats = Object.fromEntries(trainingRules.stats.map((stat, index) => [stat, values[index]]))
   return validTraining({ points: trainingRules.maxPoints, stats }) ? stats : null
 }
+
+export function parseTrainingCommand(command) {
+  if (typeof command !== 'string' || command.length > 120) return null
+  const match = /^!training (apply|plus|minus|reset|save) (-|[A-Za-z]+|[0-9,]{1,17}) (.+)$/.exec(command)
+  return match ? { operation: match[1], value: match[2], pokemon: match[3] } : null
+}

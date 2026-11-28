@@ -127,7 +127,7 @@ button.description-trigger[aria-expanded=true]{outline:2px solid var(--line);out
 .dex-ability{font-size:.74rem;color:var(--muted);overflow-wrap:anywhere}
 .team-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:.8rem;margin:1rem 0}
 .team-card{min-width:0;display:grid;gap:.7rem;padding:.75rem;border:1px solid var(--line);border-radius:14px}
-.team-portrait{display:grid;place-items:center;height:112px;border-radius:10px;background:color-mix(in srgb,var(--mint) 20%,var(--paper));text-align:center;padding:.4rem;font-size:.85rem;color:var(--muted)}
+.team-card details{min-width:0}.team-card summary{cursor:pointer}.team-card [data-team-moves] .move-options{grid-template-columns:1fr}.team-portrait{display:grid;place-items:center;height:112px;border-radius:10px;background:color-mix(in srgb,var(--mint) 20%,var(--paper));text-align:center;padding:.4rem;font-size:.85rem;color:var(--muted)}
 .team-portrait img{object-fit:contain;image-rendering:pixelated}
 .team-card label{display:grid;gap:.35rem;font-weight:700}
 .team-card select{width:100%}

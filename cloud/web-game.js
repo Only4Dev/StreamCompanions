@@ -1,6 +1,7 @@
 import { decodeAllocation, trainingRules } from '../ui/training.js'
 import { captureCategories, catchDifficulty } from '../ui/capture-rates.js'
 import { encounterRarities, rarityFor, specialRarities } from '../ui/species-rules.js'
+import { speciesName } from './movesets.js'
 import { battleSpecies } from '../dev/battle.js'
 
 const pendingMs = 15_000
@@ -19,7 +20,7 @@ const encounterId = /^\d{1,16}:\d{1,12}$/
 const viewerId = /^(twitch|kick):\d{1,24}$/
 const isPlatform = value => value === 'twitch' || value === 'kick'
 
-export async function deviceWebGame(db, device, header) {
+export async function deviceWebGame(db, device, header, onEncounter) {
   if (header.length > 2048) return []
   let runtime
   try {
@@ -57,6 +58,7 @@ export async function deviceWebGame(db, device, header) {
       'WHERE a.community_id = ? AND a.result IS NULL AND a.created_at > ? ORDER BY a.created_at, a.id LIMIT 10')
       .bind(device.community_id, now - 15000)
   ])
+  if (onEncounter) await onEncounter({ encounter: id, species: speciesId ? { id: speciesId, name: speciesName(speciesId) } : null, rarity, en: difficulty('en'), es: difficulty('es'), shiny: Boolean(id && runtime.shiny === true) })
   return pending.results
 }
 

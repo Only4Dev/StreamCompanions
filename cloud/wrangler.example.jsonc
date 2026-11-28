@@ -10,5 +10,21 @@
       "database_name": "stream-companions-example",
       "database_id": "00000000-0000-0000-0000-000000000000"
     }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ENCOUNTER_EVENTS",
+        "class_name": "EncounterEvents"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "encounter-events-v1",
+      "new_sqlite_classes": [
+        "EncounterEvents"
+      ]
+    }
   ]
 }

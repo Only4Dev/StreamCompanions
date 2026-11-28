@@ -94,7 +94,58 @@ function showFeedback(message, result, captureAction = false) {
   reaction.replaceChildren(badge);
   clearReaction = setTimeout(() => reaction.replaceChildren(), 4200);
 }
+function renderEncounter(state) {
+  if (lastEncounter !== undefined && state.encounter && state.encounter !== lastEncounter && state.shiny && shinyOptIn.checked) {
+    playShiny().catch(() => {});
+  }
+  lastEncounter = state.encounter;
+  capture.querySelector('input[name="encounter"]').value = state.encounter || '';
+  root.querySelector('[data-capture-difficulty]').textContent = state.difficulty || root.dataset.noEncounter;
+  root.querySelector('[data-encounter-rarity]').textContent = state.rarity || '';
+  const portrait = root.querySelector('[data-encounter-portrait]');
+  if (state.species) {
+    const src = (${encounterSprite.toString()})(state.species.id, state.shiny);
+    if (portrait.getAttribute('src') !== src) portrait.src = src;
+    portrait.alt = state.species.name;
+    portrait.hidden = false;
+  } else {
+    portrait.hidden = true;
+    portrait.removeAttribute('src');
+  }
+}
 let actionType = '';
+let socket;
+let reconnect;
+function connect() {
+  if (document.hidden || socket) return;
+  const events = new URL(endpoint);
+  events.pathname = '/live/events';
+  events.protocol = events.protocol === 'https:' ? 'wss:' : 'ws:';
+  events.searchParams.delete('game');
+  socket = new WebSocket(events);
+  socket.addEventListener('open', () => { if (!submitting) schedule(0); });
+  socket.addEventListener('message', event => {
+    const state = JSON.parse(event.data);
+    version++;
+    const language = document.documentElement.lang === 'en' ? 'en' : 'es';
+    renderEncounter({ ...state, difficulty: state[language], rarity: (${JSON.stringify(rarityLabels)})[state.rarity]?.[Number(language === 'en')] });
+    capture.querySelector('button').disabled = submitting || locked || endpoint.searchParams.has('game') || !state.encounter ||
+      !capture.querySelector('input[name="ball"]:checked:not(:disabled)');
+    if (!submitting) schedule(endpoint.searchParams.has('game') ? 0 : locked ? 500 : 60000);
+  });
+  socket.addEventListener('close', () => {
+    socket = undefined;
+    clearTimeout(reconnect);
+    if (!document.hidden) reconnect = setTimeout(connect, 15000);
+  });
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) socket?.close();
+  else {
+    connect();
+    if (!submitting) schedule(0);
+  }
+});
 function schedule(delay) {
   clearTimeout(timer);
   timer = setTimeout(refresh, delay);
@@ -129,7 +180,7 @@ root.addEventListener('submit', async event => {
 async function refresh() {
   const current = version;
   try {
-    if (document.hidden && !endpoint.searchParams.has('game')) return schedule(5000);
+    if (document.hidden && !endpoint.searchParams.has('game')) return;
     const url = new URL(endpoint);
     const response = await fetch(url, {cache: 'no-store', signal: AbortSignal.timeout(8000)});
     if (current !== version) return;
@@ -140,23 +191,7 @@ async function refresh() {
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const state = await response.json();
     if (current !== version) return;
-    if (lastEncounter !== undefined && state.encounter && state.encounter !== lastEncounter && state.shiny && shinyOptIn.checked) {
-      playShiny().catch(() => {});
-    }
-    lastEncounter = state.encounter;
-    capture.querySelector('input[name="encounter"]').value = state.encounter || '';
-    root.querySelector('[data-capture-difficulty]').textContent = state.difficulty || root.dataset.noEncounter;
-    root.querySelector('[data-encounter-rarity]').textContent = state.rarity || '';
-    const portrait = root.querySelector('[data-encounter-portrait]');
-    if (state.species) {
-      const src = (${encounterSprite.toString()})(state.species.id, state.shiny);
-      if (portrait.getAttribute('src') !== src) portrait.src = src;
-      portrait.alt = state.species.name;
-      portrait.hidden = false;
-    } else {
-      portrait.hidden = true;
-      portrait.removeAttribute('src');
-    }
+    renderEncounter(state);
     for (const input of capture.querySelectorAll('input[name="ball"]')) {
       const amount = state.balls?.[input.value] ?? 0;
       input.disabled = amount < 1;
@@ -192,12 +227,13 @@ async function refresh() {
     else if (!state.online) status.textContent = root.dataset.offline;
     else if (status.textContent === root.dataset.offline) status.textContent = '';
     if (!state.pending) endpoint.searchParams.delete('game');
-    schedule(state.pending || state.locked ? 500 : state.cooldown > 0 ? Math.min(state.cooldown, 500) : 2500);
+    schedule(state.pending || state.locked ? 500 : state.cooldown > 0 ? state.cooldown : socket?.readyState === WebSocket.OPEN ? 60000 : 15000);
   } catch (error) {
     console.warn('Could not refresh live game status', error);
-    if (current === version) schedule(2500);
+    if (current === version) schedule(15000);
   }
 }
+connect();
 refresh();
 })();`
 
@@ -309,7 +345,7 @@ async function renderLiveGame(request, db, url, language) {
     (legendaryTrackers ? disabled : ' disabled') + '>' + (en ? 'Use Legendary Tracker' : 'Usar Legendary Tracker') + '</button></form>' + open('shiny') + '<p class="meta live-item-count">' + itemIcon('stardust') + ' Shiny Dust <strong data-shiny-dust-count>×' + shinyDust + '</strong></p><button data-shiny-use' +
     (shinyDust ? disabled : ' disabled') + '>' + (en ? 'Use Shiny Dust' : 'Usar Shiny Dust') + '</button></form></section>' +
     '</div><label><input type="checkbox" data-shiny-audio> ' + (en ? 'Play shiny sounds' : 'Reproducir sonidos shiny') + '</label><details class="live-activity" open><summary>' + (en ? 'Your game activity' : 'Tu actividad de juego') +
-    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=11" defer></script>'
+    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=12" defer></script>'
 
 }
 
@@ -718,15 +754,75 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
   const select = card.querySelector('select');
   const portrait = card.querySelector('img');
   const empty = card.querySelector('[data-team-empty]');
+  const details = card.querySelector('details');
+  const editor = card.querySelector('[data-team-moves]');
+  let loaded;
+  let loading = false;
+  details.addEventListener('toggle', async () => {
+    if (!details.open || loaded === select.value || loading) return;
+    const pokemon = select.value;
+    loading = true;
+    const url = new URL('/', location.origin);
+    url.search = new URLSearchParams({community: card.dataset.community, pokemon});
+    editor.textContent = editor.dataset.loading;
+    try {
+      const response = await fetch(url, {signal: AbortSignal.timeout(8000)});
+      if (!response.ok) throw Error('Moveset unavailable');
+      const html = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const form = html.querySelector('.moveset-form');
+      if (!form) throw Error('Missing moveset');
+      if (select.value !== pokemon) return;
+      const action = new URL(form.getAttribute('action'), location.origin);
+      action.searchParams.set('from', 'team');
+      form.action = action.href;
+      editor.replaceChildren(form);
+      const inputs = Array.from(form.querySelectorAll('input[name="move"]'));
+      const save = form.querySelector('button[type="submit"]');
+      function updateMoves() {
+        const count = inputs.filter(input => input.checked).length;
+        for (const input of inputs) input.disabled = count >= 4 && !input.checked;
+        save.disabled = !count;
+        form.querySelector('output').textContent = count + ' / 4';
+      }
+      const feedback = document.createElement('p');
+      feedback.setAttribute('role', 'status');
+      form.append(feedback);
+      form.addEventListener('change', updateMoves);
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        save.disabled = true;
+        try {
+          const response = await fetch(form.action, { method: 'POST', body: new URLSearchParams(new FormData(form)),
+            signal: AbortSignal.timeout(8000) });
+          if (!response.ok || !new URL(response.url).searchParams.has('movesSaved')) throw Error('Save failed');
+          feedback.textContent = editor.dataset.saved;
+        } catch {
+          feedback.textContent = editor.dataset.saveFailed;
+        } finally {
+          updateMoves();
+        }
+      });
+      updateMoves();
+      loaded = pokemon;
+    } catch {
+      if (select.value === pokemon) editor.textContent = editor.dataset.failed;
+    } finally {
+      loading = false;
+      if (details.open && select.value !== pokemon) {
+        details.open = false;
+      }
+    }
+  });
   function update() {
     const option = select.selectedOptions[0];
     const src = option?.dataset.sprite;
     portrait.hidden = !src;
+    details.hidden = !src;
     empty.hidden = Boolean(src);
     if (src) { portrait.src = src; portrait.alt = option.value; }
     else { portrait.removeAttribute('src'); portrait.alt = ''; }
   }
-  select.addEventListener('change', update);
+  select.addEventListener('change', () => { details.open = false; editor.replaceChildren(); loaded = undefined; update(); });
   update();
 }
 `, { headers: { 'Content-Type': 'text/javascript; charset=utf-8' } })
@@ -878,6 +974,16 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     return new Response(cue ? new Uint8Array(cue.audio) : defaultShinyCue(), { headers: {
       'Content-Type': cue?.type ?? 'audio/wav', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'
     } })
+  }
+
+  if (url.pathname === '/live/events') {
+    if (request.headers.get('Origin') !== url.origin) return new Response(null, { status: 403 })
+    if (!identity) return new Response(null, { status: 401 })
+    if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return new Response(null, { status: 426 })
+    const community = url.searchParams.get('community')
+    const platform = url.searchParams.get('platform')
+    if (!await webGameViewer(env.DB, identity.account_id, community, platform)) return new Response(null, { status: 404 })
+    return env.ENCOUNTER_EVENTS ? env.ENCOUNTER_EVENTS.getByName(community).fetch(request) : new Response(null, { status: 503 })
   }
 
   if (url.pathname === '/live/action' || url.pathname === '/live/status') {
@@ -1178,7 +1284,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       .bind(selected.community_id, selected.viewer_id, speciesKey,
         JSON.stringify({ moves: selection, ultimate: equipped[0], selectedAt: detail.rank }), selected.viewer_id, identity.account_id, session, key, Date.now()).run()
     return new Response(null, { status: 303, headers: { Location: '/?' +
-      new URLSearchParams({ ...locationParams, pokemon: speciesKey, saved: '1' }) } })
+      new URLSearchParams({ ...locationParams, ...(url.searchParams.get('from') === 'team' ? { tab: 'team', movesSaved: '1' } : { pokemon: speciesKey, saved: '1' }) }) } })
   }
   if (detail) {
     const en = language === 'en'
@@ -1251,7 +1357,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
         '">' + (stat ? '<input type="hidden" name="stat" value="' + stat + '">' : '') +
         '<button' + (disabled || pending ? ' disabled' : '') + ' aria-label="' + escape(operation === 'plus' || operation === 'minus' ? label + ' ' + stat : label) + '">' + label + '</button></form>'
       const message = pending ? (en ? 'Applying…' : 'Aplicando…') : row?.result ? botCopy[language][row.result] :
-        trainingId === 'offline' ? (en ? 'The streamer’s app is offline.' : 'La app del streamer está desconectada.') : ''
+        trainingId ? webGameState(null, { result: row ? 'expired' : trainingId }, language).message : ''
       const receiptUrl = '/live/status?' + new URLSearchParams({community:selected.community_id,platform,game:trainingId ?? ''})
       const stats = trainingRules.stats.map((stat, index) => ({
         label: [en ? 'HP' : 'PS','ATK','DEF','SPA','SPD','SPE'][index], key: stat, value: learned.stats[stat] ?? 0
@@ -1475,18 +1581,22 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     const slotNames = en ? ['Lead', 'Teammate', 'Third slot'] : ['Líder', 'Compañero', 'Tercer puesto']
     teamPage = '<section class="sheet"><h2>' + (en ? 'Battle team' : 'Equipo de batalla') + '</h2><p>' +
       (en ? 'Choose up to three Pokémon from different evolution lines. If your team is empty, your summoned Pokémon leads.' : 'Elige hasta tres Pokémon de líneas evolutivas distintas. Si dejas el equipo vacío, tu Pokémon invocado ocupa el primer puesto.') +
-      '</p>' + (message ? '<p role="status">' + escape(message) + '</p>' : '') +
-      '<form method="post" action="' + escape('/battle-team?' + new URLSearchParams({community: selected.community_id})) + '"><div class="team-grid">' +
+      '</p>' + (url.searchParams.has('movesSaved') ? '<p role="status">' + (en ? 'Moves saved.' : 'Ataques guardados.') + '</p>' : '') + (message ? '<p role="status">' + escape(message) + '</p>' : '') +
+      '<form id="save-battle-team" method="post" action="' + escape('/battle-team?' + new URLSearchParams({community: selected.community_id})) + '"></form><div class="team-grid">' +
       slotNames.map((slot, index) => {
         const name = slots[index]?.pokemon
         const sprite = teamSprites.get(name)
         const empty = index === 0 ? (en ? 'Summoned Pokémon if team is empty' : 'Pokémon invocado si el equipo está vacío') : (en ? 'Open slot' : 'Puesto libre')
-        return '<section class="team-card" data-team-card><div class="team-portrait"><img width="96" height="96" alt="' +
-          escape(sprite ? name : '') + '"' + (sprite ? ' src="' + sprite + '"' : ' hidden') + '><span data-team-empty' + (sprite ? ' hidden' : '') + '>' + empty +
-          '</span></div><label>' + slot + '<select name="pokemon' + index + '"><option value="">' + (en ? 'Choose Pokémon' : 'Elige un Pokémon') + '</option>' +
+        return '<section class="team-card" data-team-card data-community="' + escape(selected.community_id) +
+          '"><span data-team-empty' + (sprite ? ' hidden' : '') + '>' + empty + '</span><details' + (sprite ? '' : ' hidden') +
+          '><summary class="team-portrait"><img width="96" height="96" alt="' +
+          escape(sprite ? name : '') + '"' + (sprite ? ' src="' + sprite + '"' : ' hidden') + '><span>' + (en ? 'Edit moves' : 'Editar ataques') + '</span></summary><div data-team-moves data-loading="' +
+          (en ? 'Loading…' : 'Cargando…') + '" data-saved="' + (en ? 'Moves saved.' : 'Ataques guardados.') +
+          '" data-save-failed="' + (en ? 'Could not save the moveset.' : 'No se pudieron guardar los ataques.') + '" data-failed="' + (en ? 'Could not load the moveset.' : 'No se pudieron cargar los ataques.') + '"></div></details>' +
+          '<label>' + slot + '<select form="save-battle-team" name="pokemon' + index + '"><option value="">' + (en ? 'Choose Pokémon' : 'Elige un Pokémon') + '</option>' +
           [...teamSprites].map(([option, url]) => '<option value="' + escape(option) + '" data-sprite="' + url + '"' + (name === option ? ' selected' : '') +
             '>' + escape(option) + '</option>').join('') + '</select></label></section>'
-      }).join('') + '</div><button>' + (en ? 'Save team' : 'Guardar equipo') + '</button></form><script src="/assets/battle-team.js" defer></script></section>'
+      }).join('') + '</div><button form="save-battle-team">' + (en ? 'Save team' : 'Guardar equipo') + '</button><script src="/assets/battle-team.js?v=2" defer></script></section>'
   }
   const nav = communityTabs(selected.community_id, language, tab, region[0])
   return page('<div class="toolbar"><div><p class="meta">Viewer · ' + escape(displayName) + '</p><h1>' + t("Tu álbum") + '</h1></div>' +

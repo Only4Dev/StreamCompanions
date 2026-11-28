@@ -1,3 +1,4 @@
+export { EncounterEvents } from './encounter-events.js'
 import { completeProjectBot, projectBotAuthorization, twitchProjectReply } from './project-bots.js'
 import { cueType, maxCueBytes } from '../ui/shiny-cue.js'
 import { deviceWebGame, finishWebGame } from './web-game.js'
@@ -190,7 +191,7 @@ async function movesets(request, db) {
   return json(await readMovesets(db, device.community_id, candidates))
 }
 
-async function deviceShop(request, db) {
+async function deviceShop(request, db, events) {
   const device = await authorizedDevice(request, db)
   if (!device) return json({ error: 'unauthorized' }, 401)
   const community = device.community_id
@@ -230,7 +231,16 @@ async function deviceShop(request, db) {
       db.prepare('SELECT id, viewer_id AS viewerId, item, price, species_key AS speciesKey, quantity ' + eligible).bind(...queue)
     ])
     const state = request.headers.get('X-Web-Game')
-    const webActions = state === null ? undefined : await deviceWebGame(db, device, state)
+    const broadcast = events && request.headers.get('X-Encounter-Changed') === '1' ? async encounter => {
+      try {
+        await events.getByName(community).fetch('https://encounters.internal/', {
+          method: 'POST', body: JSON.stringify(encounter)
+        })
+      } catch (error) {
+        console.warn('Encounter broadcast failed:', error.message)
+      }
+    } : undefined
+    const webActions = state === null ? undefined : await deviceWebGame(db, device, state, broadcast)
     const linksRequested = request.headers.get('X-Identity-Links') === '1' ||
       request.headers.get('X-Identity-Orders') === '1' && pending.results.some(order => order.viewerId.startsWith('kick:'))
     const links = linksRequested ? (await db.prepare('SELECT k.viewer_id AS kickId, t.viewer_id AS twitchId ' + activeIdentityPairs).bind(community).all()).results : undefined
@@ -418,7 +428,7 @@ export default {
       const received = await finishAdminActions(env.DB, device, receipts)
       return received ? json({ received }) : json({ error: 'invalid admin receipts' }, 400)
     }
-    if (path === '/api/shop') return deviceShop(request, env.DB)
+    if (path === '/api/shop') return deviceShop(request, env.DB, env.ENCOUNTER_EVENTS)
     if (request.method === 'GET' && path === '/api/privacy') return deviceErasure(request, env.DB)
     return await portal(request, new URL(request.url), env) ?? json({ error: 'not found' }, 404)
   }
