@@ -62,13 +62,19 @@ async function refresh() {
 refresh();
 })();`
 
-function renderAnnouncements(community, language) {
+function renderAnnouncements(community, language, combined) {
   const en = language === 'en'
   return '<section class="sheet" data-announcements="' + escape(community) + '"><h2>' +
     (en ? 'Bot announcements' : 'Avisos del bot') + '</h2><p class="meta" data-announcements-empty>' +
     (en ? 'No announcements yet.' : 'Todavía no hay avisos.') +
     '</p><ol class="announcement-feed" role="log" aria-live="polite" aria-relevant="additions"></ol></section>' +
-    '<script src="/assets/announcements.js" defer></script>'
+    (combined ? '' : '<script src="/assets/announcements.js" defer></script>')
+}
+
+async function recentAnnouncements(db, community) {
+  const { results } = await db.prepare('SELECT id, message FROM portal_announcements WHERE community_id = ? AND created_at >= ? ' +
+    'ORDER BY created_at DESC, id DESC LIMIT 12').bind(community, Date.now() - 6 * 60 * 60_000).all()
+  return results.reverse()
 }
 
 function encounterSprite(id, shiny) {
@@ -88,6 +94,8 @@ const endpoint = new URL('/live/status', location.origin);
 endpoint.search = location.search;
 let submitting = false;
 let locked = false;
+let lastAnnouncements = '';
+const announcements = document.querySelector('[data-announcements]');
 let timer;
 let version = 0;
 let lastLog = '';
@@ -166,7 +174,10 @@ root.addEventListener('submit', async event => {
 async function refresh() {
   const current = version;
   try {
-    const response = await fetch(endpoint, {cache: 'no-store', signal: AbortSignal.timeout(8000)});
+    if (document.hidden && !endpoint.searchParams.has('game')) return schedule(5000);
+    const url = new URL(endpoint);
+    if (announcements && !locked && !url.searchParams.has('game')) url.searchParams.set('announcements', '1');
+    const response = await fetch(url, {cache: 'no-store', signal: AbortSignal.timeout(8000)});
     if (current !== version) return;
     if (response.status === 401 || response.status === 404) {
       status.textContent = root.dataset.failed;
@@ -177,6 +188,18 @@ async function refresh() {
     if (current !== version) return;
     if (lastEncounter !== undefined && state.encounter && state.encounter !== lastEncounter && state.shiny && shinyOptIn.checked) {
       playShiny().catch(() => {});
+    }
+    if (announcements && state.events) {
+      const key = state.events.map(event => event.id).join(',');
+      if (key !== lastAnnouncements) {
+        lastAnnouncements = key;
+        announcements.querySelector('ol').replaceChildren(...state.events.map(event => {
+          const item = document.createElement('li');
+          item.textContent = event.message;
+          return item;
+        }));
+        announcements.querySelector('[data-announcements-empty]').hidden = state.events.length > 0;
+      }
     }
     lastEncounter = state.encounter;
     capture.querySelector('input[name="encounter"]').value = state.encounter || '';
@@ -344,7 +367,7 @@ async function renderLiveGame(request, db, url, language) {
     (legendaryTrackers ? disabled : ' disabled') + '>' + (en ? 'Use Legendary Tracker' : 'Usar Legendary Tracker') + '</button></form>' + open('shiny') + '<p class="meta live-item-count">' + itemIcon('stardust') + ' Shiny Dust <strong data-shiny-dust-count>×' + shinyDust + '</strong></p><button data-shiny-use' +
     (shinyDust ? disabled : ' disabled') + '>' + (en ? 'Use Shiny Dust' : 'Usar Shiny Dust') + '</button></form></section>' +
     '</div><label><input type="checkbox" data-shiny-audio> ' + (en ? 'Play shiny sounds' : 'Reproducir sonidos shiny') + '</label><details class="live-activity" open><summary>' + (en ? 'Your game activity' : 'Tu actividad de juego') +
-    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=9" defer></script>'
+    '</summary><ol data-live-activity></ol></details></section><script src="/assets/web-game.js?v=10" defer></script>'
 
 }
 
@@ -672,9 +695,7 @@ export async function portal(request, url, env) {
   if (request.method === 'GET' && url.pathname === '/live/announcements') {
     const community = url.searchParams.get('community')
     if (!community || community.length > 100) return new Response(null, { status: 400 })
-    const { results } = await env.DB.prepare('SELECT id, message FROM portal_announcements WHERE community_id = ? AND created_at >= ? ' +
-      'ORDER BY created_at DESC, id DESC LIMIT 12').bind(community, Date.now() - 6 * 60 * 60_000).all()
-    return Response.json({ events: results.reverse() }, { headers: { 'Cache-Control': 'public, max-age=1' } })
+    return Response.json({ events: await recentAnnouncements(env.DB, community) }, { headers: { 'Cache-Control': 'public, max-age=1' } })
   }
   if (request.method === 'GET' && url.pathname === '/assets/web-game.js') return new Response(webGameScript, {
     headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff' }
@@ -778,7 +799,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     const game = community ? await renderLiveGame(request, env.DB, url, language) : ''
     return page((community ? communityTabs(community, language, 'live', url.searchParams.get('region') ?? 'kanto') : '') +
       (game ? '<div class="live-layout">' + watch + game + '</div>' : watch) +
-      (selectedStream ? renderAnnouncements(selectedStream.community_id, language) : ''))
+      (selectedStream ? renderAnnouncements(selectedStream.community_id, language, game.includes('data-web-game')) : ''))
   }
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'about') {
     const about = aboutCopy[language]
@@ -900,7 +921,8 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     const activity = log.slice(-8).reverse().map(({ action, result }) => ({ action,
       message: webGameState(null, { result: result === 'caught' || result === 'duplicateReward' ? 'catchSuccess' : result }, language).message }))
     const lock = await webActionLock(env.DB, identity.account_id, community)
-    return Response.json({ ...webGameState(runtime, row, language), locked: lock.pending, cooldown: lock.cooldown, balls, activity, ...(shinyDust ? { shinyDust } : {}), ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(rareCandies ? { rareCandies } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
+    const events = url.searchParams.get('announcements') === '1' ? await recentAnnouncements(env.DB, community) : undefined
+    return Response.json({ ...webGameState(runtime, row, language), ...(events ? { events } : {}), locked: lock.pending, cooldown: lock.cooldown, balls, activity, ...(shinyDust ? { shinyDust } : {}), ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(rareCandies ? { rareCandies } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
   }
 
   if (route) {

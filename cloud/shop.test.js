@@ -164,6 +164,9 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.equal((await announce({ Authorization: 'Bearer ' + token })).status, 200)
   assert.deepEqual(await (await worker.fetch(new Request(feed), { DB: D1 })).json(), { events: [event] })
   assert.match(liveHtml, /data-announcements="stream"/)
+  assert.doesNotMatch(liveHtml, /src="\/assets\/announcements\.js"/)
+  const combined = await worker.fetch(new Request(base + '/live/status?community=stream&platform=twitch&announcements=1', { headers: cookie }), { DB: D1 })
+  assert.deepEqual((await combined.json()).events, [event])
   const actionId = crypto.randomUUID()
   const webAction = (encounter, origin = base, json = false) => worker.fetch(new Request(base + '/live/action?community=stream&platform=twitch', {
     method: 'POST', headers: { Origin: origin, Cookie: 'sc_session=' + session, ...(json && { Accept: 'application/json' }) },
