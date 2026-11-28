@@ -1,4 +1,5 @@
 import { activeLearnsets, moveBaseReach, moveCooldown, moveDamageClass, moveElement, movePp, moves } from '../dev/battle.js'
+import combatBalance from '../ui/combat-balance.json' with { type: 'json' }
 
 const languagePair = {
   normal:['Normal','Normal'], fighting:['Lucha','Fighting'], flying:['Volador','Flying'], poison:['Veneno','Poison'],
@@ -24,6 +25,10 @@ const states = {
   paralysis:['Parálisis','Paralysis'], sleep:['Sueño','Sleep'], burn:['Quemadura','Burn'], freeze:['Congelación','Freeze'], poison:['Veneno','Poison']
 }
 const get = (record, key, index) => record[key]?.[index] ?? key
+const stageLabels = {
+  attack:['Ataque','Attack'], defense:['Defensa','Defense'], specialAttack:['Ataque Especial','Special Attack'],
+  specialDefense:['Defensa Especial','Special Defense'], speed:['Velocidad','Speed']
+}
 
 export function renderMovesWiki(url, language, escape) {
   const en = language === 'en'
@@ -80,6 +85,10 @@ export function renderMovesWiki(url, language, escape) {
       if (move.hazard) effects.push(move.hazard === 'web' ? l('Coloca redes que inmovilizan', 'Places webs that root targets') : l('Coloca una trampa venenosa', 'Places a poison trap'))
       if (move.field) effects.push(l('Cambia el campo:', 'Changes the field:') + ' ' + move.field)
       if (move.boost) effects.push(l('Aumenta una estadística del usuario:', 'Raises a user stat:') + ' ' + move.boost)
+      if (move.stages) {
+        effects.push(Object.entries(move.stages).map(([key, value]) => get(stageLabels, key, index) + ' +' + value).join(' · '))
+        effects.push(pct(combatBalance.stages.perStage) + l(' por nivel hasta un máximo de ', ' per stage up to ') + combatBalance.stages.max)
+      }
       if (move.blink || move.teleportBehind) effects.push(l('Teletransporta al usuario', 'Teleports the user'))
       if (move.chain) effects.push(l('Puede encadenarse a otros rivales:', 'Can chain to additional opponents:') + ' ' + move.chain)
       if (move.tags?.includes('cut')) effects.push(l('Ataque de corte', 'Cutting move'))
@@ -93,12 +102,19 @@ export function renderMovesWiki(url, language, escape) {
         (effects.length ? '<ul>' + effects.map(effect => '<li>' + escape(effect) + '</li>').join('') + '</ul>' : '') +
         (source[id]?.notes ? '<p class="meta">' + escape(source[id].notes) + '</p>' : '') + '</details>'
     })
-  return '<section class="sheet wiki"><h1>Wiki</h1><nav class="tabs" aria-label="Wiki"><a href="/wiki/movimientos" aria-current="page">' +
+  const filters = new URLSearchParams()
+  for (const key of ['community', 'region', 'theme', 'lang']) {
+    if (url.searchParams.has(key)) filters.set(key, url.searchParams.get(key))
+  }
+  filters.set('lang', language)
+  const context = [...filters].map(([key, value]) => '<input type="hidden" name="' + key + '" value="' + escape(value) + '">').join('')
+  return '<section class="sheet wiki"><h1>Wiki</h1><nav class="tabs" aria-label="Wiki"><a href="/wiki/movimientos?' + escape(filters.toString()) + '" aria-current="page">' +
     l('Movimientos', 'Moves') + '</a></nav><h2>' + l('Movimientos', 'Moves') + '</h2><p class="meta">' +
     l('La potencia base no es daño fijo. El daño real depende de las estadísticas, el tipo y los efectos activos.',
       'Base power is not fixed damage. Actual damage depends on stats, type and active effects.') +
-    ' ' + l('Los proyectiles de jefes pueden tener alcance adicional.', 'Boss projectiles may have additional range.') + '</p>' +
-    '<form class="wiki-filters" method="get" action="/wiki/movimientos"><input type="hidden" name="lang" value="' + language + '">' +
+    ' ' + l('Los proyectiles de jefes pueden tener alcance adicional.', 'Boss projectiles may have additional range.') +
+    ' <a href="/data/moves.json" download="moves.json">' + l('Descargar catálogo JSON', 'Download JSON catalog') + '</a></p>' +
+    '<form class="wiki-filters" method="get" action="/wiki/movimientos">' + context +
     '<label>' + l('Buscar movimiento', 'Search moves') + '<input type="search" name="q" maxlength="80" value="' + escape(query) + '"></label>' +
     '<label>' + l('Tipo elemental', 'Elemental type') + '<select name="tipo">' + options(languagePair, type) + '</select></label>' +
     '<label>' + l('Categoría', 'Category') + '<select name="categoria">' + options(categories, category) + '</select></label>' +

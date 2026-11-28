@@ -1,4 +1,9 @@
 {
+  "dragondance": {"name":"Danza Dragón","type":"dragon","kind":"guard","damageClass":"status","power":0,"reach":0,"pp":3,"cooldown":8,"stages":{"attack":1,"speed":1}},
+  "nastyplot": {"name":"Maquinación","type":"dark","kind":"guard","damageClass":"status","power":0,"reach":0,"pp":3,"cooldown":8,"stages":{"specialAttack":2}},
+  "growth": {"name":"Desarrollo","type":"normal","kind":"guard","damageClass":"status","power":0,"reach":0,"pp":3,"cooldown":8,"stages":{"attack":1,"specialAttack":1}},
+  "cosmicpower": {"name":"Masa Cósmica","type":"psychic","kind":"guard","damageClass":"status","power":0,"reach":0,"pp":3,"cooldown":8,"stages":{"defense":1,"specialDefense":1}},
+  "calmmind": {"name":"Paz Mental","type":"psychic","kind":"guard","damageClass":"status","power":0,"reach":0,"pp":3,"cooldown":8,"stages":{"specialAttack":1,"specialDefense":1}},
   "bodypress": {"name":"Golpe Corporal","type":"normal","kind":"rush","damageClass":"physical","power":41,"reach":126,"pp":12,"cooldown":2.3},
   "fakeout": {"name":"Sorpresa","type":"normal","kind":"rush","damageClass":"physical","power":52,"reach":126,"pp":12,"cooldown":2.3,"flinch":0.12},
   "doubleedge": {"name":"Doble Filo","type":"normal","kind":"projectile","damageClass":"physical","power":61,"reach":430,"pp":8,"cooldown":3},

@@ -53,4 +53,10 @@ export const hatchStyles = `
 .hatch-space-active img{position:relative;z-index:1;filter:drop-shadow(0 0 16px var(--glow))}
 .egg-dialog.hatched .hatch-space-active img{animation:hatch-space-reveal .52s ease-out both}
 @keyframes hatch-space-reveal{from{opacity:0;transform:scale(.78);filter:brightness(2.5) drop-shadow(0 0 14px var(--glow))}to{opacity:1;transform:scale(1)}}
+.hatch-celebration{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;overflow:hidden;background:transparent;pointer-events:none}
+.hatch-celebration i{position:absolute;top:-16px;width:var(--size);height:calc(var(--size) * 1.5);border-radius:1px;box-shadow:0 0 5px currentColor;animation:hatch-confetti-fall var(--fall) var(--delay) linear both}
+.hatch-celebration i:nth-child(3n){border-radius:50%;height:var(--size)}
+@keyframes hatch-confetti-fall{0%{opacity:0;transform:translate3d(0,0,0) rotate3d(1,1,.3,0deg)}9%,75%{opacity:.95}100%{opacity:0;transform:translate3d(var(--drift),106dvh,0) rotate3d(1,1,.3,680deg)}}
+
+@media(prefers-reduced-motion:reduce){.hatch-celebration{display:none}}
 `

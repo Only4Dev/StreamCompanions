@@ -6,7 +6,9 @@
   "main": "desktop/main.js",
   "scripts": {
     "start": "electron .",
+    "pretest": "node scripts/generate-moves.js --check",
     "test": "node --test",
+    "moves:generate": "node scripts/generate-moves.js",
     "dist": "node scripts/prepare-sprite-credits.js && electron-builder --config scripts/release-build.cjs --win portable --x64 --publish never",
     "dist:beta": "electron-builder --config scripts/beta-build.cjs --win portable --x64 --publish never",
     "import:pmd": "node scripts/import-pmd.js",

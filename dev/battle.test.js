@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { battleSpecies, arenaBaseStats, createBattle, formAtLevel, moveOptions, moves, movesFor, hpColor, ultimateOptions } from './battle.js'
+import { activeLearnsets, addStageMovesToLegacyLearnsets, battleSpecies, arenaBaseStats, createBattle, formAtLevel, moveOptions, moves, movesFor, hpColor, ultimateOptions } from './battle.js'
 import { nationalStats } from './national-stats.js'
 
 const example = (id, level = 20) => {
@@ -1192,4 +1192,103 @@ test('individual projectile ranges distinguish short spreads from long cannon sh
     run(battle, 2)
     assert.equal(target.hp < target.maxHp, hit)
   }
+})
+
+test('ultimate charge setting scales time, dealt damage and received damage together', () => {
+  function charge(percent) {
+    const battle = createBattle([example(9, 45), example(143, 45)], { random: () => .5, ultimateChargePercent: percent })
+    const [actor, target] = battle.actors
+    actor.x = 800
+    target.x = 1000
+    actor.next = 0
+    target.next = 50
+    assert.ok(battle.manual(0, 'water'))
+    actor.next = 50
+    run(battle, 1)
+    return battle.actors.map(actor => actor.ultimateCharge)
+  }
+  const normal = charge(100)
+  assert.ok(normal.every(value => value > 4.6))
+  assert.deepEqual(charge(200), normal.map(value => value * 2))
+})
+
+test('stages give capped additive boosts and legacy learnsets keep existing moves', () => {
+  const original = activeLearnsets()
+  const { dragondance, ...metadata } = original.moves
+  const sample = { ...original, moves: metadata, species: { 147: { moves: [['tackle', 5]] } } }
+  const upgraded = addStageMovesToLegacyLearnsets(sample)
+  assert.deepEqual(upgraded.species[147].moves, [['tackle', 5], ['dragondance', 20]])
+  assert.deepEqual(upgraded.moves.dragondance, dragondance)
+  assert.equal(addStageMovesToLegacyLearnsets(upgraded), upgraded)
+  const damage = stages => {
+    const battle = createBattle([example(147, 45), example(143, 45)], { auto: false, random: () => .5 })
+    const [actor, target] = battle.actors
+    for (let index = 0; index < stages; index++) {
+      assert.ok(battle.manual(0, 'dragondance', true))
+      run(battle, 1)
+    }
+    if (stages === 6) assert.equal(battle.manual(0, 'dragondance', true), false)
+    assert.equal(actor.stages.attack ?? 0, stages)
+    assert.equal(actor.stages.speed ?? 0, stages)
+    actor.x = 500
+    target.x = 548
+    assert.ok(battle.manual(0, 'tackle', true))
+    run(battle, 1)
+    return target.maxHp - target.hp
+  }
+  assert.ok(Math.abs(damage(6) / damage(0) - 1.48) < .06)
+})
+
+test('Moxie and Beast Boost are credited to the KO and Anger Point requires a surviving critical hit', () => {
+  for (const [id, ability] of [[130, 'moxie'], [796, 'beast-boost']]) {
+    const battle = createBattle([example(id, 45), example(143, 45)], { auto: false, random: () => .5 })
+    const [actor, target] = battle.actors
+    assert.ok(actor.abilities.has(ability))
+    actor.x = 500
+    target.x = 548
+    target.hp = 1
+    assert.ok(battle.manual(0, 'tackle', true))
+    run(battle, 1)
+    assert.equal(target.hp, 0)
+    assert.deepEqual(actor.stages, ability === 'moxie' ? { attack: 1 } : { specialAttack: 1 })
+  }
+  const battle = createBattle([example(19, 30), example(128, 60)], { auto: false, random: () => .05 })
+  const [attacker, target] = battle.actors
+  attacker.x = 500
+  target.x = 548
+  assert.ok(battle.manual(0, 'tackle', true))
+  run(battle, 1)
+  assert.ok(target.hp < target.maxHp)
+  assert.deepEqual(target.stages, { attack: 2 })
+})
+
+test('Truant enforces recovery and Last Guard only counts distinct allies of the same viewer', () => {
+  const battle = createBattle([example(289, 45), example(143, 70)], { auto: false, random: () => .5 })
+  const [slaking, target] = battle.actors
+  slaking.x = 500
+  target.x = 548
+  assert.ok(battle.manual(0, 'tackle', true))
+  run(battle, .8)
+  assert.equal(battle.manual(0, 'tackle', true), false)
+  run(battle, .75)
+  assert.ok(battle.manual(0, 'tackle', true))
+
+  const raid = createBattle([{...example(149, 55), team:'party', viewerId:'mine'}, {...example(625), team:'party', viewerId:'mine'},
+    {...example(52), team:'party', viewerId:'mine'}, {...example(52), team:'party', viewerId:'other'},
+    {...example(289, 80), team:'boss', boss:true}], { auto: false, raid:true, random: () => .5 })
+  const [, guard, ally, other, boss] = raid.actors
+  assert.ok(guard.abilities.has('fallen-allies'))
+  guard.x = 200
+  boss.x = 600
+  ally.x = 645
+  other.x = 920
+  ally.hp = other.hp = 1
+  assert.ok(raid.manual(4, 'tackle', true))
+  run(raid, 1.5)
+  assert.deepEqual([...guard.fallenAllies], [ally.index])
+  boss.x = 875
+  assert.ok(raid.manual(4, 'tackle', true))
+  run(raid, 1.5)
+  assert.equal(other.hp, 0)
+  assert.deepEqual([...guard.fallenAllies], [ally.index])
 })

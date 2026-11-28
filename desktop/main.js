@@ -821,8 +821,11 @@ function launchBattlePreview(mode, species) {
     if (!boss) return 404
     entries = [...party, makeRaidBoss(boss)]
   } else entries = [...party.slice(0,3), ...[94, 130, 65].map((id,index) => info(id, 45, 'b', { support: index === 1 ? 'pollenpuff' : null }))]
-  const battle = battleRules.createBattle(entries, mode === 'raid' ? { raid: true, duration: game.config.raidDuration } :
-    { hpMultiplier: game.config.battleHpMultiplier, spreadFocus: game.config.battleFocusSpread })
+  const battle = battleRules.createBattle(entries, {
+    ultimateChargePercent: game.config.ultimateChargePercent,
+    ...(mode === 'raid' ? { raid: true, duration: game.config.raidDuration } :
+      { hpMultiplier: game.config.battleHpMultiplier, spreadFocus: game.config.battleFocusSpread })
+  })
   const current = { battle, finishedAt: 0 }
   communityBattle = current
   battleTimer = battleTicker(battle, () => {
@@ -843,6 +846,7 @@ function publicBattle(battle) {
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
       return { name, ownerName, shiny, ulting: ultimate?.index === actor.index, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, bossHop: actor.boss && actor.dashUntil > battle.time ? Math.sin(Math.PI * Math.min(1, (actor.dashUntil - battle.time) / .24)) * 62 : 0, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying') || actor.abilities.has('levitate'), status: status?.kind,
+        ultimateCharge: actor.hasUltimate && actor.ultimatePp > 0 ? actor.ultimateCharge : undefined,
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
         physicalBarrier: actor.teamShield?.hp > 0 && actor.teamShield.until > battle.time && actor.teamShield.kind !== 'special',
         specialBarrier: actor.teamShield?.hp > 0 && actor.teamShield.until > battle.time && actor.teamShield.kind !== 'physical',
@@ -939,6 +943,7 @@ async function runCommunityBattle(waitForBanner, raidBoss, manual) {
   if (new Set(entries.map(entry => entry.viewerId)).size < (raidBoss ? 1 : 2)) return 422
   if (raidBoss) entries.push(makeRaidBoss(raidBoss))
   const battle = battleRules.createBattle(entries, {
+    ultimateChargePercent: game.config.ultimateChargePercent,
     ...(raidBoss ? { raid: true, duration: game.config.raidDuration } :
       { hpMultiplier: game.config.battleHpMultiplier, spreadFocus: game.config.battleFocusSpread }),
     onMoveReward(actor, amount) {
@@ -1044,6 +1049,7 @@ const routes = new Map([
   ['/ui/egg-rules.js', ['egg-rules.js', 'text/javascript']],
   ['/ui/egg-pool.json', ['egg-pool.json', 'application/json']],
   ['/ui/learnsets.json', ['learnsets.json', 'application/json']],
+  ['/ui/moves.json', ['moves.json', 'application/json']],
   ['/ui/battle-moves.json', ['battle-moves.json', 'application/json']],
   ['/ui/combat-balance.json', ['combat-balance.json', 'application/json']],
   ['/ui/move-tags.json', ['move-tags.json', 'application/json']],
@@ -1176,7 +1182,8 @@ const server = createServer(async (req, res) => {
           if (!previewBattle || now - previewBattle.last > 5000 || previewBattle.finished && now - previewBattle.finished > 4000) {
             const entries = samples.map(({id}, index) => previewEntry(Number(id), index < 3 ? 'a' : 'b', index < 3 ? 'A' : 'B')).filter(Boolean)
             previewBattle = { battle: battleRules.createBattle(entries, {
-              hpMultiplier: game.config.battleHpMultiplier, spreadFocus: game.config.battleFocusSpread
+              hpMultiplier: game.config.battleHpMultiplier, spreadFocus: game.config.battleFocusSpread,
+              ultimateChargePercent: game.config.ultimateChargePercent
             }), last: now }
           }
           state.battle = stepOverlayPreview(previewBattle, now)
@@ -1451,7 +1458,7 @@ const server = createServer(async (req, res) => {
         if (selection.canceled) { res.writeHead(204).end(); return }
         const bytes = await readFile(selection.filePaths[0])
         if (bytes.length > 10_000_000 || simulating || communityBattle && !communityBattle.battle.over) throw new Error('Learnsets unavailable')
-        const data = JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, ''))
+        const data = battleRules.addStageMovesToLegacyLearnsets(JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, '')))
         const bosses = data.raidBosses === undefined ? null : validateRaidBosses(data.raidBosses)
         battleRules.applyLearnsets(data)
         writeFileSync(join(app.getPath('userData'), 'learnsets.json'), JSON.stringify(data))
@@ -1528,7 +1535,10 @@ app.whenReady().then(() => {
   mkdirSync(profile, { recursive: true })
   try { battleRules.applyBaseStats(JSON.parse(readFileSync(join(profile, 'base-stats.json'), 'utf8'))) } catch { /* bundled stats */ }
   try { applyAbilities(JSON.parse(readFileSync(join(profile, 'pokemon-abilities.json'), 'utf8'))) } catch { /* bundled abilities */ }
-  try { battleRules.applyLearnsets(JSON.parse(readFileSync(join(profile, 'learnsets.json'), 'utf8'))) } catch { /* use bundled learnsets */ }
+  try {
+    const data = JSON.parse(readFileSync(join(profile, 'learnsets.json'), 'utf8'))
+    battleRules.applyLearnsets(battleRules.addStageMovesToLegacyLearnsets(data))
+  } catch { /* use bundled learnsets */ }
   try { raidBosses = validateRaidBosses(JSON.parse(readFileSync(join(profile, 'raid-bosses.json'), 'utf8'))) } catch { /* use the bundled lineup */ }
   try { setShinyCue(readFileSync(shinyCueFile())) } catch { /* use the built-in cue */ }
   if (useInstalledUpdate(profile)) return

@@ -2,6 +2,7 @@ import { adminCommunities, adminPortal } from './admin.js'
 import { expireShopOrders } from './shop-queue.js'
 import { enqueueWebGame, webActionLock, webGameStatus, webGameViewer } from './web-game.js'
 import learnsetData from '../ui/learnsets.json' with { type: 'json' }
+import moveCatalog from '../ui/moves.json' with { type: 'json' }
 import { normalizeTraining, trainingKey, trainingRules } from '../ui/training.js'
 import { eggPool } from '../ui/egg-rules.js'
 import { catchRates } from '../ui/capture-rates.js'
@@ -451,10 +452,15 @@ const escape = value => String(value).replace(/[&<>"']/g, char =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char])
 
 function renderPage(body, status, language, theme, url) {
-  const viewQuery = url.pathname === '/' ? new URLSearchParams(url.search) : new URLSearchParams()
+  const wikiRoute = ['/wiki', '/wiki/movimientos'].includes(url.pathname)
+  const viewQuery = url.pathname === '/' || wikiRoute ? new URLSearchParams(url.search) : new URLSearchParams()
+  if (wikiRoute) viewQuery.set('tab', 'wiki')
   for (const key of [...viewQuery.keys()]) {
-    if (!['community', 'tab', 'region', 'pokemon', 'account', 'lang', 'theme', 'pocket'].includes(key)) viewQuery.delete(key)
+    if (!['community', 'tab', 'region', 'pokemon', 'account', 'lang', 'theme', 'pocket'].includes(key) &&
+        !(viewQuery.get('tab') === 'wiki' && ['q', 'tipo', 'categoria'].includes(key))) viewQuery.delete(key)
   }
+  const wikiQuery = new URLSearchParams({ tab: 'wiki' })
+  for (const key of ['community', 'region']) if (viewQuery.has(key)) wikiQuery.set(key, viewQuery.get(key))
   const languageLinks = ['es', 'en'].map(item => {
     const query = new URLSearchParams(viewQuery)
     query.delete('theme')
@@ -474,7 +480,7 @@ function renderPage(body, status, language, theme, url) {
     '<main><header class="mast"><span class="mark" aria-hidden="true">✦</span>Stream Companions<nav class="web-language" aria-label="' + (language === 'en' ? 'Portal navigation' : 'Navegación del portal') + '"><a href="/">' +
     (language === 'en' ? 'Home' : 'Inicio') + '</a>' + '<a class="help-header" href="?' + escape(new URLSearchParams({
       tab: 'help', ...(url.searchParams.get('community') ? { community: url.searchParams.get('community') } : {})
-    })) + '">' + (language === 'en' ? 'Help' : 'Ayuda') + '</a><a href="/wiki">Wiki</a><a href="/?tab=about">' + aboutCopy[language].about + '</a><a href="/?tab=live">' + (language === 'en' ? 'Live' : 'En directo') + '</a>' + themeLink + languageLinks + '</nav></header>' + body + '<script src="/assets/descriptions.js?v=2" defer></script></main></html>', { status, headers })
+    })) + '">' + (language === 'en' ? 'Help' : 'Ayuda') + '</a><a href="/?' + escape(wikiQuery.toString()) + '">Wiki</a><a href="/?tab=about">' + aboutCopy[language].about + '</a><a href="/?tab=live">' + (language === 'en' ? 'Live' : 'En directo') + '</a>' + themeLink + languageLinks + '</nav></header>' + body + '<script src="/assets/descriptions.js?v=2" defer></script></main></html>', { status, headers })
 }
 
 function redirect(location, cookies) {
@@ -907,6 +913,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
 `, { headers: { 'Content-Type': 'text/javascript; charset=utf-8' } })
   const data = url.pathname === '/data/training.json' ? trainingRules : url.pathname === '/data/base-stats.json' ? baseStatsData : url.pathname === '/data/learnsets.json' ? learnsetData : url.pathname === '/data/pokemon-abilities.json' ? abilitiesData : url.pathname === '/data/egg-pool.json' ? eggPool : url.pathname === '/data/catch-rates.json' ? catchRates : url.pathname === '/data/encounter-rarities.json' ? encounterRarities : null
   if (request.method === 'GET' && url.pathname === '/data/tmlearn.json') return Response.json(tmLearn)
+  if (request.method === 'GET' && url.pathname === '/data/moves.json') return Response.json(moveCatalog)
   if (request.method === 'GET' && data) return Response.json(data)
   const requested = url.searchParams.get('lang') ?? getCookie(request, 'sc_lang')
   const language = requested === 'en' ? 'en' : 'es'
@@ -914,7 +921,11 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
   const theme = (url.searchParams.get('theme') ?? getCookie(request, 'sc_theme')) === 'light' ? 'light' : 'dark'
   const page = (body, status = 200) => renderPage(body, status, language, theme, url)
   if (request.method === 'GET' && (['/wiki', '/wiki/movimientos'].includes(url.pathname) ||
-      url.pathname === '/' && url.searchParams.get('tab') === 'wiki')) return page(renderMovesWiki(url, language, escape))
+      url.pathname === '/' && url.searchParams.get('tab') === 'wiki')) {
+    const community = url.searchParams.get('community')
+    const region = url.searchParams.get('region') ?? 'kanto'
+    return page((community ? communityTabs(community, language, 'wiki', region) : '') + renderMovesWiki(url, language, escape))
+  }
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'live') {
     const { results } = await env.DB.prepare('SELECT community_id, seen_at, platforms FROM community_stream_status ORDER BY seen_at DESC LIMIT 100').all()
     const community = url.searchParams.get('community')

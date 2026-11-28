@@ -37,6 +37,23 @@ test('the public move wiki filters by type and category and reports actual engin
   assert.match(supportHtml, /Solo afecta al equipo del mismo viewer/)
 })
 
+test('the wiki keeps community tabs and exposes the categorized move catalog', async () => {
+  const wiki = new URL('https://example.test/wiki/movimientos?community=tempo&region=alola&q=calmmind')
+  const html = await (await portal(new Request(wiki), wiki, {})).text()
+  assert.match(html, /community=tempo&amp;tab=dex&amp;region=alola/)
+  assert.match(html, /name="community" value="tempo"/)
+  assert.match(html, /name="region" value="alola"/)
+  assert.match(html, /Paz Mental/)
+  assert.match(html, /8% por nivel/)
+  const url = new URL('https://example.test/data/moves.json')
+  const data = await (await portal(new Request(url), url, {})).json()
+  assert.equal(data.total, Object.keys(moves).length)
+  assert.deepEqual(data.ataques.calmmind.niveles, { specialAttack: 1, specialDefense: 1 })
+  assert.ok(data.categorias.jefe.includes('raidcannons'))
+  assert.ok(data.categorias.tmAncestral.includes('ancestralmeteor'))
+  assert.ok(data.categorias.apoyo.includes('healpulse'))
+})
+
 test('two Twitch sign-in attempts each retain their own flow cookie', async () => {
   const env = { TWITCH_WEB_CLIENT_ID: 'fixture-client', TWITCH_WEB_CLIENT_SECRET: 'fixture-value' }
   const start = new URL('https://example.test/auth/twitch')

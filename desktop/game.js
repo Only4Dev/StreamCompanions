@@ -72,6 +72,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   config.battleEveryEncounters ??= 5
   config.battleEnabled ??= 0
   config.battleHpMultiplier ??= 1
+  config.ultimateChargePercent ??= 100
   config.battleFocusSpread ??= false
   config.capturePercentages = normalizeCapturePercentages(config.capturePercentages) ??
     Object.fromEntries(captureCategories.map(({ id, defaults }) => [id, [...defaults]]))
@@ -816,6 +817,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       const { summonMoneyPerMinute = config.summonMoneyPerMinute, summonXpPerSecond = config.summonXpPerSecond, battleXpPercentPerWin = config.battleXpPercentPerWin } = values
       const { battleEveryEncounters = config.battleEveryEncounters, battleMoneyPerWin = config.battleMoneyPerWin } = values
       const { battleEnabled = config.battleEnabled, battleHpMultiplier = config.battleHpMultiplier } = values
+      const { ultimateChargePercent = config.ultimateChargePercent } = values
       const { interval, duration, catchGraceSeconds = config.catchGraceSeconds, legendaryChancePercent = config.legendaryChancePercent, shiny, nameLimit = config.nameLimit, visibleLimit = config.visibleLimit, spriteScale = config.spriteScale } = values
       if (!Number.isInteger(interval) || interval < 6 || interval > 1440 ||
           !Number.isInteger(duration) || duration < 1 || duration > interval ||
@@ -830,7 +832,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
           !Number.isSafeInteger(battleMoneyPerWin) || battleMoneyPerWin < 0 || battleMoneyPerWin > 1_000_000 ||
           !Number.isFinite(battleXpPercentPerWin) || battleXpPercentPerWin < 0 || battleXpPercentPerWin > 100 ||
           !Number.isSafeInteger(battleEveryEncounters) || battleEveryEncounters < 0 || battleEveryEncounters > 100 ||
-          ![0, 1].includes(battleEnabled) || ![1, 1.5, 2].includes(battleHpMultiplier)) throw new Error('Invalid configuration')
+          ![0, 1].includes(battleEnabled) || ![1, 1.5, 2].includes(battleHpMultiplier) ||
+          !Number.isInteger(ultimateChargePercent) || ultimateChargePercent < 25 || ultimateChargePercent > 250) throw new Error('Invalid configuration')
       if (values.raidSizePercent !== undefined && (!Number.isInteger(values.raidSizePercent) || values.raidSizePercent < 100 || values.raidSizePercent > 600)) throw new Error('Invalid boss size')
       Object.assign(config, { interval, duration, catchGraceSeconds, legendaryChancePercent, shiny, nameLimit, visibleLimit, spriteScale })
       if (Number.isFinite(values.raidChance) && values.raidChance >= 0 && values.raidChance <= 100) config.raidChance = values.raidChance
@@ -839,6 +842,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       if (Number.isInteger(values.raidDuration) && values.raidDuration >= 30 && values.raidDuration <= 600) config.raidDuration = values.raidDuration
       for (const name of ['showPokemonName', 'showViewerName', 'raidCatch', 'wildEnabled', 'raidEnabled']) if (typeof values[name] === 'boolean') config[name] = values[name]
       Object.assign(config, { summonMoneyPerMinute, summonXpPerSecond, battleXpPercentPerWin, battleMoneyPerWin, battleEveryEncounters, battleEnabled, battleHpMultiplier })
+      config.ultimateChargePercent = ultimateChargePercent
       if (typeof values.battleFocusSpread === 'boolean') config.battleFocusSpread = values.battleFocusSpread
       if (Object.hasOwn(values, 'summonXpPerSecond')) config.summonXpTuned = true
       nextAt = Math.max(trackerAt ?? now() + interval * 60_000, encounter?.catchUntil ?? 0)

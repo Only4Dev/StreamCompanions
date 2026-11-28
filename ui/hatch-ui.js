@@ -37,6 +37,33 @@ export async function revealHatches(dialog, hatches, language) {
   });
   dialog.addEventListener('close', cancel, { once: true });
   const spriteUrl = id => 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/' + id + '.png';
+  function celebrate(rarity) {
+    if (reducedMotion || controller.signal.aborted) return;
+    const confetti = document.createElement('div');
+    confetti.className = 'hatch-celebration';
+    confetti.setAttribute('popover', 'manual');
+    confetti.setAttribute('aria-hidden', 'true');
+    const colors = ['#fff1ba', '#7adfff', '#e5a3ff', '#ff8faa', '#8af4bc'];
+    const counts = { common: 16, rare: 28, epic: 54, legendary: 76 };
+    for (let index = 0; index < counts[rarity]; index++) {
+      const flake = document.createElement('i');
+      flake.style.left = ((index * 61.8034) % 100) + '%';
+      flake.style.backgroundColor = colors[index % colors.length];
+      flake.style.setProperty('--size', (4 + index % 6) + 'px');
+      flake.style.setProperty('--drift', ((index * 43) % 190 - 95) + 'px');
+      flake.style.setProperty('--delay', (index * 19 % 520) + 'ms');
+      flake.style.setProperty('--fall', (1170 + index * 83 % 730) + 'ms');
+      confetti.append(flake);
+    }
+    dialog.append(confetti);
+    try { confetti.showPopover?.(); } catch { confetti.remove(); return; }
+    const cleanup = () => confetti.remove();
+    controller.signal.addEventListener('abort', cleanup, { once: true });
+    setTimeout(() => {
+      controller.signal.removeEventListener('abort', cleanup);
+      cleanup();
+    }, 2500);
+  }
   dialog.showModal();
   try {
     for (const [position, hatch] of batch.entries()) {
@@ -66,16 +93,20 @@ export async function revealHatches(dialog, hatches, language) {
       stage.replaceWith(nextStage);
       stage = nextStage;
       let played = false;
-      if (rarity !== 'common' && !reducedMotion) {
+      if (!reducedMotion) {
         try {
           const { playHatchSpace } = await import(new URL('/assets/hatch-space.js', location.href).href);
-          const duration = rarity === 'legendary' ? 3900 : rarity === 'epic' ? 3200 : 2600;
-          played = await playHatchSpace(stage, rarity, duration, controller.signal, () => dialog.classList.add('hatched'));
+          const duration = rarity === 'legendary' ? 3900 : rarity === 'epic' ? 3200 : rarity === 'rare' ? 2600 : 2300;
+          played = await playHatchSpace(stage, rarity, duration, controller.signal, () => {
+            dialog.classList.add('hatched');
+            celebrate(rarity);
+          });
         } catch { /* the CSS animation remains available */ }
       }
       if (!played) await wait(reducedMotion ? 0 : tier.duration);
       if (!dialog.open) return;
       dialog.classList.add('hatched');
+      if (!played) celebrate(rarity);
       title.textContent = dialog.dataset.reveal + suffix;
       badge.textContent = tier.names[Number(en)];
       badge.hidden = false;

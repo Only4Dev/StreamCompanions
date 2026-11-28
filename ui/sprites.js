@@ -663,6 +663,13 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         context.fillRect(x - 46, top - 8, 92, 9)
         context.fillStyle = hp <= .2 ? '#ed5863' : hp <= .5 ? '#ffce66' : '#65e595'
         context.fillRect(x - 44, top - 6, 88 * hp, 5)
+        if (Number.isFinite(fighter.ultimateCharge)) {
+          const charge = Math.max(0, Math.min(100, fighter.ultimateCharge))
+          context.fillStyle = '#21162f'
+          context.fillRect(x - 46, top + 2, 92, 5)
+          context.fillStyle = charge >= 100 ? '#ffda75' : '#b588ff'
+          context.fillRect(x - 45, top + 3, 90 * charge / 100, 3)
+        }
       }
       if (battle.raid && battle.over) label(context, state.battle.actors.some(actor => actor.boss && actor.hp) ?
         (state.bot?.language === 'es' ? 'Incursión terminada' : 'Raid ended') : (state.bot?.language === 'es' ? '¡Jefe derrotado!' : 'Boss defeated!'), width / 2, height * .63, 49, '#ffe7a6')

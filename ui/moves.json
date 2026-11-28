@@ -1,0 +1,5112 @@
+{
+  "notas": "Los índices usan IDs de ataques. Una entrada puede pertenecer a varias categorías. Los datos salen del motor y de los JSON incluidos en el repositorio. Regenera con npm run moves:generate.",
+  "total": 288,
+  "categorias": {
+    "normal": [
+      "accelerock",
+      "acid",
+      "acidspray",
+      "agility",
+      "air",
+      "aircutter",
+      "amnesia",
+      "ancientpower",
+      "aquatail",
+      "astonish",
+      "astralstrike",
+      "aura",
+      "auraburst",
+      "auroraveil",
+      "avalanche",
+      "bite",
+      "blackwave",
+      "blizzard",
+      "bodypress",
+      "bonemerang",
+      "brickbreak",
+      "bubbles",
+      "bulldoze",
+      "bullet",
+      "bulletpunch",
+      "buzz",
+      "calmmind",
+      "claw",
+      "confusion",
+      "cosmicpower",
+      "crosschop",
+      "crosspoison",
+      "crystalburst",
+      "dazzlinggleam",
+      "dig",
+      "discharge",
+      "double",
+      "doubleedge",
+      "dracometeor",
+      "dragon",
+      "dragonclaw",
+      "dragondance",
+      "dragonpulse",
+      "dragontail",
+      "drainpunch",
+      "dream",
+      "drillpeck",
+      "drillrun",
+      "dualchop",
+      "dualwingbeat",
+      "earthpower",
+      "ember",
+      "energyball",
+      "extrasensory",
+      "fairy",
+      "fakeout",
+      "fireblast",
+      "firefang",
+      "firepunch",
+      "firstimpression",
+      "flamecharge",
+      "flamewheel",
+      "flipturn",
+      "fly",
+      "focus",
+      "frost",
+      "giga",
+      "gravelwave",
+      "growth",
+      "guard",
+      "gunkshot",
+      "gust",
+      "headbutt",
+      "healbeam",
+      "healcircle",
+      "heat",
+      "heatcrash",
+      "heavyslam",
+      "helpinghand",
+      "hex",
+      "highhorsepower",
+      "horn",
+      "hydro",
+      "hypnosis",
+      "ice",
+      "icefang",
+      "icepunch",
+      "iceshard",
+      "iciclecrash",
+      "icywind",
+      "incinerate",
+      "infestation",
+      "irontail",
+      "jab",
+      "kick",
+      "kiss",
+      "knockoff",
+      "lavaplume",
+      "leaf",
+      "leafblade",
+      "leafstorm",
+      "lightning",
+      "lightscreen",
+      "lunge",
+      "machpunch",
+      "magicalwhip",
+      "metalburst",
+      "metalclaw",
+      "meteor",
+      "meteorbeam",
+      "mindblade",
+      "mirrorshot",
+      "mistburst",
+      "moonblast",
+      "mud",
+      "mudshot",
+      "mysticalfire",
+      "nastyplot",
+      "nightshade",
+      "nightslash",
+      "nuzzle",
+      "ominouswind",
+      "outrage",
+      "peck",
+      "petaldance",
+      "phantomforce",
+      "pin",
+      "pixiekick",
+      "playrough",
+      "poison",
+      "poisonfang",
+      "poisontail",
+      "pollenblast",
+      "powergem",
+      "powerwhip",
+      "psychic",
+      "psyshock",
+      "pulse",
+      "punch",
+      "quake",
+      "quick",
+      "rain",
+      "razorwind",
+      "reflect",
+      "rockblast",
+      "rocks",
+      "rockslide",
+      "roll",
+      "sandsear",
+      "scorchingsands",
+      "seed",
+      "shadow",
+      "shadowflare",
+      "shadowsneak",
+      "silkstorm",
+      "silverwake",
+      "slash",
+      "sludgebomb",
+      "sludgewave",
+      "solar",
+      "soulburst",
+      "spark",
+      "spear",
+      "spectralbeam",
+      "spikes",
+      "spiritbreak",
+      "spores",
+      "stardustwave",
+      "steelbeam",
+      "sting",
+      "stompingtantrum",
+      "stoneedge",
+      "storedpower",
+      "string",
+      "strugglebug",
+      "suckerpunch",
+      "surf",
+      "swarm",
+      "swift",
+      "tackle",
+      "telekineticrush",
+      "teleport",
+      "thief",
+      "thunder",
+      "thunderfang",
+      "thunderpunch",
+      "twister",
+      "uproar",
+      "vacuumwave",
+      "venoshock",
+      "water",
+      "waterfall",
+      "watershuriken",
+      "wildcharge",
+      "wing",
+      "wisp",
+      "wrap",
+      "xscissor",
+      "zenheadbutt"
+    ],
+    "firma": [
+      "ambushgate",
+      "dragondarts",
+      "judgment",
+      "makeitrain",
+      "multiattack",
+      "overloadcoil",
+      "payday",
+      "relicsong",
+      "silkcatapult",
+      "technoblast"
+    ],
+    "jefe": [
+      "aquatail",
+      "bubbles",
+      "discharge",
+      "dragonclaw",
+      "dragonpulse",
+      "fairy",
+      "fireblast",
+      "giga",
+      "heat",
+      "kiss",
+      "leaf",
+      "lightning",
+      "meteor",
+      "psychic",
+      "quake",
+      "raidcannons",
+      "raidcreamwave",
+      "raiddragonstorm",
+      "raidgeysers",
+      "raidmeteorcrash",
+      "raidshellslam",
+      "raidthunder",
+      "raidtorrent",
+      "raidvinewave",
+      "raidwildfire",
+      "rain",
+      "solar",
+      "surf",
+      "thunderpunch",
+      "ultimate-dragon",
+      "ultimate-electric",
+      "ultimate-fairy",
+      "ultimate-fire",
+      "ultimate-grass",
+      "ultimate-steel",
+      "ultimate-water"
+    ],
+    "tm": [
+      "aeroblast",
+      "auroraveil",
+      "bravebird",
+      "brine",
+      "coreenforcer",
+      "crunch",
+      "darkpulse",
+      "dragonburst",
+      "dragonrush",
+      "echoedvoice",
+      "electroball",
+      "fairyblade",
+      "flareblitz",
+      "flashcannon",
+      "focusblast",
+      "freezedry",
+      "healbeam",
+      "hurricane",
+      "ironhead",
+      "lightscreen",
+      "liquidation",
+      "nightdaze",
+      "overloadcoil",
+      "poltergeist",
+      "psychocut",
+      "purifyingwave",
+      "reflect",
+      "riftburst",
+      "round",
+      "seedbomb",
+      "shadowclaw",
+      "skittersmack",
+      "snarl",
+      "spiritwave",
+      "voltswitch"
+    ],
+    "tmAncestral": [
+      "ancestralmeteor",
+      "ancestraltempest",
+      "aurorafountain"
+    ],
+    "definitivo": [
+      "ultimate-bug",
+      "ultimate-dark",
+      "ultimate-dragon",
+      "ultimate-electric",
+      "ultimate-fairy",
+      "ultimate-fighting",
+      "ultimate-fire",
+      "ultimate-flying",
+      "ultimate-ghost",
+      "ultimate-grass",
+      "ultimate-ground",
+      "ultimate-ice",
+      "ultimate-normal",
+      "ultimate-poison",
+      "ultimate-psychic",
+      "ultimate-rock",
+      "ultimate-steel",
+      "ultimate-water"
+    ],
+    "apoyo": [
+      "auroraveil",
+      "healbeam",
+      "healcircle",
+      "healpulse",
+      "helpinghand",
+      "lightscreen",
+      "pollenpuff",
+      "purifyingwave",
+      "reflect",
+      "revivebeam"
+    ],
+    "mejora": [
+      "agility",
+      "amnesia",
+      "calmmind",
+      "cosmicpower",
+      "double",
+      "dragondance",
+      "growth",
+      "nastyplot"
+    ],
+    "sistema": [
+      "struggle"
+    ],
+    "sinAsignar": [
+      "crabhammer",
+      "electricField",
+      "grassField",
+      "hail",
+      "healpulse",
+      "megahorn",
+      "pollenpuff",
+      "razorshell",
+      "recover",
+      "revivebeam",
+      "saltcure",
+      "sandstorm",
+      "stickyweb",
+      "sun",
+      "synthesis",
+      "voltTackle",
+      "woodhammer"
+    ]
+  },
+  "ataques": {
+    "accelerock": {
+      "nombre": "Roca Veloz",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "rock",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "acid": {
+      "nombre": "Ácido",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "special",
+      "potenciaBase": 29,
+      "pp": 20,
+      "alcance": 285,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "acidspray": {
+      "nombre": "Bomba Ácida",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "special",
+      "potenciaBase": 56,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "aeroblast": {
+      "nombre": "Aerochorro",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "flying",
+      "clase": "special",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "agility": {
+      "nombre": "Agilidad",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Mejora temporalmente la Velocidad.",
+      "categorias": [
+        "normal",
+        "mejora"
+      ],
+      "tipo": "psychic",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 0,
+      "recargaSegundos": 4.5,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "air": {
+      "nombre": "Tajo Aéreo",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede amedrentar con probabilidad de 10%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "flying",
+      "clase": "special",
+      "potenciaBase": 43,
+      "pp": 20,
+      "alcance": 335,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "aircutter": {
+      "nombre": "Aire Afilado",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "flying",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "ambushgate": {
+      "nombre": "Portal de Emboscada",
+      "descripcion": "Apunta a un rival dentro del alcance.",
+      "categorias": [
+        "firma"
+      ],
+      "tipo": "ghost",
+      "clase": "special",
+      "potenciaBase": 56,
+      "pp": 6,
+      "alcance": 490,
+      "recargaSegundos": 7,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "amnesia": {
+      "nombre": "Amnesia",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Mejora temporalmente la Defensa Especial.",
+      "categorias": [
+        "normal",
+        "mejora"
+      ],
+      "tipo": "psychic",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 0,
+      "recargaSegundos": 4.5,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ancestralmeteor": {
+      "nombre": "Cataclismo Ancestral",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "tmAncestral"
+      ],
+      "tipo": "ground",
+      "clase": "physical",
+      "potenciaBase": 150,
+      "pp": 2,
+      "alcance": 475,
+      "recargaSegundos": 17,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ancestraltempest": {
+      "nombre": "Vendaval Ancestral",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "tmAncestral"
+      ],
+      "tipo": "flying",
+      "clase": "special",
+      "potenciaBase": 150,
+      "pp": 2,
+      "alcance": 480,
+      "recargaSegundos": 17,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ancientpower": {
+      "nombre": "Poder Pasado",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "rock",
+      "clase": "special",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "aquatail": {
+      "nombre": "Acua Cola",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "water",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 10,
+      "alcance": 165,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "astonish": {
+      "nombre": "Impresionar",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ghost",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "astralstrike": {
+      "nombre": "Golpe Astral",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "psychic",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "aura": {
+      "nombre": "Esfera Aural",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fighting",
+      "clase": "special",
+      "potenciaBase": 55,
+      "pp": 20,
+      "alcance": 365,
+      "recargaSegundos": 3.6,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "auraburst": {
+      "nombre": "Estallido Aura",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fighting",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "aurorafountain": {
+      "nombre": "Géiser Ancestral",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "tmAncestral"
+      ],
+      "tipo": "water",
+      "clase": "special",
+      "potenciaBase": 150,
+      "pp": 2,
+      "alcance": 640,
+      "recargaSegundos": 17,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "auroraveil": {
+      "nombre": "Velo Aurora",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Escudo para el equipo. Absorbe daño físico y especial hasta el 20% de los PS máximos de cada aliado.",
+      "categorias": [
+        "normal",
+        "tm",
+        "apoyo"
+      ],
+      "tipo": "ice",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 2,
+      "alcance": 0,
+      "recargaSegundos": 12,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "support"
+      ],
+      "duracionSegundos": 6
+    },
+    "avalanche": {
+      "nombre": "Alud",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ice",
+      "clase": "physical",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "bite": {
+      "nombre": "Mordisco",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 10%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dark",
+      "clase": "physical",
+      "potenciaBase": 47,
+      "pp": 20,
+      "alcance": 140,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "bite"
+      ]
+    },
+    "blackwave": {
+      "nombre": "Onda Abisal",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dark",
+      "clase": "special",
+      "potenciaBase": 68,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "blizzard": {
+      "nombre": "Ventisca",
+      "descripcion": "Ataca dentro del área de impacto. Puede causar congelación con probabilidad de 10%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ice",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 20,
+      "alcance": 355,
+      "recargaSegundos": 3.4,
+      "estado": "freeze",
+      "probabilidadEstado": 0.1,
+      "etiquetas": []
+    },
+    "bodypress": {
+      "nombre": "Golpe Corporal",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "normal",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "bonemerang": {
+      "nombre": "Huesomerang",
+      "descripcion": "Dispara un proyectil hacia el rival. Ejecuta 2 golpes.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ground",
+      "clase": "physical",
+      "potenciaBase": 24,
+      "pp": 8,
+      "alcance": 285,
+      "recargaSegundos": 3.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "bravebird": {
+      "nombre": "Pájaro Osado",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "flying",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "brickbreak": {
+      "nombre": "Demolición",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fighting",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "brine": {
+      "nombre": "Salmuera",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "water",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "bubbles": {
+      "nombre": "Rayo Burbuja",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "water",
+      "clase": "special",
+      "potenciaBase": 38,
+      "pp": 20,
+      "alcance": 320,
+      "recargaSegundos": 2.2,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "bulldoze": {
+      "nombre": "Terratemblor",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ground",
+      "clase": "physical",
+      "potenciaBase": 37,
+      "pp": 20,
+      "alcance": 170,
+      "recargaSegundos": 3.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "bullet": {
+      "nombre": "Semilladora",
+      "descripcion": "Dispara un proyectil hacia el rival. Ejecuta 3 golpes.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "grass",
+      "clase": "physical",
+      "potenciaBase": 15,
+      "pp": 20,
+      "alcance": 295,
+      "recargaSegundos": 3.2,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "bulletpunch": {
+      "nombre": "Puño Bala",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "steel",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "buzz": {
+      "nombre": "Zumbido",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "bug",
+      "clase": "special",
+      "potenciaBase": 51,
+      "pp": 20,
+      "alcance": 230,
+      "recargaSegundos": 3.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "calmmind": {
+      "nombre": "Paz Mental",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Sube Ataque Especial +1 y Defensa Especial +1 (8% por nivel).",
+      "categorias": [
+        "normal",
+        "mejora"
+      ],
+      "tipo": "psychic",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 3,
+      "alcance": 0,
+      "recargaSegundos": 8,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [],
+      "niveles": {
+        "specialAttack": 1,
+        "specialDefense": 1
+      }
+    },
+    "claw": {
+      "nombre": "Garra Dragón",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dragon",
+      "clase": "physical",
+      "potenciaBase": 57,
+      "pp": 20,
+      "alcance": 170,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "confusion": {
+      "nombre": "Confusión",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "psychic",
+      "clase": "special",
+      "potenciaBase": 30,
+      "pp": 20,
+      "alcance": 325,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "coreenforcer": {
+      "nombre": "Núcleo Castigo",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "dragon",
+      "clase": "special",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "cosmicpower": {
+      "nombre": "Masa Cósmica",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Sube Defensa +1 y Defensa Especial +1 (8% por nivel).",
+      "categorias": [
+        "normal",
+        "mejora"
+      ],
+      "tipo": "psychic",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 3,
+      "alcance": 0,
+      "recargaSegundos": 8,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [],
+      "niveles": {
+        "defense": 1,
+        "specialDefense": 1
+      }
+    },
+    "crabhammer": {
+      "nombre": "Martillazo",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "water",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "crosschop": {
+      "nombre": "Tajo Cruzado",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fighting",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "crosspoison": {
+      "nombre": "Veneno X",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "crunch": {
+      "nombre": "Triturar",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "dark",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "bite"
+      ]
+    },
+    "crystalburst": {
+      "nombre": "Estallido de Cristal",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "rock",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "darkpulse": {
+      "nombre": "Pulso Umbrío",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "dark",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "dazzlinggleam": {
+      "nombre": "Brillo Mágico",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fairy",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "dig": {
+      "nombre": "Excavar",
+      "descripcion": "Se reposiciona antes de infligir daño.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ground",
+      "clase": "physical",
+      "potenciaBase": 66,
+      "pp": 20,
+      "alcance": 430,
+      "recargaSegundos": 10,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "discharge": {
+      "nombre": "Chispazo",
+      "descripcion": "Ataca dentro del área de impacto. Puede causar parálisis con probabilidad de 20%.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "electric",
+      "clase": "special",
+      "potenciaBase": 53,
+      "pp": 20,
+      "alcance": 290,
+      "recargaSegundos": 3.4,
+      "estado": "paralysis",
+      "probabilidadEstado": 0.2,
+      "etiquetas": []
+    },
+    "double": {
+      "nombre": "Doble Equipo",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Mejora temporalmente la evasión.",
+      "categorias": [
+        "normal",
+        "mejora"
+      ],
+      "tipo": "normal",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 0,
+      "recargaSegundos": 4.5,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "doubleedge": {
+      "nombre": "Doble Filo",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "normal",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "dracometeor": {
+      "nombre": "Cometa Draco",
+      "descripcion": "Apunta a un rival dentro del alcance.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dragon",
+      "clase": "special",
+      "potenciaBase": 75,
+      "pp": 5,
+      "alcance": 490,
+      "recargaSegundos": 7,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "dragon": {
+      "nombre": "Dragoaliento",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede causar parálisis con probabilidad de 15%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dragon",
+      "clase": "special",
+      "potenciaBase": 44,
+      "pp": 20,
+      "alcance": 355,
+      "recargaSegundos": 1.1,
+      "estado": "paralysis",
+      "probabilidadEstado": 0.15,
+      "etiquetas": []
+    },
+    "dragonburst": {
+      "nombre": "Estallido Dragón",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "dragon",
+      "clase": "special",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "dragonclaw": {
+      "nombre": "Garra Dragón",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "dragon",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 10,
+      "alcance": 175,
+      "recargaSegundos": 2.8,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "dragondance": {
+      "nombre": "Danza Dragón",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Sube Ataque +1 y Velocidad +1 (8% por nivel).",
+      "categorias": [
+        "normal",
+        "mejora"
+      ],
+      "tipo": "dragon",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 3,
+      "alcance": 0,
+      "recargaSegundos": 8,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [],
+      "niveles": {
+        "attack": 1,
+        "speed": 1
+      }
+    },
+    "dragondarts": {
+      "nombre": "Dracoflechas",
+      "descripcion": "Dispara un proyectil hacia el rival. Ejecuta 2 golpes.",
+      "categorias": [
+        "firma"
+      ],
+      "tipo": "dragon",
+      "clase": "physical",
+      "potenciaBase": 26,
+      "pp": 20,
+      "alcance": 395,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "dragonpulse": {
+      "nombre": "Pulso Dragón",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "dragon",
+      "clase": "special",
+      "potenciaBase": 54,
+      "pp": 10,
+      "alcance": 395,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "dragonrush": {
+      "nombre": "Carga Dragón",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "dragon",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "dragontail": {
+      "nombre": "Cola Dragón",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dragon",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "drainpunch": {
+      "nombre": "Puño Drenaje",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Recupera PS equivalentes al 50% del daño causado.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fighting",
+      "clase": "physical",
+      "potenciaBase": 53,
+      "pp": 20,
+      "alcance": 165,
+      "recargaSegundos": 3.5,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "dream": {
+      "nombre": "Come Sueños",
+      "descripcion": "Apunta a un rival dentro del alcance. Recupera PS equivalentes al 50% del daño causado.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "psychic",
+      "clase": "special",
+      "potenciaBase": 67,
+      "pp": 20,
+      "alcance": 470,
+      "recargaSegundos": 4.8,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "drillpeck": {
+      "nombre": "Pico Taladro",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "flying",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "drillrun": {
+      "nombre": "Taladradora",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ground",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "dualchop": {
+      "nombre": "Golpe Bis",
+      "descripcion": "Dispara un proyectil hacia el rival. Ejecuta 2 golpes.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dragon",
+      "clase": "physical",
+      "potenciaBase": 21,
+      "pp": 8,
+      "alcance": 235,
+      "recargaSegundos": 3.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "dualwingbeat": {
+      "nombre": "Ala Bis",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "flying",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "earthpower": {
+      "nombre": "Tierra Viva",
+      "descripcion": "Apunta a un rival dentro del alcance.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ground",
+      "clase": "special",
+      "potenciaBase": 57,
+      "pp": 10,
+      "alcance": 405,
+      "recargaSegundos": 3.6,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "echoedvoice": {
+      "nombre": "Eco Voz",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "normal",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "electricField": {
+      "nombre": "Campo Eléctrico",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Cambia el campo a electric.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "electric",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 0,
+      "recargaSegundos": 15,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "electroball": {
+      "nombre": "Bola Voltio",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede causar parálisis con probabilidad de 18%. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "electric",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": "paralysis",
+      "probabilidadEstado": 0.18,
+      "etiquetas": []
+    },
+    "ember": {
+      "nombre": "Ascuas",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede causar quemadura con probabilidad de 10%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fire",
+      "clase": "special",
+      "potenciaBase": 28,
+      "pp": 20,
+      "alcance": 365,
+      "recargaSegundos": 1.1,
+      "estado": "burn",
+      "probabilidadEstado": 0.1,
+      "etiquetas": []
+    },
+    "energyball": {
+      "nombre": "Energibola",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "grass",
+      "clase": "special",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "extrasensory": {
+      "nombre": "Paranormal",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "psychic",
+      "clase": "special",
+      "potenciaBase": 56,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "fairy": {
+      "nombre": "Voz Cautivadora",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "fairy",
+      "clase": "special",
+      "potenciaBase": 46,
+      "pp": 20,
+      "alcance": 240,
+      "recargaSegundos": 3.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "fairyblade": {
+      "nombre": "Espada Feérica",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "fairy",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "fakeout": {
+      "nombre": "Sorpresa",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "normal",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "fireblast": {
+      "nombre": "Llamarada",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede causar quemadura con probabilidad de 10%. Desplaza al objetivo.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "fire",
+      "clase": "special",
+      "potenciaBase": 68,
+      "pp": 20,
+      "alcance": 455,
+      "recargaSegundos": 5,
+      "estado": "burn",
+      "probabilidadEstado": 0.1,
+      "etiquetas": []
+    },
+    "firefang": {
+      "nombre": "Colmillo Ígneo",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede causar quemadura con probabilidad de 18%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fire",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": "burn",
+      "probabilidadEstado": 0.18,
+      "etiquetas": [
+        "bite"
+      ]
+    },
+    "firepunch": {
+      "nombre": "Puño Fuego",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fire",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "firstimpression": {
+      "nombre": "Escaramuza",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "bug",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "flamecharge": {
+      "nombre": "Nitrocarga",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fire",
+      "clase": "physical",
+      "potenciaBase": 46,
+      "pp": 10,
+      "alcance": 185,
+      "recargaSegundos": 2.7,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "flamewheel": {
+      "nombre": "Rueda Fuego",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fire",
+      "clase": "physical",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "flareblitz": {
+      "nombre": "Envite Ígneo",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "fire",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "flashcannon": {
+      "nombre": "Foco Resplandor",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "steel",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "flipturn": {
+      "nombre": "Viraje",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "water",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "fly": {
+      "nombre": "Vuelo",
+      "descripcion": "Se reposiciona antes de infligir daño.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "flying",
+      "clase": "physical",
+      "potenciaBase": 69,
+      "pp": 20,
+      "alcance": 460,
+      "recargaSegundos": 11,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "focus": {
+      "nombre": "Puño Certero",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fighting",
+      "clase": "physical",
+      "potenciaBase": 76,
+      "pp": 20,
+      "alcance": 185,
+      "recargaSegundos": 6,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "focusblast": {
+      "nombre": "Onda Certera",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "fighting",
+      "clase": "special",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "freezedry": {
+      "nombre": "Liofilización",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "ice",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "frost": {
+      "nombre": "Vaho Gélido",
+      "descripcion": "Apunta a un rival dentro del alcance. Puede causar congelación con probabilidad de 15%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ice",
+      "clase": "special",
+      "potenciaBase": 43,
+      "pp": 20,
+      "alcance": 430,
+      "recargaSegundos": 3.2,
+      "estado": "freeze",
+      "probabilidadEstado": 0.15,
+      "etiquetas": []
+    },
+    "giga": {
+      "nombre": "Gigadrenado",
+      "descripcion": "Apunta a un rival dentro del alcance. Recupera PS equivalentes al 50% del daño causado.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "grass",
+      "clase": "special",
+      "potenciaBase": 44,
+      "pp": 20,
+      "alcance": 410,
+      "recargaSegundos": 4.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "grassField": {
+      "nombre": "Campo de Hierba",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Cambia el campo a grass.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "grass",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 0,
+      "recargaSegundos": 15,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "gravelwave": {
+      "nombre": "Onda de Grava",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "rock",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "growth": {
+      "nombre": "Desarrollo",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Sube Ataque +1 y Ataque Especial +1 (8% por nivel).",
+      "categorias": [
+        "normal",
+        "mejora"
+      ],
+      "tipo": "normal",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 3,
+      "alcance": 0,
+      "recargaSegundos": 8,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [],
+      "niveles": {
+        "attack": 1,
+        "specialAttack": 1
+      }
+    },
+    "guard": {
+      "nombre": "Protección",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Bloquea ataques normales brevemente.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "normal",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 5,
+      "alcance": 0,
+      "recargaSegundos": 7,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "gunkshot": {
+      "nombre": "Lanzamugre",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede causar veneno con probabilidad de 18%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": "poison",
+      "probabilidadEstado": 0.18,
+      "etiquetas": []
+    },
+    "gust": {
+      "nombre": "Tornado",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "flying",
+      "clase": "special",
+      "potenciaBase": 40,
+      "pp": 20,
+      "alcance": 310,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "hail": {
+      "nombre": "Granizo",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Cambia el campo a hail.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "ice",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 0,
+      "recargaSegundos": 15,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "headbutt": {
+      "nombre": "Golpe Cabeza",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 10%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "normal",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 20,
+      "alcance": 160,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "healbeam": {
+      "nombre": "Rayo Vital",
+      "descripcion": "Afecta a compañeros del mismo viewer. Cura al aliado seleccionado un 35% de sus PS máximos.",
+      "categorias": [
+        "normal",
+        "tm",
+        "apoyo"
+      ],
+      "tipo": "psychic",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 5,
+      "alcance": 620,
+      "recargaSegundos": 9,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "support"
+      ]
+    },
+    "healcircle": {
+      "nombre": "Círculo Curativo",
+      "descripcion": "Afecta a compañeros del mismo viewer. Cura a los aliados en el área un 18% de sus PS máximos.",
+      "categorias": [
+        "normal",
+        "apoyo"
+      ],
+      "tipo": "fairy",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 4,
+      "alcance": 265,
+      "recargaSegundos": 10,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "support"
+      ]
+    },
+    "healpulse": {
+      "nombre": "Pulso Cura",
+      "descripcion": "Afecta a compañeros del mismo viewer. Cura al aliado seleccionado un 32% de sus PS máximos.",
+      "categorias": [
+        "apoyo",
+        "sinAsignar"
+      ],
+      "tipo": "psychic",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 2,
+      "alcance": 500,
+      "recargaSegundos": 11,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "support"
+      ]
+    },
+    "heat": {
+      "nombre": "Onda Ígnea",
+      "descripcion": "Ataca dentro del área de impacto. Puede causar quemadura con probabilidad de 10%.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "fire",
+      "clase": "special",
+      "potenciaBase": 61,
+      "pp": 20,
+      "alcance": 315,
+      "recargaSegundos": 3.4,
+      "estado": "burn",
+      "probabilidadEstado": 0.1,
+      "etiquetas": []
+    },
+    "heatcrash": {
+      "nombre": "Golpe Calor",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede causar quemadura con probabilidad de 18%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fire",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": "burn",
+      "probabilidadEstado": 0.18,
+      "etiquetas": []
+    },
+    "heavyslam": {
+      "nombre": "Cuerpo Pesado",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "steel",
+      "clase": "physical",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "helpinghand": {
+      "nombre": "Refuerzo",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Aumenta el daño del equipo un 20%.",
+      "categorias": [
+        "normal",
+        "apoyo"
+      ],
+      "tipo": "normal",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 5,
+      "alcance": 0,
+      "recargaSegundos": 10,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "support"
+      ],
+      "duracionSegundos": 6
+    },
+    "hex": {
+      "nombre": "Infortunio",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ghost",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "highhorsepower": {
+      "nombre": "Fuerza Equina",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ground",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "horn": {
+      "nombre": "Cornada",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 10%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "normal",
+      "clase": "physical",
+      "potenciaBase": 46,
+      "pp": 20,
+      "alcance": 155,
+      "recargaSegundos": 1.8,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "hurricane": {
+      "nombre": "Vendaval",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "flying",
+      "clase": "special",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "hydro": {
+      "nombre": "Hidrobomba",
+      "descripcion": "Dispara un proyectil hacia el rival. Desplaza al objetivo.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "water",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 20,
+      "alcance": 455,
+      "recargaSegundos": 4.5,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "hypnosis": {
+      "nombre": "Hipnosis",
+      "descripcion": "Apunta a un rival dentro del alcance. Puede causar sueño con probabilidad de 60%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "psychic",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 370,
+      "recargaSegundos": 7,
+      "estado": "sleep",
+      "probabilidadEstado": 0.6,
+      "etiquetas": []
+    },
+    "ice": {
+      "nombre": "Rayo Hielo",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede causar congelación con probabilidad de 10%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ice",
+      "clase": "special",
+      "potenciaBase": 29,
+      "pp": 20,
+      "alcance": 365,
+      "recargaSegundos": 1.1,
+      "estado": "freeze",
+      "probabilidadEstado": 0.1,
+      "etiquetas": []
+    },
+    "icefang": {
+      "nombre": "Colmillo Hielo",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ice",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "bite"
+      ]
+    },
+    "icepunch": {
+      "nombre": "Puño Hielo",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede causar congelación con probabilidad de 18%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ice",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": "freeze",
+      "probabilidadEstado": 0.18,
+      "etiquetas": []
+    },
+    "iceshard": {
+      "nombre": "Canto Helado",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ice",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "iciclecrash": {
+      "nombre": "Chuzos",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede causar congelación con probabilidad de 18%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ice",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": "freeze",
+      "probabilidadEstado": 0.18,
+      "etiquetas": []
+    },
+    "icywind": {
+      "nombre": "Viento Hielo",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede causar congelación con probabilidad de 18%. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ice",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": "freeze",
+      "probabilidadEstado": 0.18,
+      "etiquetas": []
+    },
+    "incinerate": {
+      "nombre": "Calcinación",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede causar quemadura con probabilidad de 18%. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fire",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": "burn",
+      "probabilidadEstado": 0.18,
+      "etiquetas": []
+    },
+    "infestation": {
+      "nombre": "Acoso",
+      "descripcion": "Apunta a un rival dentro del alcance. Produce daño periódico.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "bug",
+      "clase": "special",
+      "potenciaBase": 23,
+      "pp": 20,
+      "alcance": 280,
+      "recargaSegundos": 7,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ironhead": {
+      "nombre": "Cabeza de Hierro",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "steel",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "irontail": {
+      "nombre": "Cola Férrea",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "steel",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "jab": {
+      "nombre": "Puya Nociva",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede causar veneno con probabilidad de 25%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "physical",
+      "potenciaBase": 50,
+      "pp": 20,
+      "alcance": 150,
+      "recargaSegundos": 1.1,
+      "estado": "poison",
+      "probabilidadEstado": 0.25,
+      "etiquetas": []
+    },
+    "judgment": {
+      "nombre": "Sentencia",
+      "descripcion": "Apunta a un rival dentro del alcance.",
+      "categorias": [
+        "firma"
+      ],
+      "tipo": "normal",
+      "clase": "special",
+      "potenciaBase": 56,
+      "pp": 20,
+      "alcance": 430,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "kick": {
+      "nombre": "Patada Baja",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fighting",
+      "clase": "physical",
+      "potenciaBase": 49,
+      "pp": 20,
+      "alcance": 160,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "kiss": {
+      "nombre": "Beso Drenaje",
+      "descripcion": "Apunta a un rival dentro del alcance. Recupera PS equivalentes al 65% del daño causado.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "fairy",
+      "clase": "special",
+      "potenciaBase": 39,
+      "pp": 20,
+      "alcance": 320,
+      "recargaSegundos": 4.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "knockoff": {
+      "nombre": "Desarme",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dark",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "lavaplume": {
+      "nombre": "Humareda",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fire",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "leaf": {
+      "nombre": "Hoja Afilada",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "grass",
+      "clase": "physical",
+      "potenciaBase": 28,
+      "pp": 20,
+      "alcance": 365,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "leafblade": {
+      "nombre": "Hoja Aguda",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "grass",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "leafstorm": {
+      "nombre": "Lluevehojas",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "grass",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "lightning": {
+      "nombre": "Trueno",
+      "descripcion": "Apunta a un rival dentro del alcance. Puede causar parálisis con probabilidad de 20%.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "electric",
+      "clase": "special",
+      "potenciaBase": 56,
+      "pp": 20,
+      "alcance": 500,
+      "recargaSegundos": 4.8,
+      "estado": "paralysis",
+      "probabilidadEstado": 0.2,
+      "etiquetas": []
+    },
+    "lightscreen": {
+      "nombre": "Pantalla Luz",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Escudo para el equipo. Absorbe daño especial hasta el 20% de los PS máximos de cada aliado.",
+      "categorias": [
+        "normal",
+        "tm",
+        "apoyo"
+      ],
+      "tipo": "psychic",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 2,
+      "alcance": 0,
+      "recargaSegundos": 9,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "support"
+      ],
+      "duracionSegundos": 6
+    },
+    "liquidation": {
+      "nombre": "Hidroariete",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "water",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "lunge": {
+      "nombre": "Tijera X",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "bug",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 20,
+      "alcance": 170,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "machpunch": {
+      "nombre": "Ultrapuño",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fighting",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "magicalwhip": {
+      "nombre": "Látigo Feérico",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fairy",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "makeitrain": {
+      "nombre": "Fiebre Dorada",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "firma"
+      ],
+      "tipo": "steel",
+      "clase": "special",
+      "potenciaBase": 45,
+      "pp": 20,
+      "alcance": 375,
+      "recargaSegundos": 3.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "megahorn": {
+      "nombre": "Megacuerno",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "bug",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "metalburst": {
+      "nombre": "Represión Metal",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "steel",
+      "clase": "special",
+      "potenciaBase": 68,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "metalclaw": {
+      "nombre": "Garra Metal",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "steel",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "meteor": {
+      "nombre": "Puño Meteoro",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "steel",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 20,
+      "alcance": 160,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "meteorbeam": {
+      "nombre": "Rayo Meteórico",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "rock",
+      "clase": "special",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "mindblade": {
+      "nombre": "Hoja Mental",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "psychic",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "mirrorshot": {
+      "nombre": "Disparo Espejo",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "steel",
+      "clase": "special",
+      "potenciaBase": 56,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "mistburst": {
+      "nombre": "Estallido de Niebla",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fairy",
+      "clase": "special",
+      "potenciaBase": 56,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "moonblast": {
+      "nombre": "Fuerza Lunar",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fairy",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "mud": {
+      "nombre": "Disparo Lodo",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ground",
+      "clase": "special",
+      "potenciaBase": 34,
+      "pp": 20,
+      "alcance": 280,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "mudshot": {
+      "nombre": "Disparo Lodo",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ground",
+      "clase": "special",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "multiattack": {
+      "nombre": "Multiataque",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "firma"
+      ],
+      "tipo": "normal",
+      "clase": "physical",
+      "potenciaBase": 53,
+      "pp": 20,
+      "alcance": 170,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "mysticalfire": {
+      "nombre": "Llama Embrujada",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fire",
+      "clase": "special",
+      "potenciaBase": 56,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "nastyplot": {
+      "nombre": "Maquinación",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Sube Ataque Especial +2 (8% por nivel).",
+      "categorias": [
+        "normal",
+        "mejora"
+      ],
+      "tipo": "dark",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 3,
+      "alcance": 0,
+      "recargaSegundos": 8,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [],
+      "niveles": {
+        "specialAttack": 2
+      }
+    },
+    "nightdaze": {
+      "nombre": "Pulso Noche",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "dark",
+      "clase": "special",
+      "potenciaBase": 56,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "nightshade": {
+      "nombre": "Tinieblas",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ghost",
+      "clase": "special",
+      "potenciaBase": 56,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "nightslash": {
+      "nombre": "Tajo Umbrío",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dark",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "nuzzle": {
+      "nombre": "Moflete Estático",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede causar parálisis con probabilidad de 18%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "electric",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": "paralysis",
+      "probabilidadEstado": 0.18,
+      "etiquetas": []
+    },
+    "ominouswind": {
+      "nombre": "Viento Aciago",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ghost",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "outrage": {
+      "nombre": "Enfado",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dragon",
+      "clase": "physical",
+      "potenciaBase": 76,
+      "pp": 5,
+      "alcance": 185,
+      "recargaSegundos": 7,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "overloadcoil": {
+      "nombre": "Bobina de Rebote",
+      "descripcion": "Apunta a un rival dentro del alcance. Puede encadenarse a otros rivales.",
+      "categorias": [
+        "firma",
+        "tm"
+      ],
+      "tipo": "electric",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 7,
+      "alcance": 480,
+      "recargaSegundos": 6,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "payday": {
+      "nombre": "Día de Pago",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "firma"
+      ],
+      "tipo": "normal",
+      "clase": "special",
+      "potenciaBase": 32,
+      "pp": 20,
+      "alcance": 345,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "peck": {
+      "nombre": "Picotazo",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "flying",
+      "clase": "physical",
+      "potenciaBase": 34,
+      "pp": 20,
+      "alcance": 145,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "petaldance": {
+      "nombre": "Danza Pétalo",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "grass",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "phantomforce": {
+      "nombre": "Golpe Fantasma",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ghost",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "pin": {
+      "nombre": "Pin Misil",
+      "descripcion": "Dispara un proyectil hacia el rival. Ejecuta 3 golpes.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "bug",
+      "clase": "physical",
+      "potenciaBase": 16,
+      "pp": 20,
+      "alcance": 265,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "pixiekick": {
+      "nombre": "Patada Feérica",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fairy",
+      "clase": "physical",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "playrough": {
+      "nombre": "Carantoña",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fairy",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "poison": {
+      "nombre": "Residuos",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede causar veneno con probabilidad de 30%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "special",
+      "potenciaBase": 25,
+      "pp": 20,
+      "alcance": 300,
+      "recargaSegundos": 1.1,
+      "estado": "poison",
+      "probabilidadEstado": 0.3,
+      "etiquetas": []
+    },
+    "poisonfang": {
+      "nombre": "Colmillo Veneno",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede causar veneno con probabilidad de 18%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": "poison",
+      "probabilidadEstado": 0.18,
+      "etiquetas": [
+        "bite"
+      ]
+    },
+    "poisontail": {
+      "nombre": "Cola Veneno",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "pollenblast": {
+      "nombre": "Estallido de Polen",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "bug",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "pollenpuff": {
+      "nombre": "Bola de Polen",
+      "descripcion": "Afecta a compañeros del mismo viewer. Cura al aliado seleccionado un 25% de sus PS máximos.",
+      "categorias": [
+        "apoyo",
+        "sinAsignar"
+      ],
+      "tipo": "bug",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 2,
+      "alcance": 500,
+      "recargaSegundos": 9,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "support"
+      ]
+    },
+    "poltergeist": {
+      "nombre": "Poltergeist",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "ghost",
+      "clase": "physical",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "powergem": {
+      "nombre": "Joya de Luz",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "rock",
+      "clase": "special",
+      "potenciaBase": 54,
+      "pp": 10,
+      "alcance": 340,
+      "recargaSegundos": 3.2,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "powerwhip": {
+      "nombre": "Latigazo",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "grass",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "psychic": {
+      "nombre": "Psíquico",
+      "descripcion": "Apunta a un rival dentro del alcance.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "psychic",
+      "clase": "special",
+      "potenciaBase": 59,
+      "pp": 20,
+      "alcance": 510,
+      "recargaSegundos": 3.8,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "psychocut": {
+      "nombre": "Psicocorte",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "psychic",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "psyshock": {
+      "nombre": "Psicocarga",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "psychic",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "pulse": {
+      "nombre": "Pulso",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "normal",
+      "clase": "special",
+      "potenciaBase": 24,
+      "pp": 20,
+      "alcance": 365,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "punch": {
+      "nombre": "Puño Dinámico",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fighting",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 20,
+      "alcance": 160,
+      "recargaSegundos": 3.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "purifyingwave": {
+      "nombre": "Onda Purificante",
+      "descripcion": "Afecta a compañeros del mismo viewer. Quita los estados del equipo.",
+      "categorias": [
+        "tm",
+        "apoyo"
+      ],
+      "tipo": "fairy",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 5,
+      "alcance": 0,
+      "recargaSegundos": 10,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "support"
+      ]
+    },
+    "quake": {
+      "nombre": "Terremoto",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "ground",
+      "clase": "physical",
+      "potenciaBase": 62,
+      "pp": 20,
+      "alcance": 380,
+      "recargaSegundos": 3.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "quick": {
+      "nombre": "Ataque Rápido",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "normal",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 20,
+      "alcance": 175,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "raidcannons": {
+      "nombre": "Hidrobomba de Cañones",
+      "descripcion": "Dispara un proyectil hacia el rival. Ejecuta 2 golpes. Desplaza al objetivo.",
+      "categorias": [
+        "jefe"
+      ],
+      "tipo": "water",
+      "clase": "special",
+      "potenciaBase": 78,
+      "pp": 16,
+      "alcance": 480,
+      "recargaSegundos": 5.5,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "raidcreamwave": {
+      "nombre": "Cascada de Crema Gigamax",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "jefe"
+      ],
+      "tipo": "fairy",
+      "clase": "special",
+      "potenciaBase": 67,
+      "pp": 11,
+      "alcance": 355,
+      "recargaSegundos": 6,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "raiddragonstorm": {
+      "nombre": "Tempestad Dragón",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "jefe"
+      ],
+      "tipo": "dragon",
+      "clase": "special",
+      "potenciaBase": 67,
+      "pp": 12,
+      "alcance": 370,
+      "recargaSegundos": 6.5,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "raidgeysers": {
+      "nombre": "Cadena de Géiseres",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "jefe"
+      ],
+      "tipo": "water",
+      "clase": "special",
+      "potenciaBase": 61,
+      "pp": 15,
+      "alcance": 540,
+      "recargaSegundos": 7,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "raidmeteorcrash": {
+      "nombre": "Colisión Meteórica",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "jefe"
+      ],
+      "tipo": "steel",
+      "clase": "physical",
+      "potenciaBase": 74,
+      "pp": 11,
+      "alcance": 345,
+      "recargaSegundos": 6.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "raidshellslam": {
+      "nombre": "Impacto de Caparazón",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "jefe"
+      ],
+      "tipo": "water",
+      "clase": "physical",
+      "potenciaBase": 69,
+      "pp": 12,
+      "alcance": 320,
+      "recargaSegundos": 6,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "raidthunder": {
+      "nombre": "Trueno de la Cumbre",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "jefe"
+      ],
+      "tipo": "electric",
+      "clase": "special",
+      "potenciaBase": 64,
+      "pp": 10,
+      "alcance": 340,
+      "recargaSegundos": 6.5,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "raidtorrent": {
+      "nombre": "Marea Dinamax",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "jefe"
+      ],
+      "tipo": "water",
+      "clase": "special",
+      "potenciaBase": 57,
+      "pp": 12,
+      "alcance": 330,
+      "recargaSegundos": 5.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "raidvinewave": {
+      "nombre": "Ola de Enredaderas",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "jefe"
+      ],
+      "tipo": "grass",
+      "clase": "special",
+      "potenciaBase": 54,
+      "pp": 12,
+      "alcance": 300,
+      "recargaSegundos": 5,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "raidwildfire": {
+      "nombre": "Llamarada Gigamax",
+      "descripcion": "Ataca dentro del área de impacto. Puede causar quemadura con probabilidad de 18%.",
+      "categorias": [
+        "jefe"
+      ],
+      "tipo": "fire",
+      "clase": "special",
+      "potenciaBase": 72,
+      "pp": 12,
+      "alcance": 370,
+      "recargaSegundos": 7,
+      "estado": "burn",
+      "probabilidadEstado": 0.18,
+      "etiquetas": []
+    },
+    "rain": {
+      "nombre": "Danza Lluvia",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Cambia el campo a rain.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "water",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 0,
+      "recargaSegundos": 15,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "razorshell": {
+      "nombre": "Concha Filo",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "water",
+      "clase": "physical",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "razorwind": {
+      "nombre": "Viento Cortante",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "flying",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "recover": {
+      "nombre": "Recuperación",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Recupera el 40% de los PS máximos del usuario.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "normal",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 1,
+      "alcance": 0,
+      "recargaSegundos": 10,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "reflect": {
+      "nombre": "Reflejo",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Escudo para el equipo. Absorbe daño físico hasta el 20% de los PS máximos de cada aliado.",
+      "categorias": [
+        "normal",
+        "tm",
+        "apoyo"
+      ],
+      "tipo": "psychic",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 2,
+      "alcance": 0,
+      "recargaSegundos": 9,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "support"
+      ],
+      "duracionSegundos": 6
+    },
+    "relicsong": {
+      "nombre": "Canto Arcaico",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "firma"
+      ],
+      "tipo": "normal",
+      "clase": "special",
+      "potenciaBase": 36,
+      "pp": 20,
+      "alcance": 350,
+      "recargaSegundos": 3.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "revivebeam": {
+      "nombre": "Última Llama",
+      "descripcion": "Afecta a compañeros del mismo viewer. Revive al último compañero caído con 30% de sus PS máximos.",
+      "categorias": [
+        "apoyo",
+        "sinAsignar"
+      ],
+      "tipo": "normal",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 1,
+      "alcance": 0,
+      "recargaSegundos": 30,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "support"
+      ]
+    },
+    "riftburst": {
+      "nombre": "Estallido Sísmico",
+      "descripcion": "Ataca dentro del área de impacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "ground",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "rockblast": {
+      "nombre": "Pedrada",
+      "descripcion": "Dispara un proyectil hacia el rival. Ejecuta 3 golpes.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "rock",
+      "clase": "physical",
+      "potenciaBase": 15,
+      "pp": 8,
+      "alcance": 290,
+      "recargaSegundos": 3.5,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "rocks": {
+      "nombre": "Lanzarrocas",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "rock",
+      "clase": "physical",
+      "potenciaBase": 36,
+      "pp": 20,
+      "alcance": 265,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "rockslide": {
+      "nombre": "Avalancha",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "rock",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "roll": {
+      "nombre": "Desenrollar",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "rock",
+      "clase": "physical",
+      "potenciaBase": 50,
+      "pp": 20,
+      "alcance": 185,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "round": {
+      "nombre": "Canto",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "normal",
+      "clase": "special",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "saltcure": {
+      "nombre": "Salazón",
+      "descripcion": "Apunta a un rival dentro del alcance. Produce daño periódico.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "rock",
+      "clase": "special",
+      "potenciaBase": 28,
+      "pp": 20,
+      "alcance": 350,
+      "recargaSegundos": 7,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "sandsear": {
+      "nombre": "Oleada de Arena",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ground",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "sandstorm": {
+      "nombre": "Tormenta de Arena",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Cambia el campo a sandstorm.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "rock",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 0,
+      "recargaSegundos": 15,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "scorchingsands": {
+      "nombre": "Arenas Ardientes",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ground",
+      "clase": "special",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "seed": {
+      "nombre": "Drenadoras",
+      "descripcion": "Apunta a un rival dentro del alcance. Produce daño periódico.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "grass",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 375,
+      "recargaSegundos": 9,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "seedbomb": {
+      "nombre": "Bomba Germen",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "grass",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "shadow": {
+      "nombre": "Bola Sombra",
+      "descripcion": "Dispara un proyectil hacia el rival. Desplaza al objetivo.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ghost",
+      "clase": "special",
+      "potenciaBase": 53,
+      "pp": 20,
+      "alcance": 330,
+      "recargaSegundos": 2.8,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "shadowclaw": {
+      "nombre": "Garra Umbría",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "ghost",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "shadowflare": {
+      "nombre": "Destello Umbrío",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dark",
+      "clase": "special",
+      "potenciaBase": 59,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "shadowsneak": {
+      "nombre": "Sombra Vil",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ghost",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "silkcatapult": {
+      "nombre": "Catapulta de Seda",
+      "descripcion": "Apunta a un rival dentro del alcance. Desplaza al objetivo.",
+      "categorias": [
+        "firma"
+      ],
+      "tipo": "bug",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 7,
+      "alcance": 420,
+      "recargaSegundos": 6,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "silkstorm": {
+      "nombre": "Tormenta de Seda",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "bug",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "silverwake": {
+      "nombre": "Estela Plateada",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "steel",
+      "clase": "special",
+      "potenciaBase": 59,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "skittersmack": {
+      "nombre": "Golpe Rastrero",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "bug",
+      "clase": "physical",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "slash": {
+      "nombre": "Cuchillada",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "normal",
+      "clase": "physical",
+      "potenciaBase": 48,
+      "pp": 20,
+      "alcance": 165,
+      "recargaSegundos": 1.65,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "sludgebomb": {
+      "nombre": "Bomba Lodo",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "special",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "sludgewave": {
+      "nombre": "Onda Tóxica",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "snarl": {
+      "nombre": "Alarido",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "dark",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "solar": {
+      "nombre": "Rayo Solar",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "grass",
+      "clase": "special",
+      "potenciaBase": 60,
+      "pp": 20,
+      "alcance": 455,
+      "recargaSegundos": 5,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "soulburst": {
+      "nombre": "Estallido de Almas",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ghost",
+      "clase": "special",
+      "potenciaBase": 59,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "spark": {
+      "nombre": "Chispa",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede causar parálisis con probabilidad de 18%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "electric",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": "paralysis",
+      "probabilidadEstado": 0.18,
+      "etiquetas": []
+    },
+    "spear": {
+      "nombre": "Carámbano",
+      "descripcion": "Dispara un proyectil hacia el rival. Ejecuta 3 golpes.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ice",
+      "clase": "physical",
+      "potenciaBase": 16,
+      "pp": 20,
+      "alcance": 310,
+      "recargaSegundos": 3.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "spectralbeam": {
+      "nombre": "Rayo Espectral",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ghost",
+      "clase": "special",
+      "potenciaBase": 68,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "spikes": {
+      "nombre": "Espinas",
+      "descripcion": "Apunta a un rival dentro del alcance. Coloca una trampa venenosa.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 330,
+      "recargaSegundos": 8,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "spiritbreak": {
+      "nombre": "Choque Anímico",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fairy",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "spiritwave": {
+      "nombre": "Onda de Espíritu",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "fighting",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "spores": {
+      "nombre": "Somnífero",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede causar sueño con probabilidad de 55%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "grass",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 240,
+      "recargaSegundos": 1.1,
+      "estado": "sleep",
+      "probabilidadEstado": 0.55,
+      "etiquetas": []
+    },
+    "stardustwave": {
+      "nombre": "Ola Estelar",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fairy",
+      "clase": "special",
+      "potenciaBase": 68,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "steelbeam": {
+      "nombre": "Metaláser",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "steel",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "stickyweb": {
+      "nombre": "Red Viscosa",
+      "descripcion": "Apunta a un rival dentro del alcance. Coloca redes que inmovilizan.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "bug",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 5,
+      "alcance": 465,
+      "recargaSegundos": 8,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [],
+      "duracionSegundos": 8
+    },
+    "sting": {
+      "nombre": "Picotazo Veneno",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede causar veneno con probabilidad de 22%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "physical",
+      "potenciaBase": 32,
+      "pp": 20,
+      "alcance": 220,
+      "recargaSegundos": 1.4,
+      "estado": "poison",
+      "probabilidadEstado": 0.22,
+      "etiquetas": []
+    },
+    "stompingtantrum": {
+      "nombre": "Pataleta",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "ground",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "stoneedge": {
+      "nombre": "Roca Afilada",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "rock",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "storedpower": {
+      "nombre": "Poder Reserva",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "psychic",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "string": {
+      "nombre": "Disparo Demora",
+      "descripcion": "Apunta a un rival dentro del alcance. Ralentiza al objetivo.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "bug",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 340,
+      "recargaSegundos": 5,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "struggle": {
+      "nombre": "Forcejeo",
+      "descripcion": "Inflige el 20% de los PS de referencia del rival y causa daño de retroceso al usuario.",
+      "categorias": [
+        "sistema"
+      ],
+      "tipo": "normal",
+      "clase": "physical",
+      "potenciaBase": 1,
+      "pp": null,
+      "alcance": 160,
+      "recargaSegundos": 1.15,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "strugglebug": {
+      "nombre": "Estoicismo",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "bug",
+      "clase": "special",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "suckerpunch": {
+      "nombre": "Golpe Bajo",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dark",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "sun": {
+      "nombre": "Día Soleado",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Cambia el campo a sun.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "fire",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 0,
+      "recargaSegundos": 15,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "surf": {
+      "nombre": "Surf",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "water",
+      "clase": "special",
+      "potenciaBase": 59,
+      "pp": 20,
+      "alcance": 330,
+      "recargaSegundos": 3.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "swarm": {
+      "nombre": "Enjambre de abejas",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "bug",
+      "clase": "special",
+      "potenciaBase": 48,
+      "pp": 20,
+      "alcance": 295,
+      "recargaSegundos": 3.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "swift": {
+      "nombre": "Rapidez",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "normal",
+      "clase": "special",
+      "potenciaBase": 36,
+      "pp": 20,
+      "alcance": 345,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "synthesis": {
+      "nombre": "Síntesis",
+      "descripcion": "Activa un efecto de campo, defensa o mejora. Recupera el 40% de los PS máximos del usuario.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "grass",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 1,
+      "alcance": 0,
+      "recargaSegundos": 10,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "tackle": {
+      "nombre": "Placaje",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "normal",
+      "clase": "physical",
+      "potenciaBase": 34,
+      "pp": 20,
+      "alcance": 140,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "technoblast": {
+      "nombre": "Tecno Shock",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "firma"
+      ],
+      "tipo": "normal",
+      "clase": "special",
+      "potenciaBase": 56,
+      "pp": 20,
+      "alcance": 375,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "telekineticrush": {
+      "nombre": "Embestida Mental",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "psychic",
+      "clase": "physical",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "teleport": {
+      "nombre": "Teletransporte",
+      "descripcion": "Activa un efecto de campo, defensa o mejora.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "psychic",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 0,
+      "recargaSegundos": 7,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "thief": {
+      "nombre": "Ladrón",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dark",
+      "clase": "physical",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "thunder": {
+      "nombre": "Impactrueno",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede causar parálisis con probabilidad de 10%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "electric",
+      "clase": "special",
+      "potenciaBase": 27,
+      "pp": 20,
+      "alcance": 365,
+      "recargaSegundos": 1.1,
+      "estado": "paralysis",
+      "probabilidadEstado": 0.1,
+      "etiquetas": []
+    },
+    "thunderfang": {
+      "nombre": "Colmillo Rayo",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "electric",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "bite"
+      ]
+    },
+    "thunderpunch": {
+      "nombre": "Puño Trueno",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede causar parálisis con probabilidad de 12%.",
+      "categorias": [
+        "normal",
+        "jefe"
+      ],
+      "tipo": "electric",
+      "clase": "physical",
+      "potenciaBase": 48,
+      "pp": 10,
+      "alcance": 175,
+      "recargaSegundos": 2.8,
+      "estado": "paralysis",
+      "probabilidadEstado": 0.12,
+      "etiquetas": []
+    },
+    "twister": {
+      "nombre": "Ciclón",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "dragon",
+      "clase": "special",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-bug": {
+      "nombre": "Red de Polen",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga. Se desarrolla en 2 pulsos.",
+      "categorias": [
+        "definitivo"
+      ],
+      "tipo": "bug",
+      "clase": "adaptive",
+      "potenciaBase": 55,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-dark": {
+      "nombre": "Pulso Nocturno",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga. Se desarrolla en 5 pulsos.",
+      "categorias": [
+        "definitivo"
+      ],
+      "tipo": "dark",
+      "clase": "adaptive",
+      "potenciaBase": 19,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-dragon": {
+      "nombre": "Cometa Draco",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga. Se desarrolla en 4 pulsos.",
+      "categorias": [
+        "jefe",
+        "definitivo"
+      ],
+      "tipo": "dragon",
+      "clase": "adaptive",
+      "potenciaBase": 27,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-electric": {
+      "nombre": "Tormenta Bifurcada",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga. Se desarrolla en 2 pulsos.",
+      "categorias": [
+        "jefe",
+        "definitivo"
+      ],
+      "tipo": "electric",
+      "clase": "adaptive",
+      "potenciaBase": 57,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-fairy": {
+      "nombre": "Bruma Explosiva",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga. Se desarrolla en 5 pulsos.",
+      "categorias": [
+        "jefe",
+        "definitivo"
+      ],
+      "tipo": "fairy",
+      "clase": "adaptive",
+      "potenciaBase": 17,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-fighting": {
+      "nombre": "Combate Cercano",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga. Se desarrolla en 10 pulsos.",
+      "categorias": [
+        "definitivo"
+      ],
+      "tipo": "fighting",
+      "clase": "adaptive",
+      "potenciaBase": 10,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-fire": {
+      "nombre": "Vórtice de Fuego",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga. Se desarrolla en 4 pulsos.",
+      "categorias": [
+        "jefe",
+        "definitivo"
+      ],
+      "tipo": "fire",
+      "clase": "adaptive",
+      "potenciaBase": 22,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-flying": {
+      "nombre": "Tornado Ascendente",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga. Se desarrolla en 4 pulsos.",
+      "categorias": [
+        "definitivo"
+      ],
+      "tipo": "flying",
+      "clase": "adaptive",
+      "potenciaBase": 15,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-ghost": {
+      "nombre": "Pesadilla Colectiva",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga. Se desarrolla en 2 pulsos.",
+      "categorias": [
+        "definitivo"
+      ],
+      "tipo": "ghost",
+      "clase": "adaptive",
+      "potenciaBase": 0,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-grass": {
+      "nombre": "Rayo Solar Supremo",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga.",
+      "categorias": [
+        "jefe",
+        "definitivo"
+      ],
+      "tipo": "grass",
+      "clase": "adaptive",
+      "potenciaBase": 91,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-ground": {
+      "nombre": "Fisura",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga.",
+      "categorias": [
+        "definitivo"
+      ],
+      "tipo": "ground",
+      "clase": "adaptive",
+      "potenciaBase": 75,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-ice": {
+      "nombre": "Rayo Glacial",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga.",
+      "categorias": [
+        "definitivo"
+      ],
+      "tipo": "ice",
+      "clase": "adaptive",
+      "potenciaBase": 57,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-normal": {
+      "nombre": "Hiperrayo",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga.",
+      "categorias": [
+        "definitivo"
+      ],
+      "tipo": "normal",
+      "clase": "adaptive",
+      "potenciaBase": 86,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-poison": {
+      "nombre": "Lanzamugre",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga.",
+      "categorias": [
+        "definitivo"
+      ],
+      "tipo": "poison",
+      "clase": "adaptive",
+      "potenciaBase": 108,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-psychic": {
+      "nombre": "Caída Telequinética",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga. Se desarrolla en 2 pulsos.",
+      "categorias": [
+        "definitivo"
+      ],
+      "tipo": "psychic",
+      "clase": "adaptive",
+      "potenciaBase": 66,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-rock": {
+      "nombre": "Lluvia de Meteoritos",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga. Se desarrolla en 4 pulsos.",
+      "categorias": [
+        "definitivo"
+      ],
+      "tipo": "rock",
+      "clase": "adaptive",
+      "potenciaBase": 23,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-steel": {
+      "nombre": "Viga Colosal",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga. Se desarrolla en 3 pulsos.",
+      "categorias": [
+        "jefe",
+        "definitivo"
+      ],
+      "tipo": "steel",
+      "clase": "adaptive",
+      "potenciaBase": 32,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "ultimate-water": {
+      "nombre": "Triple Oleaje",
+      "descripcion": "Ataque definitivo que requiere llenar el medidor de carga. Se desarrolla en 3 pulsos.",
+      "categorias": [
+        "jefe",
+        "definitivo"
+      ],
+      "tipo": "water",
+      "clase": "adaptive",
+      "potenciaBase": 29,
+      "pp": 2,
+      "alcance": 1920,
+      "recargaSegundos": null,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "uproar": {
+      "nombre": "Alboroto",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "normal",
+      "clase": "special",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "vacuumwave": {
+      "nombre": "Onda Vacío",
+      "descripcion": "Ataca dentro del área de impacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fighting",
+      "clase": "special",
+      "potenciaBase": 55,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "venoshock": {
+      "nombre": "Carga Tóxica",
+      "descripcion": "Dispara un proyectil hacia el rival. Puede causar veneno con probabilidad de 18%. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "special",
+      "potenciaBase": 49,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": "poison",
+      "probabilidadEstado": 0.18,
+      "etiquetas": []
+    },
+    "voltswitch": {
+      "nombre": "Voltiocambio",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "tm"
+      ],
+      "tipo": "electric",
+      "clase": "special",
+      "potenciaBase": 62,
+      "pp": 12,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "voltTackle": {
+      "nombre": "Placaje Eléctrico",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "electric",
+      "clase": "physical",
+      "potenciaBase": 47,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "water": {
+      "nombre": "Pistola Agua",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "water",
+      "clase": "special",
+      "potenciaBase": 28,
+      "pp": 20,
+      "alcance": 365,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "waterfall": {
+      "nombre": "Cascada",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "water",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "watershuriken": {
+      "nombre": "Shuriken de Agua",
+      "descripcion": "Dispara un proyectil hacia el rival. Ejecuta 3 golpes.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "water",
+      "clase": "special",
+      "potenciaBase": 15,
+      "pp": 8,
+      "alcance": 325,
+      "recargaSegundos": 3.4,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "wildcharge": {
+      "nombre": "Voltio Cruel",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "electric",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "wing": {
+      "nombre": "Ataque Ala",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "flying",
+      "clase": "physical",
+      "potenciaBase": 45,
+      "pp": 20,
+      "alcance": 175,
+      "recargaSegundos": 1.1,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "wisp": {
+      "nombre": "Fuego Fatuo",
+      "descripcion": "Apunta a un rival dentro del alcance. Puede causar quemadura con probabilidad de 80%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "fire",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 20,
+      "alcance": 360,
+      "recargaSegundos": 7,
+      "estado": "burn",
+      "probabilidadEstado": 0.8,
+      "etiquetas": []
+    },
+    "woodhammer": {
+      "nombre": "Mazazo",
+      "descripcion": "Dispara un proyectil hacia el rival.",
+      "categorias": [
+        "sinAsignar"
+      ],
+      "tipo": "grass",
+      "clase": "physical",
+      "potenciaBase": 61,
+      "pp": 8,
+      "alcance": 310,
+      "recargaSegundos": 3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "wrap": {
+      "nombre": "Constricción",
+      "descripcion": "Apunta a un rival dentro del alcance. Produce daño periódico.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "normal",
+      "clase": "special",
+      "potenciaBase": 18,
+      "pp": 20,
+      "alcance": 145,
+      "recargaSegundos": 6,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "xscissor": {
+      "nombre": "Tijera X",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "bug",
+      "clase": "physical",
+      "potenciaBase": 41,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": [
+        "cut"
+      ]
+    },
+    "zenheadbutt": {
+      "nombre": "Cabezazo Zen",
+      "descripcion": "Se abalanza sobre el rival y golpea al contacto. Puede amedrentar con probabilidad de 12%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "psychic",
+      "clase": "physical",
+      "potenciaBase": 52,
+      "pp": 12,
+      "alcance": 155,
+      "recargaSegundos": 2.3,
+      "estado": null,
+      "probabilidadEstado": 0,
+      "etiquetas": []
+    }
+  }
+}

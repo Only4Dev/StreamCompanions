@@ -14,7 +14,19 @@
     "areaTrigger": 0.78,
     "areaMinTargets": 2
   },
+  "ultimate": {
+    "perSecond": 4.6,
+    "hit": 5,
+    "hitFraction": 36,
+    "received": 4,
+    "receivedFraction": 26,
+    "ultimateReceivedFraction": 14
+  },
+  "stages": { "perStage": 0.08, "max": 6 },
   "abilities": {
+    "angerPointStages": 2,
+    "truantRecovery": 1,
+    "fallenAlliesDamage": 0.15,
     "friendGuardShare": 0.1,
     "ghostChance": 0.2,
     "ghostDuration": 3,
