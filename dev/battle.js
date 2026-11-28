@@ -163,8 +163,8 @@ for (const [id, move] of Object.entries(moves)) {
 }
 const progressionCache = new Map()
 const originalMoves = Object.fromEntries(Object.entries(moves).map(([key, move]) => [key, {...move}]))
-export function addStageMovesToLegacyLearnsets(data) {
-  const missing = new Set(Object.keys(originalMoves).filter(id => originalMoves[id].stages && !Object.hasOwn(data.moves, id)))
+export function addNewMovesToLegacyLearnsets(data) {
+  const missing = new Set(Object.keys(originalMoves).filter(id => (originalMoves[id].stages || originalMoves[id].visual === 'pollen') && !Object.hasOwn(data.moves, id)))
   if (!missing.size) return data
   const species = { ...data.species }
   for (const [id, entry] of Object.entries(species)) {
@@ -1180,7 +1180,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       } else if (move.blink && cast.target) {
         const away = -Math.sign(cast.target.x - actor.x) || -actor.direction
         actor.x = bound(actor.x + (Math.abs(bound(actor.x + away * 250, actor) - actor.x) >= 100 ? away : -away) * 250, actor)
-        for (const x of [origin, actor.x]) effects.push({ kind: 'target', visual: 'psychic', x, at: time, expires: time + .45 })
+        effects.push({ kind: 'warp', origin, x: actor.x, at: time, expires: time + .58 })
       } else if (move.field) field = { kind: move.field, owner: actor.index, start: time,
         ends: time + (['grass', 'electric'].includes(move.field) ? 10 : 9) +
           (actor.heldItem === { rain: 'damp-rock', sun: 'heat-rock' }[move.field] && actor.heldItem ? 5 : 0) +
@@ -1425,9 +1425,10 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       ['waves', 'vortex', 'tornado', 'girder'].includes(move.visual) ? .62 : .46
     effects.push({ kind: 'ultimate', visual: move.visual, type: move.type, x: anchor, origin, direction,
       positions, pulse, at: time, expires: time + duration })
-    const travel = ['waves', 'vortex'].includes(move.visual) || move.visual === 'thunder' && pulse || move.visual === 'meteors'
+    const travel = ['waves', 'vortex', 'comets'].includes(move.visual) || move.visual === 'thunder' && pulse || move.visual === 'meteors'
     if (travel) {
       scene.pending = targets.flatMap(target => {
+        if (move.visual === 'comets') return [{ target, when: time + duration * .64, power, variant }]
         if (move.visual === 'meteors') return [
           { target, when: time + duration * .58, power, variant },
           { target, when: time + duration * .79, power: 7, variant }

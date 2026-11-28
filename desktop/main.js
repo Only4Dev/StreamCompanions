@@ -207,6 +207,7 @@ const catalogVersion = createHash('sha256').update(JSON.stringify(manifest.speci
   .update(await readFile(new URL('../ui/ui.js', import.meta.url)))
   .update(await readFile(new URL('../ui/sprites.js', import.meta.url)))
   .update(await readFile(new URL('../ui/battle-fx.js', import.meta.url)))
+  .update(await readFile(new URL('../ui/battle-elemental.js', import.meta.url)))
   .update(await readFile(new URL('../ui/battle-fx-gpu.js', import.meta.url))).digest('hex').slice(0, 16)
 let game
 let progress
@@ -848,6 +849,7 @@ function publicBattle(battle) {
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
       return { name, ownerName, shiny, ulting: ultimate?.index === actor.index, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, bossHop: actor.boss && actor.dashUntil > battle.time ? Math.sin(Math.PI * Math.min(1, (actor.dashUntil - battle.time) / .24)) * 62 : 0, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying') || actor.abilities.has('levitate'), status: status?.kind,
+        dragonChannel: ultimate?.index === actor.index && ultimate.type === 'dragon',
         ultimateCharge: actor.hasUltimate && actor.ultimatePp > 0 ? actor.ultimateCharge : undefined,
         motionSince: actor.motionSince, stages: actor.stages,
         buffed: battle.hasTeamBoost(actor) || Object.values(boosts).some(until => until > battle.time),
@@ -1048,6 +1050,9 @@ const routes = new Map([
   ['/sprites.js', ['sprites.js', 'text/javascript']],
   ['/battle-fx.js', ['battle-fx.js', 'text/javascript']],
   ['/battle-fx-gpu.js', ['battle-fx-gpu.js', 'text/javascript']],
+  ['/battle-elemental.js', ['battle-elemental.js', 'text/javascript']],
+  ['/battle-elements.webp', ['battle-elements.webp', 'image/webp']],
+  ['/battle-hud.webp', ['battle-hud.webp', 'image/webp']],
   ['/battle-render-r187.js', ['battle-render-r187.js', 'text/javascript']],
   ['/battle-vfx-atlas.webp', ['battle-vfx-atlas.webp', 'image/webp']],
   ['/sfx/shiny.wav', ['sfx/shiny.wav', 'audio/wav']],
@@ -1467,7 +1472,7 @@ const server = createServer(async (req, res) => {
         if (selection.canceled) { res.writeHead(204).end(); return }
         const bytes = await readFile(selection.filePaths[0])
         if (bytes.length > 10_000_000 || simulating || communityBattle && !communityBattle.battle.over) throw new Error('Learnsets unavailable')
-        const data = battleRules.addStageMovesToLegacyLearnsets(JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, '')))
+        const data = battleRules.addNewMovesToLegacyLearnsets(JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, '')))
         const bosses = data.raidBosses === undefined ? null : validateRaidBosses(data.raidBosses)
         battleRules.applyLearnsets(data)
         writeFileSync(join(app.getPath('userData'), 'learnsets.json'), JSON.stringify(data))
@@ -1546,7 +1551,7 @@ app.whenReady().then(() => {
   try { applyAbilities(JSON.parse(readFileSync(join(profile, 'pokemon-abilities.json'), 'utf8'))) } catch { /* bundled abilities */ }
   try {
     const data = JSON.parse(readFileSync(join(profile, 'learnsets.json'), 'utf8'))
-    battleRules.applyLearnsets(battleRules.addStageMovesToLegacyLearnsets(data))
+    battleRules.applyLearnsets(battleRules.addNewMovesToLegacyLearnsets(data))
   } catch { /* use bundled learnsets */ }
   try { raidBosses = validateRaidBosses(JSON.parse(readFileSync(join(profile, 'raid-bosses.json'), 'utf8'))) } catch { /* use the bundled lineup */ }
   try { setShinyCue(readFileSync(shinyCueFile())) } catch { /* use the built-in cue */ }

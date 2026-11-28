@@ -1,6 +1,6 @@
 {
   "notas": "Los índices usan IDs de ataques. Una entrada puede pertenecer a varias categorías. Los datos salen del motor y de los JSON incluidos en el repositorio. Regenera con npm run moves:generate.",
-  "total": 288,
+  "total": 290,
   "categorias": {
     "normal": [
       "accelerock",
@@ -134,6 +134,7 @@
       "playrough",
       "poison",
       "poisonfang",
+      "poisonpowder",
       "poisontail",
       "pollenblast",
       "powergem",
@@ -178,6 +179,7 @@
       "storedpower",
       "string",
       "strugglebug",
+      "stunspore",
       "suckerpunch",
       "surf",
       "swarm",
@@ -3282,6 +3284,23 @@
         "bite"
       ]
     },
+    "poisonpowder": {
+      "nombre": "Polvo Veneno",
+      "descripcion": "Ataca dentro del área de impacto. Puede causar veneno con probabilidad de 65%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "poison",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 4,
+      "ppJugadorIncursion": 4,
+      "alcance": 246,
+      "recargaSegundos": 10,
+      "estado": "poison",
+      "probabilidadEstado": 0.65,
+      "etiquetas": []
+    },
     "poisontail": {
       "nombre": "Cola Veneno",
       "descripcion": "Dispara un proyectil hacia el rival.",
@@ -4565,6 +4584,23 @@
       "recargaSegundos": 3,
       "estado": null,
       "probabilidadEstado": 0,
+      "etiquetas": []
+    },
+    "stunspore": {
+      "nombre": "Paralizador",
+      "descripcion": "Ataca dentro del área de impacto. Puede causar parálisis con probabilidad de 55%.",
+      "categorias": [
+        "normal"
+      ],
+      "tipo": "grass",
+      "clase": "status",
+      "potenciaBase": 0,
+      "pp": 4,
+      "ppJugadorIncursion": 4,
+      "alcance": 246,
+      "recargaSegundos": 10,
+      "estado": "paralysis",
+      "probabilidadEstado": 0.55,
       "etiquetas": []
     },
     "suckerpunch": {

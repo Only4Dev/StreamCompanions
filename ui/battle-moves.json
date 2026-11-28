@@ -1,4 +1,6 @@
 {
+  "stunspore": {"name":"Paralizador","type":"grass","kind":"area","visual":"pollen","damageClass":"status","power":0,"reach":246,"pp":4,"cooldown":10,"effect":"paralysis","chance":0.55},
+  "poisonpowder": {"name":"Polvo Veneno","type":"poison","kind":"area","visual":"pollen","damageClass":"status","power":0,"reach":246,"pp":4,"cooldown":10,"effect":"poison","chance":0.65},
   "dragondance": {"name":"Danza Dragón","type":"dragon","kind":"guard","damageClass":"status","power":0,"reach":0,"pp":3,"cooldown":8,"stages":{"attack":1,"speed":1}},
   "nastyplot": {"name":"Maquinación","type":"dark","kind":"guard","damageClass":"status","power":0,"reach":0,"pp":3,"cooldown":8,"stages":{"specialAttack":2}},
   "growth": {"name":"Desarrollo","type":"normal","kind":"guard","damageClass":"status","power":0,"reach":0,"pp":3,"cooldown":8,"stages":{"attack":1,"specialAttack":1}},

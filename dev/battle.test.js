@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { activeLearnsets, addStageMovesToLegacyLearnsets, battleMovePp, battleSpecies, arenaBaseStats, createBattle, formAtLevel, moveOptions, movePp, moves, movesFor, hpColor, ultimateOptions } from './battle.js'
+import { activeLearnsets, addNewMovesToLegacyLearnsets, battleMovePp, battleSpecies, arenaBaseStats, createBattle, formAtLevel, moveOptions, movePp, moves, movesFor, hpColor, ultimateOptions } from './battle.js'
 import { nationalStats } from './national-stats.js'
 
 const example = (id, level = 20) => {
@@ -1216,10 +1216,10 @@ test('stages give capped additive boosts and legacy learnsets keep existing move
   const original = activeLearnsets()
   const { dragondance, ...metadata } = original.moves
   const sample = { ...original, moves: metadata, species: { 147: { moves: [['tackle', 5]] } } }
-  const upgraded = addStageMovesToLegacyLearnsets(sample)
+  const upgraded = addNewMovesToLegacyLearnsets(sample)
   assert.deepEqual(upgraded.species[147].moves, [['tackle', 5], ['dragondance', 20]])
   assert.deepEqual(upgraded.moves.dragondance, dragondance)
-  assert.equal(addStageMovesToLegacyLearnsets(upgraded), upgraded)
+  assert.equal(addNewMovesToLegacyLearnsets(upgraded), upgraded)
   const damage = stages => {
     const battle = createBattle([example(147, 45), example(143, 45)], { auto: false, random: () => .5 })
     const [actor, target] = battle.actors
@@ -1328,6 +1328,21 @@ test('every move can emit a typed animation cue through the shared combat engine
     assert.equal(cue?.style, move.kind, id)
     assert.equal(cue?.source, 0, id)
     assert.match(cue?.type ?? '', /^[a-z]+$/, id)
+  }
+})
+
+test('powder moves apply area statuses and retain a bounded PP budget', () => {
+  for (const [id, status] of [['stunspore', 'paralysis'], ['poisonpowder', 'poison']]) {
+    const battle = createBattle([example(12, 40), example(143, 40), example(52, 40)], {auto: false, random: () => .4})
+    const [caster, near, far] = battle.actors
+    caster.x = 800
+    near.x = 920
+    far.x = 1370
+    assert.ok(battle.manual(0, id))
+    run(battle, 1)
+    assert.equal(near.status?.kind, status)
+    assert.equal(far.status, null)
+    assert.equal(battleMovePp(moves[id], true, false), 4)
   }
 })
 

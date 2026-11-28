@@ -2,6 +2,7 @@ import { level, maxLevel, xpAtLevel } from './levels.js'
 import { drawArea, drawBattleContact, drawChannel, drawClash, drawDigMound, drawField, drawHyper, drawOngoing, drawPoisonHazard, drawProjectile, drawStatus, drawTarget, drawUltimate } from '../dev/battle-vfx.js'
 import { battleFxColor, createBattleParticles, drawBarrier, drawImpact, drawMoveCue, drawPiercingBeam, drawSpellProjectile,
   drawStageAura, drawStageMarks, drawStatusParticles } from './battle-fx.js'
+import { drawElementalUltimate, drawFrozenShell, drawRainLayers, drawWarp } from './battle-elemental.js'
 
 const images = new Map()
 
@@ -10,6 +11,7 @@ export { level }
 export const companionWidth = 1920
 export const companionHeight = 1080
 export const companionStripHeight = 550
+export const companionFloor = height => height - Math.min(105, Math.round(height * .19))
 const scales = new Map()
 
 const battleClipFallbacks = {
@@ -453,7 +455,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
     if (state.battle && !state.battleStart) {
       particles.begin()
       renderingBattle = true
-      const floor = height - 2
+      const floor = companionFloor(height)
       const battle = state.battle
       if (battleSnapshot !== battle) {
         if (battleSnapshot && battle.time < battleSnapshot.time) {
@@ -469,7 +471,10 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       const renderTime = battle.time + ahead
       const feedbackTime = renderTime + (battleEndedAt === undefined ? 0 : (time - battleEndedAt) / 1000)
       actors.clear()
-      if (battle.field && !battle.over) drawField(context, battle.field, width, height, floor, renderTime)
+      if (battle.field && !battle.over) {
+        drawField(context, battle.field, width, height, floor, renderTime)
+        if (battle.field.kind === 'rain') drawRainLayers(context, width, floor, renderTime)
+      }
       const hitFeedback = new Map()
       for (const effect of battle.effects) {
         if (effect.expires <= feedbackTime) continue
@@ -536,7 +541,9 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           context.ellipse(effect.x, floor - 10, effect.reach, 11, 0, 0, Math.PI * 2)
           context.stroke()
           context.restore()
-        } else if (effect.kind === 'ultimate') drawUltimate(context, effect, width, floor, renderTime, color)
+        } else if (effect.kind === 'ultimate') {
+          if (!drawElementalUltimate(context, particles, effect, width, floor, renderTime)) drawUltimate(context, effect, width, floor, renderTime, color)
+        } else if (effect.kind === 'warp') drawWarp(context, particles, effect, floor - 36, renderTime)
         else if (effect.visual === 'hyper') drawHyper(context, effect, width, floor, renderTime)
         else if (effect.kind === 'charge') drawChannel(context, effect.x, floor - 40, renderTime, color)
         else if (effect.kind === 'pierce') drawPiercingBeam(context, particles, effect, floor - 42, renderTime)
@@ -570,7 +577,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         battlePositions.set(index, x)
         const laneLift = battle.raid && !fighter.boss ? (index % 4) * 9 : 0
         const baseY = floor - laneLift - (fighter.flying && !fighter.boss ? 28 - Math.sin(time / 280 + index) * 5 : 0)
-        const y = (fighter.maneuver?.kind === 'fly' ? baseY - Math.sin(Math.PI * fighter.maneuver.phase) * 130 : baseY) - (fighter.bossHop ?? 0)
+        const channelLift = fighter.dragonChannel ? 23 + Math.sin(renderTime * 9) * 7 : 0
+        const y = (fighter.maneuver?.kind === 'fly' ? baseY - Math.sin(Math.PI * fighter.maneuver.phase) * 130 : baseY) - (fighter.bossHop ?? 0) - channelLift
         let scale = 3 * zoom * (fighter.boss ? fighter.bossScale ?? 4 : 1)
         if (fighter.boss && clip) {
           const base = appearance.form === 'gigantamax' && battleClip(entry?.normal?.animations, 'Idle')
@@ -630,13 +638,17 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
             }
           }
           const activeHit = hits?.findLast(hit => hit.damage > 0 && feedbackTime >= hit.at && feedbackTime - hit.at < (hit.critical ? .095 : .065))
-          if (activeHit && !fighter.boss) context.filter = feedbackTime - activeHit.at < .045 ? 'brightness(1.85) saturate(.65)' : 'brightness(1.3)'
+          if (activeHit && !fighter.boss) {
+            context.filter = feedbackTime - activeHit.at < .045 ? 'brightness(1.85) saturate(.65)' : 'brightness(1.3)'
+            if (activeHit.type === 'psychic') { context.shadowColor = '#d995ff'; context.shadowBlur = 24 }
+          }
           const poseTime = activeHit ? activeHit.at : renderTime
           const motionTime = fighter.motionSince === undefined ? time : Math.max(0, (poseTime - fighter.motionSince) * 1000)
           const oneShot = !['Idle', 'Walk', 'Run', 'Sleep'].includes(fighter.motion)
           sprite(context, readyClip(clip, variant?.animations), x + (activeHit ? (activeHit.direction ?? 1) * 4 : 0),
             y, fighter.direction, motionTime, false, scale, oneShot, true)
           context.restore()
+          if (fighter.status === 'freeze') drawFrozenShell(context, particles, x, y, top, renderTime)
           if (!clip) label(context, fighter.name[0], x, y, 25)
         }
         if (hits) hits.slice(-4).forEach((hit, slot) => {
@@ -762,7 +774,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
       }
       const jumping = actor.behavior === 'Jump' || actor.behavior === 'Hop'
       const lift = jumping ? 36 * Math.sin(Math.PI * (time - actor.since) / (actor.until - actor.since)) : 0
-      const y = height - 2 - lift
+      const y = companionFloor(height) - lift
       const summonAge = time - actor.arrived
       if (summonAge < 640) summonCapsule(context, actor.x, y, summonAge)
       if (summonAge < 230) continue
