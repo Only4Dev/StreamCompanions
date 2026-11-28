@@ -49,6 +49,20 @@ test('vitamins persist, release allocations on reset and preserve legacy DNA tra
   assert.equal(row.vitamins,0)
 })
 
+test('training applies several vitamins and saves a complete allocation atomically', () => {
+  const game = createGame({catalog:[{id:19,name:'Rattata'}],progress:{viewers:{
+    a:{collection:{Rattata:0},vitamins:10}
+  }}})
+  assert.equal(game.train('a','Rattata','apply','4'),'trainingUpdated')
+  assert.equal(game.train('a','Rattata','apply','7'),'trainingUnavailable')
+  assert.equal(game.train('a','Rattata','save','2,1,1,0,0,0'),'trainingUpdated')
+  assert.equal(game.train('a','Rattata','save','2,1,1,0,0,1'),'trainingUnavailable')
+  assert.equal(game.train('a','Rattata','save','0,26,0,0,0,0'),'trainingUnavailable')
+  const viewer = game.progress().viewers.a
+  assert.equal(viewer.vitamins,6)
+  assert.deepEqual(viewer.training['19'],{points:4,stats:{hp:2,attack:1,defense:1,specialAttack:0,specialDefense:0,speed:0}})
+})
+
 test('Shiny Dust upgrades the active companion once, preserving XP and its normal dex entry', () => {
   const catalog = [{ id: 19, name: 'Rattata', shiny: true }]
   const game = createGame({ catalog, now: () => 0, progress: { viewers: { A: { collection: { Rattata: 120 }, pokeDollars: 1_000_000 } } } })

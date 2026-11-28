@@ -19,3 +19,10 @@ export function validTraining(row) {
   }
   return spent <= row.points
 }
+
+export function decodeAllocation(raw) {
+  if (typeof raw !== 'string' || !/^\d{1,2}(,\d{1,2}){5}$/.test(raw)) return null
+  const values = raw.split(',').map(Number)
+  const stats = Object.fromEntries(trainingRules.stats.map((stat, index) => [stat, values[index]]))
+  return validTraining({ points: trainingRules.maxPoints, stats }) ? stats : null
+}

@@ -114,7 +114,7 @@ export const darkStyles = `
 .shop-grid .egg-shop-icon{width:75px;height:75px}
 .description-hint{display:grid;max-width:100%;min-width:0;justify-items:center}
 button.description-trigger{background:none;box-shadow:none;border:0;padding:0;color:inherit;display:inline-grid;justify-items:center}
-.training{margin:1rem 0;padding:.75rem;border:1px solid var(--line);border-radius:12px}.training-actions,.training li{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}.training ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));list-style:none;padding:0;gap:.35rem}.training button{padding:.25rem .55rem}
+.training{margin:1rem 0;padding:.75rem;border:1px solid var(--line);border-radius:12px}.training-actions{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}.training ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(76px,1fr));list-style:none;padding:0;gap:.35rem}.training button{padding:.25rem .55rem}.training li{display:grid;gap:.35rem;justify-items:start;padding:.4rem}.training fieldset{min-width:0;border:0;padding:0;margin:0}.training input[type=number]{width:4rem}.training [data-step]{min-width:2rem}
 .summary-abilities{margin:.5rem 0;min-width:0}
 .summary-abilities p{margin:.2rem 0 0;color:var(--muted);font-size:.85rem;overflow-wrap:anywhere}
 button.description-trigger{cursor:pointer}

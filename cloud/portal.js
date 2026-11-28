@@ -641,6 +641,47 @@ export async function portal(request, url, env) {
     headers: { 'Content-Type': 'text/javascript; charset=utf-8', 'X-Content-Type-Options': 'nosniff' }
   })
   if (request.method === 'GET' && url.pathname === '/assets/training.js') return new Response(`
+const editor = document.querySelector('[data-training-editor]');
+if (editor) {
+  const allocation = editor.elements.allocation;
+  const original = allocation.value;
+  const points = Number(editor.dataset.points);
+  const cap = Number(editor.dataset.cap);
+  const cards = Array.from(editor.querySelectorAll('[data-training-stat]'));
+  const available = document.querySelector('[data-training-available]');
+  const apply = document.querySelector('[data-vitamin-apply]');
+  const applyDisabled = apply.disabled;
+  let values = original.split(',').map(Number);
+  function render() {
+    const free = points - values.reduce((sum, value) => sum + value, 0);
+    allocation.value = values.join(',');
+    available.textContent = free;
+    editor.elements.save.disabled = allocation.value === original;
+    apply.disabled = applyDisabled || allocation.value !== original;
+    cards.forEach((card, i) => {
+      card.querySelector('output').textContent = values[i] + '/' + cap;
+      card.querySelector('[data-step="1"]').disabled = !free || values[i] >= cap;
+      card.querySelector('[data-step="-1"]').disabled = values[i] === 0;
+    });
+  }
+  editor.addEventListener('click', event => {
+    const button = event.target.closest('button');
+    if (button?.hasAttribute('data-reset-training')) {
+      values.fill(0);
+      render();
+    } else if (button?.dataset.step) {
+      const index = cards.indexOf(button.closest('[data-training-stat]'));
+      values[index] += Number(button.dataset.step);
+      render();
+    }
+  });
+  for (const form of [editor, apply.form]) form.addEventListener('submit', event => {
+    if (editor.dataset.submitting) { event.preventDefault(); return; }
+    editor.dataset.submitting = '1';
+    for (const button of document.querySelectorAll('.training button')) button.disabled = true;
+  });
+  render();
+}
 const receipt = document.querySelector('[data-training-receipt]');
 let tries = 0;
 async function check() {
@@ -650,7 +691,7 @@ async function check() {
   } catch {}
   if (++tries < 24) setTimeout(check,750); else location.reload();
 }
-setTimeout(check,500);
+if (receipt) setTimeout(check,500);
 `, {headers:{'Content-Type':'text/javascript; charset=utf-8'}})
   if (request.method === 'GET' && url.pathname === '/assets/descriptions.js') return new Response(`
 let active;
@@ -1212,16 +1253,35 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       const message = pending ? (en ? 'Applying…' : 'Aplicando…') : row?.result ? botCopy[language][row.result] :
         trainingId === 'offline' ? (en ? 'The streamer’s app is offline.' : 'La app del streamer está desconectada.') : ''
       const receiptUrl = '/live/status?' + new URLSearchParams({community:selected.community_id,platform,game:trainingId ?? ''})
-      trainingSection = '<section class="training"><h2>' + (en ? 'Training points' : 'Puntos de entrenamiento') + '</h2><p>' +
-        (en ? 'Available ' : 'Disponibles ') + free + ' · ' + learned.points + '/' + trainingRules.maxPoints + ' · ' +
+      const stats = trainingRules.stats.map((stat, index) => ({
+        label: [en ? 'HP' : 'PS','ATK','DEF','SPA','SPD','SPE'][index], key: stat, value: learned.stats[stat] ?? 0
+      }))
+      const batch = online?.supports_dna >= 4
+      const maxVitamins = Math.min(vitamins, trainingRules.maxPoints - learned.points)
+      const batchForm = (operation) => '<form method="post" action="' + escape(trainingAction) + '">' +
+        '<input type="hidden" name="id" value="' + crypto.randomUUID() + '"><input type="hidden" name="action" value="train">' +
+        '<input type="hidden" name="pokemon" value="' + escape(speciesKey) + '"><input type="hidden" name="operation" value="' + operation + '">'
+      const quantity = batchForm('apply') + '<fieldset class="training-actions"' + (pending || !maxVitamins ? ' disabled' : '') +
+        '><label>' + (en ? 'Vitamins' : 'Vitaminas') + ' × <input type="number" inputmode="numeric" name="quantity" min="1" max="' +
+        Math.max(1, maxVitamins) + '" value="1" required></label><button data-vitamin-apply' + (pending || !maxVitamins ? ' disabled' : '') + '>' +
+        (en ? 'Use vitamins' : 'Usar vitaminas') + '</button></fieldset></form>'
+      const editor = batchForm('save').replace('<form ', '<form data-training-editor data-points="' + learned.points + '" data-cap="' +
+        trainingRules.maxPerStat + '" ') + '<input type="hidden" name="allocation" value="' + stats.map(stat => stat.value).join(',') +
+        '"><fieldset' + (pending ? ' disabled' : '') + '><ul>' + stats.map(stat =>
+          '<li data-training-stat><div><strong>' + stat.label + '</strong> <output>' + stat.value + '/' + trainingRules.maxPerStat +
+          '</output></div><div class="training-actions"><button type="button" data-step="1" aria-label="+ ' + stat.label +
+          '" disabled>+</button><button type="button" data-step="-1" aria-label="− ' + stat.label + '" disabled>−</button></div></li>').join('') +
+        '</ul><div class="training-actions"><button type="submit" name="save" disabled>' + (en ? 'Save' : 'Guardar') +
+        '</button><button type="button" data-reset-training>' + (en ? 'Reset free' : 'Restablecer gratis') + '</button></div></fieldset></form>'
+      const legacy = '<div class="training-actions">' + form('apply', en ? 'Use vitamin' : 'Usar vitamina', !maxVitamins) +
+        form('reset', en ? 'Reset free' : 'Reiniciar gratis', free === learned.points) + '</div><ul>' +
+        stats.map(stat => '<li><div><strong>' + stat.label + '</strong> ' + stat.value + '/' + trainingRules.maxPerStat + '</div><div class="training-actions">' +
+          form('plus','+',!free || stat.value >= trainingRules.maxPerStat,stat.key) + form('minus','−',!stat.value,stat.key) + '</div></li>').join('') + '</ul>'
+      trainingSection = '<section class="training"><h2>' + (en ? 'Training points' : 'Puntos de entrenamiento') + '</h2><p aria-live="polite">' +
+        (en ? 'Available ' : 'Disponibles ') + '<span data-training-available>' + free + '</span> · ' + learned.points + '/' + trainingRules.maxPoints + ' · ' +
         (en ? 'Vitamin Complexes ' : 'Complejos de Vitaminas ') + vitamins + '</p>' +
         (message ? '<p role="status"' + (pending ? ' data-training-receipt="' + escape(receiptUrl) + '"' : '') + '>' + escape(message) + '</p>' : '') +
-        '<div class="training-actions">' + form('apply', en ? 'Use vitamin' : 'Usar vitamina', !vitamins || learned.points >= trainingRules.maxPoints) +
-        form('reset', en ? 'Reset free' : 'Reiniciar gratis', free === learned.points) + '</div><ul>' +
-        trainingRules.stats.map((stat,index) => '<li><strong>' + [en ? 'HP' : 'PS','ATK','DEF','SPA','SPD','SPE'][index] +
-          '</strong><span>' + (learned.stats[stat] ?? 0) + '/' + trainingRules.maxPerStat + '</span>' +
-          form('minus','−',!learned.stats[stat],stat) + form('plus','+',!free || learned.stats[stat] >= trainingRules.maxPerStat,stat) + '</li>').join('') +
-        '</ul></section>' + (pending ? '<script src="/assets/training.js" defer></script>' : '')
+        (batch ? quantity + editor : legacy) + '</section>' + (batch || pending ? '<script src="/assets/training.js?v=2" defer></script>' : '')
     }
     const stats = [['PS', 'HP', 'maxHp'], ['ATK', 'ATK', 'attack'], ['SPA', 'SPA', 'specialAttack'],
       ['DEF', 'DEF', 'defense'], ['SPD', 'SPD', 'specialDefense'], ['SPE', 'SPE', 'speed']]

@@ -1,4 +1,4 @@
-import { trainingRules } from '../ui/training.js'
+import { decodeAllocation, trainingRules } from '../ui/training.js'
 import { captureCategories, catchDifficulty } from '../ui/capture-rates.js'
 import { encounterRarities, rarityFor, specialRarities } from '../ui/species-rules.js'
 import { battleSpecies } from '../dev/battle.js'
@@ -101,9 +101,16 @@ export async function enqueueWebGame(db, account, community, platform, form) {
   if (training) {
     const pokemon = form.get('pokemon') ?? ''
     const operation = form.get('operation')
-    const stat = form.get('stat') ?? '-'
-    if (!Object.hasOwn(progress.collection, pokemon) || !['apply','plus','minus','reset'].includes(operation) ||
+    let stat = form.get('stat') ?? '-'
+    if (!Object.hasOwn(progress.collection, pokemon) || !['apply','plus','minus','reset','save'].includes(operation) ||
         (['plus','minus'].includes(operation) && !trainingRules.stats.includes(stat))) return null
+    if (operation === 'save' || (operation === 'apply' && form.has('quantity'))) {
+      const client = await db.prepare('SELECT supports_dna FROM shop_online WHERE community_id = ?').bind(community).first()
+      if (!(client?.supports_dna >= 4)) return 'offline'
+      stat = form.get(operation === 'save' ? 'allocation' : 'quantity')
+      if (operation === 'save' ? !decodeAllocation(stat) :
+        !/^\d{1,2}$/.test(stat ?? '') || Number(stat) < 1 || Number(stat) > trainingRules.maxPoints) return null
+    } else if (operation === 'apply' || operation === 'reset') stat = '-'
     command = '!training ' + operation + ' ' + stat + ' ' + pokemon
   } else if (action === 'catch' && ['normal', 'great', 'ultra', 'master'].includes(form.get('ball'))) {
     encounter = form.get('encounter')

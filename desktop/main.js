@@ -328,7 +328,7 @@ async function pollShop() {
     const request = body => fetch(endpoint, {
       method: body ? 'POST' : 'GET', redirect: 'error',
       headers: { Authorization: 'Bearer ' + syncDevice.token, 'Content-Type': 'application/json',
-        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '2', 'X-Shop-Quantity': '1', 'X-Web-Game': 'v2:' + Buffer.from(JSON.stringify(webGame)).toString('base64url'), 'X-Identity-Orders': '1', ...(fetchAdmin ? { 'X-Admin-Actions': '1' } : {}), ...(fetchLinks ? { 'X-Identity-Links': '1' } : {}) } : {}) },
+        ...(!body ? { 'X-Shop-Prices': JSON.stringify(game.config.shopPrices), 'X-Shop-Family-Dna': '3', 'X-Shop-Quantity': '1', 'X-Web-Game': 'v2:' + Buffer.from(JSON.stringify(webGame)).toString('base64url'), 'X-Identity-Orders': '1', ...(fetchAdmin ? { 'X-Admin-Actions': '1' } : {}), ...(fetchLinks ? { 'X-Identity-Links': '1' } : {}) } : {}) },
       body: body && JSON.stringify({ viewers: body }),
       signal: AbortSignal.any([kickAbort.signal, AbortSignal.timeout(8000)])
     })
@@ -451,7 +451,7 @@ async function processWebGame(actions) {
     const linked = /^twitch:\d{1,24}$/.test(twitchId ?? '') && /^kick:\d{1,24}$/.test(kickId ?? '') &&
         [twitchId, kickId].includes(viewerId)
     const owner = linked ? twitchId : viewerId
-    const training = /^!training (apply|plus|minus|reset) (-|[A-Za-z]+) (.+)$/.exec(command)
+    const training = /^!training (apply|plus|minus|reset|save) (-|[A-Za-z]+|[0-9,]{1,17}) (.+)$/.exec(command)
     if (training) trainingViewers.set(id, owner)
     if (!result) {
       if (linked) mergeLinkedViewers(kickId, twitchId)

@@ -212,7 +212,7 @@ async function deviceShop(request, db) {
     const packed = prices ? JSON.stringify(prices) : null
     const familyDna = request.headers.get('X-Shop-Family-Dna')
     const supportsQuantity = Number(request.headers.get('X-Shop-Quantity') === '1')
-    const dnaLevel = dna ? (familyDna === '2' ? 3 : familyDna === '1' ? 2 : 1) : 0
+    const dnaLevel = dna ? (familyDna === '3' ? 4 : familyDna === '2' ? 3 : familyDna === '1' ? 2 : 1) : 0
     const now = Date.now()
     const eligible = 'FROM shop_orders WHERE community_id = ? AND result IS NULL ' +
       'AND (? IS NOT NULL OR price IS NULL) AND (? >= 3 OR species_key IS NULL) AND (? = 1 OR quantity = 1) ' +

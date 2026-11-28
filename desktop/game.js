@@ -1,5 +1,5 @@
 import { encounterRarities, normalizeSpeciesRules, rarityFor, specialRarities } from '../ui/species-rules.js'
-import { normalizeTraining, trainingRules, trainingKey } from '../ui/training.js'
+import { decodeAllocation, validTraining, normalizeTraining, trainingRules, trainingKey } from '../ui/training.js'
 import { regionalSpecies } from '../ui/regional-species.js'
 import { hasPickup } from '../ui/abilities.js'
 import { normalizeCommand } from './commands.js'
@@ -535,9 +535,15 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
       const row = normalizeTraining(viewer.training?.[key], legacy)
       const spent = Object.values(row.stats).reduce((a,b)=>a+b,0)
       if (operation === 'apply') {
-        if (!viewer.vitamins || row.points >= trainingRules.maxPoints) return 'trainingUnavailable'
-        viewer.vitamins--
-        row.points++
+        const quantity = stat === '-' || stat === undefined ? 1 : Number(stat)
+        if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > (viewer.vitamins ?? 0) ||
+            row.points + quantity > trainingRules.maxPoints) return 'trainingUnavailable'
+        viewer.vitamins -= quantity
+        row.points += quantity
+      } else if (operation === 'save') {
+        const stats = decodeAllocation(stat)
+        if (!stats || !validTraining({ points: row.points, stats })) return 'trainingUnavailable'
+        row.stats = stats
       } else if (operation === 'reset') row.stats = {}
       else if (operation === 'plus' && trainingRules.stats.includes(stat) && row.points > spent && (row.stats[stat] ?? 0) < trainingRules.maxPerStat) row.stats[stat] = (row.stats[stat] ?? 0) + 1
       else if (operation === 'minus' && trainingRules.stats.includes(stat) && row.stats[stat] > 0) row.stats[stat]--
