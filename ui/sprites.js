@@ -74,6 +74,13 @@ export function spriteScale(animation, scale) {
   return scale * Math.min(1, 40 / Math.max(animation.width, animation.height))
 }
 
+export function bossDisplayScale(reference, normal, multiplier, zoom, floor) {
+  const relativeHeight = normal ? Math.min(1, normal.height / reference.height) : 1
+  const scale = 3 * zoom * multiplier * relativeHeight
+  const standing = reference.height * spriteScale(reference, scale)
+  return scale * Math.min(1, Math.max(80, floor - 52) / standing)
+}
+
 const frameBounds = new WeakMap()
 function visibleFrame(image, frame, row, width, height) {
   let frames = frameBounds.get(image)
@@ -525,9 +532,7 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         if (fighter.boss && clip) {
           const base = appearance.form === 'gigantamax' && battleClip(entry?.normal?.animations, 'Idle')
           const reference = battleClip(variant?.animations, 'Idle') ?? clip
-          if (base) scale *= Math.min(1, Math.max(base.width, base.height) / Math.max(reference.width, reference.height))
-          const tallest = Math.max(...Object.values(variant?.animations ?? { Idle: reference }).map(frame => frame.height * spriteScale(frame, scale)))
-          scale *= Math.min(1, Math.max(80, floor - 60) / tallest)
+          scale = bossDisplayScale(reference, base, fighter.bossScale ?? 4, zoom, floor)
         }
         const top = Math.max(28, y - Math.max(38, (clip?.height ?? 0) * spriteScale(clip, scale)))
         if (fighter.hp && fighter.maneuver?.kind === 'dig') drawDigMound(context, x, y, renderTime)
@@ -598,20 +603,6 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         context.fillRect(x - 46, top - 8, 92, 9)
         context.fillStyle = hp <= .2 ? '#ed5863' : hp <= .5 ? '#ffce66' : '#65e595'
         context.fillRect(x - 44, top - 6, 88 * hp, 5)
-      }
-      if (battle.raid && !battle.over) {
-        const boss = battle.actors.find(actor => actor.boss)
-        const remaining = Math.max(0, battle.remaining - ahead)
-        label(context, 'Dynamax · ' + formatTime(Date.now() + remaining * 1000), width / 2, 40, 32, '#ffc0cc')
-        if (boss) {
-          const barWidth = Math.min(440, width * .38)
-          const left = (width - barWidth) / 2
-          context.fillStyle = '#2a1623'
-          context.fillRect(left, 51, barWidth, 12)
-          context.fillStyle = '#ff557a'
-          context.fillRect(left + 2, 53, (barWidth - 4) * boss.hp / boss.maxHp, 8)
-          label(context, Math.ceil(boss.hp) + ' / ' + boss.maxHp + ' PS', width / 2, 82, 19, '#ffe5ec')
-        }
       }
       if (battle.raid && battle.over) label(context, state.battle.actors.some(actor => actor.boss && actor.hp) ?
         (state.bot?.language === 'es' ? 'Incursión terminada' : 'Raid ended') : (state.bot?.language === 'es' ? '¡Jefe derrotado!' : 'Boss defeated!'), width / 2, height * .63, 49, '#ffe7a6')

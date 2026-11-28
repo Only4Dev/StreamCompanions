@@ -1,5 +1,5 @@
 const params = new URLSearchParams(location.search)
-const preview = params.get('preview') === '1'
+const preview = ['1', 'raid'].includes(params.get('preview')) ? params.get('preview') : ''
 const scale = Math.min(300, Math.max(100, Number(params.get('scale')) || 150))
 const feed = document.querySelector('#feed')
 document.querySelector('#source').style.zoom = scale / 100
@@ -65,10 +65,12 @@ function render(rows, language) {
 
 async function refresh() {
   let active = false
+  let loaded = false
   try {
-    const response = await fetch('/knockouts/state' + (preview ? '?preview=1' : ''), { signal: AbortSignal.timeout(3000) })
+    const response = await fetch('/knockouts/state' + (preview ? '?preview=' + preview : ''), { signal: AbortSignal.timeout(3000) })
     if (!response.ok) throw Error('Feed unavailable')
     const state = await response.json()
+    loaded = true
     active = state.active || state.rows.length > 0
     render(state.rows, state.language)
     renderBoss(state.boss, state.language)
@@ -79,7 +81,7 @@ async function refresh() {
     renderBoss(null, 'es')
     winner.hidden = true
   }
-  if (!preview || !entries.size) setTimeout(refresh, active ? 180 : 600)
+  if (!preview || !loaded) setTimeout(refresh, active ? 180 : 600)
 }
 
 refresh()

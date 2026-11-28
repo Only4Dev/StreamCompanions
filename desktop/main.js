@@ -1028,7 +1028,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && pathname === '/knockouts/state') {
       const current = communityBattle
       const battle = current?.battle
-      const preview = searchParams.get('preview') === '1'
+      const preview = searchParams.get('preview')
       const now = Date.now()
       const clock = battle ? battle.time + (current.finishedAt ? (now - current.finishedAt) / 1000 : 0) : 0
       const portrait = fighter => {
@@ -1040,13 +1040,13 @@ const server = createServer(async (req, res) => {
         }
       }
       const samples = [
-        [{ name: 'Pikachu' }, { name: 'Blastoise', boss: true }],
+        [{ name: 'Pikachu' }, { name: 'Blastoise', ownerName: 'Viewer 3' }],
         [{ name: 'Charizard' }, { name: 'Venusaur', ownerName: 'Viewer 1' }],
         [{ name: 'Blastoise' }, { name: 'Dragonite', ownerName: 'Viewer 2' }]
       ]
-      const rows = preview ? samples.map(([target, killer], i) => ({
+      const rows = preview === '1' ? samples.map(([target, killer], i) => ({
         id: String(i), target: portrait(target), killer: portrait(killer)
-      })) : (battle?.knockouts ?? []).flatMap(({ killer, target, at }) => {
+      })) : preview === 'raid' || battle?.raid ? [] : (battle?.knockouts ?? []).flatMap(({ killer, target, at }) => {
         const remaining = 5 - (clock - at)
         if (remaining <= 0) return []
         return [{ id: target + ':' + at, target: portrait(battle.actors[target]), killer: portrait(battle.actors[killer]), expiresAt: now + remaining * 1000 }]
@@ -1054,10 +1054,10 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
       const active = battleStarting || battleBannerUntil > now || Boolean(battle && !battle.over)
       const raidBoss = battle?.raid && !battle.over ? battle.actors.find(actor => actor.boss) : undefined
-      const boss = preview ? { name: 'Blastoise', hp: 1474, maxHp: 2100, remaining: 89 } :
-        raidBoss ? { name: raidBoss.name, hp: Math.ceil(raidBoss.hp), maxHp: raidBoss.maxHp, remaining: battle.remaining } : undefined
+      const boss = preview === 'raid' ? { name: 'Blastoise', hp: 1474, maxHp: 2100, remaining: 89 } :
+        !preview && raidBoss ? { name: raidBoss.name, hp: Math.ceil(raidBoss.hp), maxHp: raidBoss.maxHp, remaining: battle.remaining } : undefined
       res.end(JSON.stringify({ rows, boss, language: bot.language, active,
-        winner: preview ? 'Viewer 1' : active ? undefined : lastTeamWinner?.name }))
+        winner: preview === '1' ? 'Viewer 1' : preview || active ? undefined : lastTeamWinner?.name }))
       return
     }
     if (req.method === 'GET' && pathname === '/state') {

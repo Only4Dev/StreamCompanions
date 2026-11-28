@@ -4,7 +4,7 @@
 
 - Keep combat and projectiles moving during ultimates and improve motion between overlay updates.
 - Increase boss attack range, prevent boss knockback and show the Dynamax HP total. Raid HP multipliers now extend survival against percentage damage. Large parties deal less damage per hit to the boss. Bosses can escape crowded corners, allies spread out in raids, and ultimate casters glow cyan.
-- Show the last three knockouts with Pokémon portraits and the winner’s name in a dedicated OBS browser source, with adjustable size and the last team winner shown between battles. Show the boss HP bar in the same source.
+- Show the last three knockouts with Pokémon portraits and the winner’s name in a dedicated OBS browser source, with adjustable size and the last team winner shown between battles. Show only the boss HP bar during raids. Preserve the configured Dynamax scale using the standing sprite.
 
 - Configure a drop chance for each raid reward.
 

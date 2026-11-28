@@ -1,5 +1,5 @@
 import { botCopy } from './bot-copy.js'
-import { level, showScene } from './sprites.js?v=blue-xp'
+import { level, showScene } from './sprites.js?v=1.2.6'
 import { captureCategories } from '/ui/capture-rates.js'
 import { maxShopPrice, shopIconUrl, shopItems } from '/ui/shop.js'
 import { aboutCopy } from '/ui/about.js'
@@ -48,9 +48,9 @@ Object.assign(labels.en, {
 })
 
 Object.assign(labels.es, { obsTitle: 'Fuentes de navegador para OBS', obsHelp: 'Añade una fuente de navegador por cada enlace. Para compañeros usa 1920 × 550.',
-  obsEncounter: 'Encuentros salvajes', obsKnockouts: 'Registro de bajas', obsKnockoutScale: 'Tamaño del registro', obsKnockoutPreview: 'Abrir vista previa', obsKnockoutHelp: 'Copia el enlace y usa al menos estas dimensiones en OBS:', obsCompanions: 'Compañeros invocados', obsCopy: 'Copiar enlace', obsCopied: 'Enlace copiado.', obsCopyError: 'Selecciona el enlace y cópialo manualmente.' })
+  obsEncounter: 'Encuentros salvajes', obsKnockouts: 'Registro de bajas', obsKnockoutScale: 'Tamaño del registro', obsKnockoutPreview: 'Abrir vista previa', obsPreviewTeam: 'Batalla por equipos', obsPreviewRaid: 'Incursión Dynamax', obsKnockoutHelp: 'Copia el enlace y usa al menos estas dimensiones en OBS:', obsCompanions: 'Compañeros invocados', obsCopy: 'Copiar enlace', obsCopied: 'Enlace copiado.', obsCopyError: 'Selecciona el enlace y cópialo manualmente.' })
 Object.assign(labels.en, { obsTitle: 'OBS browser sources', obsHelp: 'Add one browser source per link. Set the companions source to 1920 × 550.',
-  obsEncounter: 'Wild encounters', obsKnockouts: 'Knockout feed', obsKnockoutScale: 'Feed size', obsKnockoutPreview: 'Open preview', obsKnockoutHelp: 'Copy the link and use at least these dimensions in OBS:', obsCompanions: 'Summoned companions', obsCopy: 'Copy link', obsCopied: 'Link copied.', obsCopyError: 'Select the link and copy it manually.' })
+  obsEncounter: 'Wild encounters', obsKnockouts: 'Knockout feed', obsKnockoutScale: 'Feed size', obsKnockoutPreview: 'Open preview', obsPreviewTeam: 'Team battle', obsPreviewRaid: 'Dynamax raid', obsKnockoutHelp: 'Copy the link and use at least these dimensions in OBS:', obsCompanions: 'Summoned companions', obsCopy: 'Copy link', obsCopied: 'Link copied.', obsCopyError: 'Select the link and copy it manually.' })
 
 Object.assign(labels.es, { summonMoneyPerMinute: 'Pokédólares por minuto invocado', summonXpPerSecond: 'XP por segundo invocado', battleXpPercentPerWin: 'XP del siguiente nivel por victoria (%)' })
 Object.assign(labels.en, { summonMoneyPerMinute: 'Pokédollars per summon minute', summonXpPerSecond: 'Summon XP per second', battleXpPercentPerWin: 'XP toward the next level per win (%)' })
@@ -727,7 +727,13 @@ if (panel) {
       const frame = document.createElement('iframe')
       frame.title = title.textContent || 'Knockout feed preview'
       viewport.append(frame)
-      details.append(summary, viewport)
+      const mode = document.createElement('select')
+      for (const [id, copy] of [['1', 'obsPreviewTeam'], ['raid', 'obsPreviewRaid']]) {
+        const option = new Option('', id)
+        option.dataset.copy = copy
+        mode.add(option)
+      }
+      details.append(summary, mode, viewport)
       const help = document.createElement('p')
       const helpText = document.createElement('span')
       helpText.dataset.copy = 'obsKnockoutHelp'
@@ -743,12 +749,13 @@ if (panel) {
         frame.width = Math.ceil(620 * percent / 100)
         frame.height = Math.ceil(174 * percent / 100)
         dimensions.textContent = frame.width + ' × ' + frame.height
-        const preview = address.value + '&preview=1'
+        const preview = address.value + '&preview=' + mode.value
         if (details.open && frame.src !== preview) frame.src = preview
         localStorage.setItem('knockout-source-scale', String(percent))
       }
       slider.addEventListener('input', updateSource)
       details.addEventListener('toggle', updateSource)
+      mode.addEventListener('change', updateSource)
       updateSource()
     }
     $('sources').append(row)

@@ -1,6 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { battleClip, chooseBehavior, createCaptureQueue, showScene, sprite, spriteScale } from '../ui/sprites.js'
+import { battleClip, bossDisplayScale, chooseBehavior, createCaptureQueue, showScene, sprite, spriteScale } from '../ui/sprites.js'
+
+test('Dynamax size follows the configured scale until the standing sprite reaches the source ceiling', () => {
+  const blastoise = { url: '/pmd/0009/Idle-Anim.png', width: 40, height: 40 }
+  const gigantamax = { url: '/pmd/0869-0063/Idle-Anim.png', width: 72, height: 184 }
+  assert.equal(bossDisplayScale(blastoise, null, 2, 1, 548), 6)
+  assert.equal(bossDisplayScale(blastoise, null, 4, 1, 548), 12)
+  assert.equal(bossDisplayScale(blastoise, null, 6, 1, 548) * blastoise.height, 496)
+  assert.equal(bossDisplayScale(gigantamax, blastoise, 4, 1, 548) * gigantamax.height, 480)
+})
 
 test('sprite loads retry after a temporary image failure', () => {
   const originalImage = globalThis.Image
