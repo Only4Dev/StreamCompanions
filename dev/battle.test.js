@@ -954,17 +954,66 @@ test('a channel continues after taking damage and a saved set is validated again
 })
 
 
-test('team screens protect both teammates and expire after five seconds', () => {
+test('team screens have two PP, absorb damage by class, and cannot overlap', () => {
+  const log = []
   const battle = createBattle([{ ...example(122), team: 'a' }, { ...example(19), team: 'a' },
-    { ...example(6), team: 'b' }], { auto: false, random: () => .5 })
+    { ...example(6), team: 'b' }], { auto: false, random: () => .5, onCombatEvent: event => log.push(event) })
   const [caster, ally, rival] = battle.actors
+  Object.assign(caster, { x: 580 })
+  Object.assign(ally, { x: 550 })
+  Object.assign(rival, { x: 650 })
+  assert.equal(moves.reflect.pp, 2)
   assert.ok(battle.manual(0, 'reflect'))
+  assert.equal(battle.manual(1, 'lightscreen'), false)
   run(battle, 1)
-  assert.ok(caster.barriers.physical > battle.time)
-  assert.equal(ally.barriers.physical, caster.barriers.physical)
-  assert.equal(rival.barriers, undefined)
+  assert.equal(caster.teamShield.hp, Math.ceil(caster.maxHp * .2))
+  assert.equal(ally.teamShield.hp, Math.ceil(ally.maxHp * .2))
+  assert.equal(rival.teamShield, undefined)
+  assert.ok(battle.manual(2, 'tackle'))
+  run(battle, 1)
+  assert.ok(log.some(event => event.kind === 'absorbed' && event.target === caster.index))
+  assert.equal(battle.manual(1, 'lightscreen'), false)
   run(battle, 5)
-  assert.ok(ally.barriers.physical < battle.time)
+  assert.ok(battle.manual(1, 'lightscreen'))
+})
+
+test('Helping Hand boosts attacks from other viewers on the same raid team', () => {
+  function damage(withBoost) {
+    const log = []
+    const battle = createBattle([{ ...example(242), team: 'party', viewerId: 'a' }, { ...example(19), team: 'party', viewerId: 'b' },
+      { ...example(9), team: 'boss', boss: true }], { raid: true, auto: false, random: () => .5, onCombatEvent: event => log.push(event) })
+    battle.actors.forEach((actor, index) => { actor.x = [280, 630, 690][index] })
+    if (withBoost) assert.ok(battle.manual(0, 'helpinghand'))
+    run(battle, 1)
+    assert.ok(battle.manual(1, 'tackle'))
+    run(battle, 1)
+    return log.find(event => event.kind === 'damage' && event.source === 1).amount
+  }
+  assert.ok(damage(true) > damage(false))
+})
+
+test('a custom raid boss ignores HP multipliers and deals more damage once enraged', () => {
+  function attack(hp) {
+    const events = []
+    const stats = { maxHp: 100000, attack: 130, defense: 158, specialAttack: 130, specialDefense: 158,
+      speed: 145, damageScale: .55, damageReceivedScale: 4.25, chipHp: 1300 }
+    const battle = createBattle([{ ...example(9, 50), team: 'boss', boss: true, raidStats: stats, hpBoost: 40 },
+      { ...example(19, 80), team: 'party' }], { raid: true, auto: false, hpMultiplier: 2, random: () => .5,
+      onCombatEvent: event => events.push(event) })
+    const [boss, enemy] = battle.actors
+    assert.equal(boss.maxHp, 100000)
+    assert.equal(boss.attack, 130)
+    Object.assign(boss, { hp, x: 600 })
+    enemy.x = 670
+    assert.ok(battle.manual(0, 'tackle'))
+    run(battle, 1)
+    return { damage: events.find(event => event.kind === 'damage').amount, phase: events.some(event => event.kind === 'enrage') }
+  }
+  const normal = attack(20001)
+  const enraged = attack(20000)
+  assert.equal(normal.phase, false)
+  assert.equal(enraged.phase, true)
+  assert.ok(enraged.damage > normal.damage)
 })
 
 test('revival returns the last fainted teammate and Heal Beam targets an injured ally', () => {

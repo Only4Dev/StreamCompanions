@@ -37,18 +37,23 @@ app.on('second-instance', () => {
 const battleRules = await import('../dev/battle.js')
 const battleStats = battleRules.battleSpecies
 const { applyAbilities } = await import('../ui/abilities.js')
-const { simEntry, simulateMatchup } = await import('./balance-sim.js')
+const { raidBossEntry, simEntry, simulateMatchup } = await import('./balance-sim.js')
 let simulating = false
 const defaultRaidBosses = JSON.parse(await readFile(new URL('../ui/raid-bosses.json', import.meta.url)))
 function validateRaidBosses(data) {
   if (!Array.isArray(data?.bosses) || !data.bosses.length || data.bosses.length > 100 ||
       data.bosses.some(boss => !battleStats(boss?.species) || !manifest.species.some(item => Number(item.id) === boss.species) ||
         !['easy', 'medium', 'hard', 'expert'].includes(boss.difficulty))) throw new Error('Invalid raid boss roster')
-  const bosses = data.bosses.map(boss => ({ ...defaultRaidBosses.bosses.find(entry => entry.species === boss.species), ...boss }))
+  const bosses = data.bosses.map(boss => {
+    const defaults = defaultRaidBosses.bosses.find(entry => entry.species === boss.species)
+    return { ...defaults, ...boss, stats: { ...(defaults ?? defaultRaidBosses.bosses[0]).stats, ...boss.stats, maxHp: 100_000 } }
+  })
   for (const gmax of defaultRaidBosses.bosses.filter(boss => boss.gigantamax)) {
     if (!bosses.some(boss => boss.species === gmax.species)) bosses.push(gmax)
   }
-  if (bosses.some(boss => (boss.moves && (!Array.isArray(boss.moves) || !boss.moves.length || boss.moves.length > 7 ||
+  if (bosses.some(boss => ['attack','defense','specialAttack','specialDefense','speed','damageScale','damageReceivedScale','chipHp']
+    .some(key => !Number.isFinite(boss.stats[key]) || boss.stats[key] <= 0) ||
+      (boss.moves && (!Array.isArray(boss.moves) || !boss.moves.length || boss.moves.length > 7 ||
       new Set(boss.moves).size !== boss.moves.length || boss.moves.some(id => !Object.hasOwn(battleRules.moves, id) || battleRules.moves[id].ultimate))) ||
       (boss.ultimate && !battleRules.moves[boss.ultimate]?.ultimate) ||
       (boss.ultimatePp !== undefined && (!Number.isInteger(boss.ultimatePp) || boss.ultimatePp < 1 || boss.ultimatePp > 10)))) throw new Error('Invalid boss moveset')
@@ -746,17 +751,10 @@ function battleTicker(battle, onFrame) {
   }, 1000 / 60)
 }
 
-function makeRaidBoss(boss, party) {
-  const config = game.config
-  const levels = party.map(entry => entry.level)
-  const level = config.raidLevelMode === 'average' ? Math.round(levels.reduce((sum, rank) => sum + rank, 0) / levels.length) : Math.max(...levels)
-  const viewers = new Set(party.map((entry, index) => entry.viewerId ?? index)).size
-  const partyScale = 1 + viewers * config.raidViewerHpPercent / 100
+function makeRaidBoss(boss) {
   const art = manifest.species.find(entry => Number(entry.id) === boss.species)
-  return { ...simEntry(boss.species, level, 0), name: art.name, team: 'raid-boss', boss: true,
-    bossForm: art.battleForms?.gigantamax ? 'gigantamax' : null, bossScale: config.raidSizePercent / 100,
-    hpBoost: config.raidHpMultiplier * partyScale, statBoost: config.raidStatMultiplier,
-    bossMoves: boss.moves, bossUltimate: boss.ultimate, bossUltimatePp: boss.ultimatePp, margin: 230 }
+  return { ...raidBossEntry(boss), name: art.name,
+    bossForm: art.battleForms?.gigantamax ? 'gigantamax' : null, bossScale: game.config.raidSizePercent / 100 }
 }
 
 function launchBattlePreview(mode, species) {
@@ -769,7 +767,7 @@ function launchBattlePreview(mode, species) {
   if (mode === 'raid') {
     const boss = raidBosses.bosses.find(item => item.species === species && names.has(item.species))
     if (!boss) return 404
-    entries = [...party, makeRaidBoss(boss, party)]
+    entries = [...party, makeRaidBoss(boss)]
   } else entries = [...party.slice(0,3), ...[94, 130, 65].map((id,index) => info(id, 45, 'b', { support: index === 1 ? 'pollenpuff' : null }))]
   const battle = battleRules.createBattle(entries, { raid: mode === 'raid', duration: mode === 'raid' ? game.config.raidDuration : 60 })
   const current = { battle, finishedAt: 0 }
@@ -793,7 +791,9 @@ function publicBattle(battle) {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
       return { name, ownerName, shiny, ulting: ultimate?.index === actor.index, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, bossHop: actor.boss && actor.dashUntil > battle.time ? Math.sin(Math.PI * Math.min(1, (actor.dashUntil - battle.time) / .24)) * 62 : 0, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
-        physicalBarrier: actor.barriers?.physical > battle.time, specialBarrier: actor.barriers?.special > battle.time, rooted: actor.rootedUntil > battle.time,
+        physicalBarrier: actor.teamShield?.hp > 0 && actor.teamShield.until > battle.time && actor.teamShield.kind !== 'special',
+        specialBarrier: actor.teamShield?.hp > 0 && actor.teamShield.until > battle.time && actor.teamShield.kind !== 'physical',
+        enraged: Boolean(actor.enteredEnrage), rooted: actor.rootedUntil > battle.time,
         evasion: boosts.evasion > battle.time, flinched: flinchUntil > battle.time }
     }) }
 }
@@ -884,7 +884,7 @@ async function runCommunityBattle(waitForBanner, raidBoss, manual) {
   const currentViewers = game.snapshot().viewers
   entries = entries.filter(entry => active[entry.viewerId] && Object.hasOwn(currentViewers[entry.viewerId].collection, entry.speciesKey))
   if (new Set(entries.map(entry => entry.viewerId)).size < (raidBoss ? 1 : 2)) return 422
-  if (raidBoss) entries.push(makeRaidBoss(raidBoss, entries))
+  if (raidBoss) entries.push(makeRaidBoss(raidBoss))
   const battle = battleRules.createBattle(entries, {
     hpMultiplier: game.config.battleHpMultiplier,
     ...(raidBoss ? { raid: true, duration: game.config.raidDuration } : {}),

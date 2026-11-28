@@ -590,8 +590,8 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           context.save()
           if (fighter.boss) {
             dynamaxAura(context, x, y, top, time, renderTime)
-            context.shadowColor = '#ff315e'
-            context.shadowBlur = 18
+            context.shadowColor = fighter.enraged ? '#ff8000' : '#ff315e'
+            context.shadowBlur = fighter.enraged ? 30 : 18
             if (fighter.motion === 'Run') {
               const ghost = readyClip(clip, variant?.animations)
               context.save()

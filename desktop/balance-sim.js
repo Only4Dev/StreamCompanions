@@ -8,6 +8,12 @@ export function simEntry(id, level, dna) {
   return { id, stats, types, final, level, dna }
 }
 
+export function raidBossEntry(boss) {
+  const [, , types] = battleSpecies(boss.species)
+  return { id: boss.species, name: boss.name, types, level: 50, team: 'raid-boss', boss: true,
+    raidStats: { ...boss.stats, maxHp: 100_000 }, bossMoves: boss.moves, bossUltimate: boss.ultimate, bossUltimatePp: boss.ultimatePp, margin: 230 }
+}
+
 export async function simulateMatchup({ fighters, rounds = 100, seed = 2026 }) {
   if (!Array.isArray(fighters) || fighters.length !== 2 || !Number.isInteger(rounds) || rounds < 1 || rounds > 10_000 ||
       !Number.isInteger(seed)) throw new Error('Invalid simulation settings')

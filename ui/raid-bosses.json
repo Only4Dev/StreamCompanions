@@ -1,5 +1,5 @@
 {
-  "notes": "Moves and ultimate are IDs from learnsets.json. Boss level follows the highest level or average in the participating team. The base HP multiplier gains a configurable percentage for each distinct participating viewer (default 3%). Boss ultimates recharge normally and have a 14-second reuse delay. Each moveset can contain up to seven regular moves.",
+  "notes": "Each boss uses fixed 100000 HP, level 50 and independent combat stats. damageScale moderates outgoing damage; damageReceivedScale tunes hit damage taken, without changing HP. All bosses use the same AI and enrage at 20% HP. Moves and ultimate refer to learnsets.json IDs.",
   "bosses": [
     {
       "species": 1,
@@ -11,7 +11,18 @@
         "giga",
         "leaf"
       ],
-      "ultimate": "ultimate-grass"
+      "ultimate": "ultimate-grass",
+      "stats": {
+        "maxHp": 100000,
+        "attack": 120,
+        "defense": 158,
+        "specialAttack": 125,
+        "specialDefense": 158,
+        "speed": 145,
+        "damageScale": 0.49,
+        "damageReceivedScale": 5.9,
+        "chipHp": 1300
+      }
     },
     {
       "species": 7,
@@ -23,7 +34,18 @@
         "aquatail",
         "rain"
       ],
-      "ultimate": "ultimate-water"
+      "ultimate": "ultimate-water",
+      "stats": {
+        "maxHp": 100000,
+        "attack": 125,
+        "defense": 158,
+        "specialAttack": 125,
+        "specialDefense": 158,
+        "speed": 145,
+        "damageScale": 0.48,
+        "damageReceivedScale": 5.5,
+        "chipHp": 1300
+      }
     },
     {
       "species": 25,
@@ -35,7 +57,18 @@
         "thunderpunch",
         "lightning"
       ],
-      "ultimate": "ultimate-electric"
+      "ultimate": "ultimate-electric",
+      "stats": {
+        "maxHp": 100000,
+        "attack": 130,
+        "defense": 158,
+        "specialAttack": 137,
+        "specialDefense": 158,
+        "speed": 160,
+        "damageScale": 0.55,
+        "damageReceivedScale": 4.25,
+        "chipHp": 1300
+      }
     },
     {
       "species": 9,
@@ -48,7 +81,18 @@
         "surf",
         "aquatail"
       ],
-      "ultimate": "ultimate-water"
+      "ultimate": "ultimate-water",
+      "stats": {
+        "maxHp": 100000,
+        "attack": 135,
+        "defense": 165,
+        "specialAttack": 137,
+        "specialDefense": 158,
+        "speed": 145,
+        "damageScale": 0.55,
+        "damageReceivedScale": 4.25,
+        "chipHp": 1300
+      }
     },
     {
       "species": 6,
@@ -61,7 +105,18 @@
         "fireblast",
         "dragonclaw"
       ],
-      "ultimate": "ultimate-fire"
+      "ultimate": "ultimate-fire",
+      "stats": {
+        "maxHp": 100000,
+        "attack": 127,
+        "defense": 158,
+        "specialAttack": 140,
+        "specialDefense": 158,
+        "speed": 145,
+        "damageScale": 0.58,
+        "damageReceivedScale": 3.9,
+        "chipHp": 1300
+      }
     },
     {
       "species": 149,
@@ -73,7 +128,18 @@
         "dragonclaw",
         "dragonpulse"
       ],
-      "ultimate": "ultimate-dragon"
+      "ultimate": "ultimate-dragon",
+      "stats": {
+        "maxHp": 100000,
+        "attack": 140,
+        "defense": 158,
+        "specialAttack": 132,
+        "specialDefense": 158,
+        "speed": 145,
+        "damageScale": 0.58,
+        "damageReceivedScale": 3.7,
+        "chipHp": 1300
+      }
     },
     {
       "species": 376,
@@ -85,7 +151,18 @@
         "meteor",
         "psychic"
       ],
-      "ultimate": "ultimate-steel"
+      "ultimate": "ultimate-steel",
+      "stats": {
+        "maxHp": 100000,
+        "attack": 143,
+        "defense": 169,
+        "specialAttack": 125,
+        "specialDefense": 150,
+        "speed": 145,
+        "damageScale": 0.58,
+        "damageReceivedScale": 3.95,
+        "chipHp": 1300
+      }
     },
     {
       "species": 869,
@@ -98,7 +175,18 @@
         "kiss",
         "psychic"
       ],
-      "ultimate": "ultimate-fairy"
+      "ultimate": "ultimate-fairy",
+      "stats": {
+        "maxHp": 100000,
+        "attack": 115,
+        "defense": 150,
+        "specialAttack": 142,
+        "specialDefense": 169,
+        "speed": 145,
+        "damageScale": 0.58,
+        "damageReceivedScale": 4.1,
+        "chipHp": 1300
+      }
     }
   ]
 }

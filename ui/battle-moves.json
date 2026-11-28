@@ -136,9 +136,9 @@
   "mistburst": {"name":"Estallido de Niebla","type":"fairy","kind":"area","damageClass":"special","power":56,"reach":310,"pp":12,"cooldown":4},
   "stardustwave": {"name":"Ola Estelar","type":"fairy","kind":"projectile","damageClass":"special","power":68,"reach":430,"pp":12,"cooldown":3},
   "healbeam": {"name":"Rayo Vital","type":"psychic","kind":"support","damageClass":"status","power":0,"reach":620,"healAlly":0.35,"pp":5,"cooldown":9},
-  "reflect": {"name":"Reflejo","type":"psychic","kind":"guard","damageClass":"status","power":0,"reach":0,"teamBarrier":"physical","duration":5,"pp":5,"cooldown":9},
-  "lightscreen": {"name":"Pantalla Luz","type":"psychic","kind":"guard","damageClass":"status","power":0,"reach":0,"teamBarrier":"special","duration":5,"pp":5,"cooldown":9},
-  "auroraveil": {"name":"Velo Aurora","type":"ice","kind":"guard","damageClass":"status","power":0,"reach":0,"teamBarrier":"both","duration":5,"pp":5,"cooldown":12},
+  "reflect": {"name":"Reflejo","type":"psychic","kind":"guard","damageClass":"status","power":0,"reach":0,"teamBarrier":"physical","duration":6,"pp":2,"cooldown":9},
+  "lightscreen": {"name":"Pantalla Luz","type":"psychic","kind":"guard","damageClass":"status","power":0,"reach":0,"teamBarrier":"special","duration":6,"pp":2,"cooldown":9},
+  "auroraveil": {"name":"Velo Aurora","type":"ice","kind":"guard","damageClass":"status","power":0,"reach":0,"teamBarrier":"both","duration":6,"pp":2,"cooldown":12},
   "purifyingwave": {"name":"Onda Purificante","type":"fairy","kind":"support","damageClass":"status","power":0,"reach":0,"teamCleanse":true,"pp":5,"cooldown":10},
   "revivebeam": {"name":"Última Llama","type":"normal","kind":"support","damageClass":"status","power":0,"reach":0,"reviveAlly":0.3,"pp":1,"cooldown":30},
   "stickyweb": {"name":"Red Viscosa","type":"bug","kind":"target","damageClass":"status","power":0,"reach":465,"hazard":"web","duration":8,"pp":5,"cooldown":8},
@@ -147,5 +147,6 @@
   "silkcatapult": {"name":"Catapulta de Seda","type":"bug","kind":"target","damageClass":"physical","power":52,"reach":420,"visual":"web","displace":200,"pp":7,"cooldown":6},
   "aurorafountain": {"name":"Géiser Ancestral","type":"water","kind":"area","damageClass":"special","power":150,"reach":640,"visual":"raid-geysers","pp":2,"cooldown":17},
   "ancestralmeteor": {"name":"Cataclismo Ancestral","type":"ground","kind":"area","damageClass":"physical","power":150,"reach":475,"visual":"quake","pp":2,"cooldown":17},
-  "ancestraltempest": {"name":"Vendaval Ancestral","type":"flying","kind":"area","damageClass":"special","power":150,"reach":480,"visual":"storm","pp":2,"cooldown":17}
+  "ancestraltempest": {"name":"Vendaval Ancestral","type":"flying","kind":"area","damageClass":"special","power":150,"reach":480,"visual":"storm","pp":2,"cooldown":17},
+  "helpinghand": {"name":"Refuerzo","type":"normal","kind":"guard","damageClass":"status","power":0,"reach":0,"teamBoost":0.2,"duration":6,"pp":5,"cooldown":10}
 }

@@ -399,7 +399,7 @@ function moveCard(key, selected, en, unlockLevel = 0, readOnly = false) {
   const ultimate = Boolean(move.ultimate)
   const fieldTypes = { rain: 'water', sun: 'fire', electric: 'electric', grass: 'grass' }
   const type = move.type ?? fieldTypes[move.field] ?? ({ speed: 'psychic', evasion: 'normal', mind: 'psychic' })[move.boost] ?? (ultimate ? move.ultimate : 'normal')
-  const target = move.teamBarrier || move.teamCleanse ? (en ? 'Team' : 'Equipo') :
+  const target = move.teamBarrier || move.teamCleanse || move.teamBoost ? (en ? 'Team' : 'Equipo') :
     move.kind === 'support' ? (en ? 'Ally' : 'Aliado') :
     move.field || ['area', 'pierce'].includes(move.kind) ? (en ? 'Area' : 'Área') :
     move.kind === 'guard' ? (en ? 'Self' : 'Propio') : (en ? 'Single target' : 'Un objetivo')
@@ -415,7 +415,9 @@ function moveCard(key, selected, en, unlockLevel = 0, readOnly = false) {
     heal: ['Con ≤20 % de PS, recupera el 40 %', 'At ≤20% HP, restores 40%']
   }
   const effect = effects[move.effect ?? move.boost ?? move.field ?? (move.blink ? 'blink' : move.leech ? 'leech' : move.slow ? 'slow' : move.heal ? 'heal' : 'shield')]
-  const support = move.teamBarrier ? (en ? 'Team barrier' : 'Barrera de equipo') + ' · ' + move.duration + ' s' :
+  const support = move.teamBarrier ? (en ? 'Gives each ally a shield of 20% max HP' : 'Cada aliado recibe un escudo del 20% de sus PS máximos') + ' · ' +
+    ({ physical: en ? 'Physical' : 'Físico', special: en ? 'Special' : 'Especial', both: en ? 'Both classes' : 'Ambas clases' }[move.teamBarrier]) + ' · ' + move.duration + ' s' :
+    move.teamBoost ? (en ? 'Team damage +' : 'Daño del equipo +') + Math.round(move.teamBoost * 100) + '% · ' + move.duration + ' s' :
     move.teamCleanse ? (en ? 'Clears team status conditions' : 'Cura los estados del equipo') :
     move.reviveAlly ? (en ? 'Revives the last fainted ally' : 'Revive al último aliado caído') :
     move.healAlly ? (en ? 'Restores ally HP' : 'Recupera PS de un aliado') :
