@@ -196,5 +196,10 @@ button.description-trigger[aria-expanded=true]{outline:2px solid var(--line);out
 @keyframes egg-reveal{0%{opacity:0;transform:translateY(11px) scale(.67)}69%{transform:translateY(-3px) scale(1.18)}to{opacity:1;transform:none}}
 @keyframes egg-after{from{opacity:calc(var(--aura)*.62);transform:scale(1.07)}to{opacity:calc(var(--aura)*.43);transform:scale(.97)}}
 .dex-search{margin-bottom:.75rem}.dex-search label{display:grid;gap:.35rem;max-width:32rem}.dex-search input{width:100%;box-sizing:border-box;padding:.55rem .7rem;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:.6rem}.dex-search-status:empty{display:none}
+.move-support{display:inline-flex;width:fit-content;padding:.1rem .4rem;border:1px solid #48a589;border-radius:.45rem;color:var(--ink);font-weight:750}
+.wiki-filters{display:flex;flex-wrap:wrap;gap:.75rem;align-items:end;margin:1rem 0}
+.wiki-filters label{display:grid;gap:.25rem}.wiki-filters input,.wiki-filters select{min-height:2.2rem;padding:.35rem .5rem;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:.45rem}
+.wiki-move{border-bottom:1px solid var(--line);padding:.7rem 0}.wiki-move summary{cursor:pointer}.wiki-move summary span{margin-left:.75rem;color:var(--muted);font-size:.9rem}
+.wiki-move-stats{display:flex;flex-wrap:wrap;gap:.6rem 1rem}.wiki-move-stats dt{color:var(--muted)}.wiki-move-stats dd{margin:0;font-weight:750}
 @media(prefers-reduced-motion:reduce){.egg-dialog *{animation:none!important}.egg-dialog.hatched .egg-aura{opacity:calc(var(--aura)*.43)}.egg-dialog.hatched .egg-rays{opacity:calc(var(--beam)*.4)}}
 `

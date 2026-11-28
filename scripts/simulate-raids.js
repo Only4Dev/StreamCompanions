@@ -36,7 +36,11 @@ for (const boss of roster.bosses) for (const scenario of scenarios) {
     const random = () => ((state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 4294967296)
     const party = attackers.slice(0, scenario.count - scenario.utilitySlots).map(id => entry(id))
     const supports = support.slice(0, scenario.utilitySlots).map(([id, selected]) => entry(id, scenario.useSupport ? selected : undefined))
-    const entries = [...supports, ...party, raidBossEntry(boss)]
+    const raidParty = Array.from({ length: Math.ceil(scenario.count / 3) }, (_, group) => {
+      const lead = supports[group] ? [supports[group]] : []
+      return [...lead, ...party.splice(0, 3 - lead.length)].map(member => ({ ...member, viewerId: 'viewer-' + group }))
+    }).flat()
+    const entries = [...raidParty, raidBossEntry(boss)]
     const fighter = entries.length - 1
     const events = []
     const damageByPokemon = entries.slice(0, fighter).map((member, index) => ({ index, name: member.name, fromBoss: 0, toBoss: 0, absorbed: 0 }))

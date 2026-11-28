@@ -148,5 +148,6 @@
   "aurorafountain": {"name":"Géiser Ancestral","type":"water","kind":"area","damageClass":"special","power":150,"reach":640,"visual":"raid-geysers","pp":2,"cooldown":17},
   "ancestralmeteor": {"name":"Cataclismo Ancestral","type":"ground","kind":"area","damageClass":"physical","power":150,"reach":475,"visual":"quake","pp":2,"cooldown":17},
   "ancestraltempest": {"name":"Vendaval Ancestral","type":"flying","kind":"area","damageClass":"special","power":150,"reach":480,"visual":"storm","pp":2,"cooldown":17},
-  "helpinghand": {"name":"Refuerzo","type":"normal","kind":"guard","damageClass":"status","power":0,"reach":0,"teamBoost":0.2,"duration":6,"pp":5,"cooldown":10}
+  "helpinghand": {"name":"Refuerzo","type":"normal","kind":"guard","damageClass":"status","power":0,"reach":0,"teamBoost":0.2,"duration":6,"pp":5,"cooldown":10},
+  "healcircle": {"name":"Círculo Curativo","type":"fairy","kind":"support","damageClass":"status","power":0,"reach":265,"healTeam":0.18,"pp":4,"cooldown":10}
 }

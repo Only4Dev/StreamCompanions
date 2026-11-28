@@ -993,10 +993,10 @@ test('team screens have two PP, absorb damage by class, and cannot overlap', () 
   assert.ok(battle.manual(1, 'lightscreen'))
 })
 
-test('Helping Hand boosts attacks from other viewers on the same raid team', () => {
-  function damage(withBoost) {
+test('Helping Hand boosts only attackers belonging to the same viewer during raids', () => {
+  function damage(withBoost, viewer) {
     const log = []
-    const battle = createBattle([{ ...example(242), team: 'party', viewerId: 'a' }, { ...example(19), team: 'party', viewerId: 'b' },
+    const battle = createBattle([{ ...example(242), team: 'party', viewerId: 'a' }, { ...example(19), team: 'party', viewerId: viewer },
       { ...example(9), team: 'boss', boss: true }], { raid: true, auto: false, random: () => .5, onCombatEvent: event => log.push(event) })
     battle.actors.forEach((actor, index) => { actor.x = [280, 630, 690][index] })
     if (withBoost) assert.ok(battle.manual(0, 'helpinghand'))
@@ -1005,7 +1005,8 @@ test('Helping Hand boosts attacks from other viewers on the same raid team', () 
     run(battle, 1)
     return log.find(event => event.kind === 'damage' && event.source === 1).amount
   }
-  assert.ok(damage(true) > damage(false))
+  assert.ok(damage(true, 'a') > damage(false, 'a'))
+  assert.equal(damage(true, 'b'), damage(false, 'b'))
 })
 
 test('a custom raid boss ignores HP multipliers and deals more damage once enraged', () => {
@@ -1080,4 +1081,115 @@ test('raid bosses keep casting through hits and reject incapacitating status', (
   assert.ok(battle.manual(0, 'wisp'))
   run(battle, 1.5)
   assert.equal(boss.status?.kind, 'burn')
+})
+
+test('AoE and single-target healing cannot heal another viewer in a raid', () => {
+  const battle = createBattle([{ ...example(122), team: 'party', viewerId: 'one' }, { ...example(19), team: 'party', viewerId: 'one' },
+    { ...example(52), team: 'party', viewerId: 'two' }, { ...example(9), team: 'boss', boss: true }],
+  { raid: true, auto: false, random: () => .5 })
+  const [caster, ally, outsider] = battle.actors
+  ;[caster, ally, outsider].forEach((actor, index) => { actor.x = 500 + index * 55; actor.hp = Math.round(actor.maxHp * .4) })
+  const before = outsider.hp
+  const allyHp = ally.hp
+  assert.ok(battle.manual(0, 'healcircle'))
+  run(battle, 1)
+  assert.ok(ally.hp > allyHp)
+  assert.ok(caster.hp > caster.maxHp * .5)
+  assert.equal(outsider.hp, before)
+  assert.ok(battle.manual(0, 'healbeam'))
+  run(battle, 1)
+  assert.equal(outsider.hp, before)
+  assert.ok(ally.hp > ally.maxHp * .8)
+  assert.ok(battle.manual(0, 'reflect'))
+  run(battle, 1)
+  assert.ok(ally.teamShield)
+  assert.equal(outsider.teamShield, undefined)
+})
+
+test('Friend Guard redirects one share without cascading or crossing viewer boundaries', () => {
+  const events = []
+  const battle = createBattle([{ ...example(9), team: 'boss', boss: true },
+    { ...example(19), team: 'party', viewerId: 'a' },
+    ...['b', 'a', 'a'].map(viewerId => ({ ...example(35), team: 'party', viewerId }))],
+  { raid: true, auto: false, random: () => .5, onCombatEvent: event => events.push(event) })
+  const [boss, target, outsider, guard, second] = battle.actors
+  battle.actors.forEach((actor, index) => { actor.x = [500, 560, 1100, 1145, 1220][index] })
+  assert.ok(battle.manual(0, 'tackle'))
+  run(battle, 1)
+  const damage = events.filter(event => event.kind === 'damage')
+  assert.equal(damage.length, 2)
+  assert.equal(damage[0].target, guard.index)
+  assert.equal(damage[0].amount, Math.round((damage[0].amount + damage[1].amount) * .1))
+  assert.equal(damage[1].target, target.index)
+  assert.equal(outsider.hp, outsider.maxHp)
+  assert.equal(second.hp, second.maxHp)
+  assert.equal(boss.hp, boss.maxHp)
+})
+
+test('Ghost Step dodges the triggering hit, expires and cannot immediately trigger again', () => {
+  const events = []
+  const battle = createBattle([example(9), example(302)], { auto: false, random: () => .10,
+    onCombatEvent: event => events.push(event) })
+  const [attacker, ghost] = battle.actors
+  attacker.x = 600
+  ghost.x = 720
+  for (let i = 0; i < 2; i++) {
+    assert.ok(battle.manual(0, 'water'))
+    run(battle, 1)
+  }
+  assert.equal(ghost.hp, ghost.maxHp)
+  assert.equal(events.filter(event => event.reason === 'ghost').length, 2)
+  run(battle, 2)
+  assert.ok(battle.manual(0, 'water'))
+  run(battle, 1)
+  assert.ok(ghost.hp < ghost.maxHp)
+  assert.ok(ghost.ghostReady > battle.time)
+})
+
+test('Levitate blocks Ground and adjacent Aroma Fétido auras never stack', () => {
+  const battle = createBattle([example(330), example(109), example(110)],
+    { auto: false, random: () => .5 })
+  const [attacker, levitating, source] = battle.actors
+  attacker.x = 500
+  levitating.x = 570
+  source.x = 630
+  assert.ok(battle.manual(0, 'quake'))
+  run(battle, 1.2)
+  const auraTick = Math.round(attacker.maxHp * .005) || 1
+  assert.equal(attacker.hp, attacker.maxHp - auraTick)
+  assert.equal(levitating.hp, levitating.maxHp - (Math.round(levitating.maxHp * .005) || 1))
+})
+
+test('Serene Grace, Sharpness, Strong Jaw and Berserker affect the appropriate attacks', () => {
+  function manualDamage(ability, move, hpRatio = 1, random = .5) {
+    const battle = createBattle([example(19, 45), example(52, 70)], { auto: false, random: () => random })
+    const [actor, target] = battle.actors
+    actor.x = 500
+    target.x = 555
+    actor.abilities = new Set(ability ? [ability] : [])
+    target.abilities.clear()
+    actor.hp = actor.maxHp * hpRatio
+    assert.ok(battle.manual(0, move))
+    run(battle, 1)
+    return { damage: target.maxHp - target.hp, status: target.status?.kind }
+  }
+  assert.ok(manualDamage('sharpness', 'slash').damage > manualDamage(null, 'slash').damage)
+  assert.equal(manualDamage('sharpness', 'bite').damage, manualDamage(null, 'bite').damage)
+  assert.ok(manualDamage('strong-jaw', 'bite').damage > manualDamage(null, 'bite').damage)
+  assert.ok(manualDamage('berserker', 'tackle', .2).damage > manualDamage(null, 'tackle', .2).damage)
+  assert.equal(manualDamage('berserker', 'tackle', .21).damage, manualDamage(null, 'tackle', .21).damage)
+  assert.equal(manualDamage('serene-grace', 'ember', 1, .15).status, 'burn')
+  assert.equal(manualDamage(null, 'ember', 1, .15).status, undefined)
+})
+
+test('individual projectile ranges distinguish short spreads from long cannon shots', () => {
+  for (const [move, hit] of [['bubbles', false], ['hydro', true]]) {
+    const battle = createBattle([example(9), example(19)], { auto: false, random: () => .5 })
+    const [actor, target] = battle.actors
+    actor.x = 500
+    target.x = 900
+    assert.ok(battle.manual(0, move))
+    run(battle, 2)
+    assert.equal(target.hp < target.maxHp, hit)
+  }
 })

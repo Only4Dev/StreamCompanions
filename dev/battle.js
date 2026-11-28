@@ -2,6 +2,8 @@ import { trainingRules } from '../ui/training.js'
 import baseStatsData from '../ui/base-stats.json' with { type: 'json' }
 import bundledLearnsets from '../ui/learnsets.json' with { type: 'json' }
 import extraMoves from '../ui/battle-moves.json' with { type: 'json' }
+import combatBalance from '../ui/combat-balance.json' with { type: 'json' }
+import damageTags from '../ui/move-tags.json' with { type: 'json' }
 import { nationalStats, typeChart } from './national-stats.js'
 import { ultimateLevel } from '../ui/levels.js'
 import { regionalSpecies } from '../ui/regional-species.js'
@@ -154,6 +156,11 @@ const moves = {
   fairy: { name: 'Voz Cautivadora', type: 'fairy', kind: 'area', power: 46, reach: 240 },
 }
 Object.assign(moves, extraMoves)
+for (const [id, move] of Object.entries(moves)) {
+  const tags = Object.entries(damageTags).filter(([, ids]) => ids.includes(id)).map(([tag]) => tag)
+  if (move.kind === 'support' || move.teamBarrier || move.teamBoost) tags.push('support')
+  if (tags.length) move.tags = tags
+}
 const progressionCache = new Map()
 const originalMoves = Object.fromEntries(Object.entries(moves).map(([key, move]) => [key, {...move}]))
 export function applyLearnsets(data) {
@@ -447,14 +454,25 @@ const bound = (x, actor) => {
 }
 const bodyGap = 44
 const extraReach = actor => actor.boss ? 42 : 0
-const moveReach = (actor, move) => actor.boss && !move.ultimate && !move.struggle && move.kind !== 'guard' && move.kind !== 'support'
-  ? Math.min(arena.width, Math.round(move.reach * (move.kind === 'rush' ? 1.25 : 1.4))) : move.reach
+const { range: rangeRules, support: supportRules, abilities: abilityRules } = combatBalance
+export const moveBaseReach = move => move.ultimate ? move.reach :
+  Math.min(move.reach ?? 0, ({ projectile: rangeRules.projectileMax, target: rangeRules.targetMax, pierce: rangeRules.pierceMax })[move.kind] ?? arena.width)
+const moveReach = (actor, move) => {
+  const base = moveBaseReach(move)
+  if (!actor.boss || move.ultimate || move.struggle) return base
+  if (isRanged(move)) return Math.round(base * rangeRules.bossRangedBonus)
+  return move.kind === 'rush' ? Math.round(base * 1.25) : base
+}
 const damageHealth = actor => actor.raidBaseHp ?? actor.maxHp
 const isHurt = (actor, time) => !actor.boss && actor.hurtUntil > time
 const bodySpacing = (a, b) => bodyGap + extraReach(a) + extraReach(b)
 const isRanged = move => ['projectile', 'target', 'pierce'].includes(move.kind)
-const effectiveness = (actor, defender, move) => defender.types.reduce((factor, type) =>
-  factor * (typeChart[(move.type ?? actor.types[0]) + ':' + type] ?? 1), 1)
+const effectiveness = (actor, defender, move) => {
+  const attackType = move.type ?? actor.types[0]
+  if (attackType === 'ground' && defender.abilities.has('levitate')) return 0
+  return defender.types.reduce((factor, type) => factor * (typeChart[attackType + ':' + type] ?? 1), 1)
+}
+const secondaryChance = (actor, probability) => Math.min(1, (probability ?? 0) * (actor.abilities.has('serene-grace') ? abilityRules.sereneGrace : 1))
 const statusDuration = { paralysis: 7, freeze: 5, sleep: 7, poison: 12, burn: 9 }
 const immune = { paralysis: ['electric'], freeze: ['ice'], sleep: ['grass'], poison: ['poison', 'steel'], burn: ['fire'] }
 const fieldDamage = {
@@ -491,6 +509,9 @@ export function arenaBaseStats(id, original) {
 export const moveCooldown = move => move.cooldown ?? (move.kind === 'area' ? 3.4 : move.kind === 'guard' ? 4.5 : 1.1)
 export const movePp = move => move.pp ?? (move.ultimate ? 2 : move.kind === 'support' ? 5 : 20)
 export const moveDamageClass = move => move.damageClass ?? (move.ultimate ? 'adaptive' : !move.power ? 'status' : move.kind === 'rush' ? 'physical' : 'special')
+export const moveElement = move => move.type ??
+  ({ rain: 'water', sun: 'fire', hail: 'ice', sandstorm: 'rock', grass: 'grass', electric: 'electric' })[move.field] ??
+  ({ speed: 'psychic', evasion: 'normal', mind: 'psychic' })[move.boost] ?? (typeof move.ultimate === 'string' ? move.ultimate : 'normal')
 
 export function battleStatsAtLevel(id, stats, level, dna = 0, training) {
   const [hp, attack, defense, specialAttack, specialDefense, speed] = arenaBaseStats(id, stats).map((stat, index) => stat + (training ? (training[trainingRules.stats[index]] ?? 0) * trainingRules.statPerPoint : dna * 10))
@@ -626,12 +647,14 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   const teams = entries.some(entry => entry.team != null)
   const teamOf = actor => actor.team ?? actor.index
   function rivals(a, b) { return a !== b && teamOf(a) !== teamOf(b) }
+  const viewerTeamOf = actor => actor.viewerId ?? teamOf(actor)
+  const sameSquad = (a, b) => !rivals(a, b) && viewerTeamOf(a) === viewerTeamOf(b)
   const teamScreens = new Map()
   const teamBoosts = new Map()
-  const screenBusy = actor => teamScreens.get(teamOf(actor)) > time || actors.some(ally =>
-    ally.hp > 0 && teamOf(ally) === teamOf(actor) && ally.cast?.move.teamBarrier)
-  const boostBusy = actor => teamBoosts.get(teamOf(actor))?.until > time || actors.some(ally =>
-    ally.hp > 0 && teamOf(ally) === teamOf(actor) && ally.cast?.move.teamBoost)
+  const screenBusy = actor => teamScreens.get(viewerTeamOf(actor)) > time || actors.some(ally =>
+    ally.hp > 0 && sameSquad(ally, actor) && ally.cast?.move.teamBarrier)
+  const boostBusy = actor => teamBoosts.get(viewerTeamOf(actor))?.until > time || actors.some(ally =>
+    ally.hp > 0 && sameSquad(ally, actor) && ally.cast?.move.teamBoost)
   const bossAreaLimit = 3
   function areaTargets(actor, candidates, center) {
     if (!actor.boss) return candidates
@@ -640,15 +663,21 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
   }
   function canReceiveStatus(actor, kind) {
     return Boolean(kind && (!actor.boss || ['poison', 'burn'].includes(kind)) &&
-      !actors.some(ally => ally.hp > 0 && teamOf(ally) === teamOf(actor) && ally.abilities.has('team-safeguard')))
+      !actors.some(ally => ally.hp > 0 && sameSquad(ally, actor) && ally.abilities.has('team-safeguard')))
   }
+  const areaHealingTargets = (actor, move) => actors.filter(ally => ally.hp > 0 && sameSquad(actor, ally) &&
+    ally.hp < ally.maxHp && Math.abs(actor.x - ally.x) <= move.reach)
+  const woundedSquadmates = actor => actors.filter(ally => ally !== actor && sameSquad(actor, ally) &&
+    ally.hp > 0 && ally.hp < ally.maxHp * supportRules.singleTrigger)
   function supportTarget(actor, move) {
     if (actor.team == null) return null
-    if (move.reviveAlly) return actors.filter(ally => ally !== actor && teamOf(ally) === teamOf(actor) && !ally.hp &&
+    if (move.reviveAlly) return actors.filter(ally => ally !== actor && sameSquad(ally, actor) && !ally.hp &&
       Number.isFinite(ally.faintedAt)).sort((a, b) => b.faintedAt - a.faintedAt)[0]
-    if (move.teamCleanse) return actors.find(ally => teamOf(ally) === teamOf(actor) && ally.hp && ally.status)
-    return actors.filter(ally => ally !== actor && !rivals(actor, ally) && ally.hp > 0 && ally.hp < ally.maxHp * .7 &&
-      Math.abs(actor.x - ally.x) <= move.reach).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0]
+    if (move.teamCleanse) return actors.find(ally => sameSquad(ally, actor) && ally.hp && ally.status)
+    if (move.healTeam) return areaHealingTargets(actor, move)
+      .filter(ally => ally.hp < ally.maxHp * supportRules.areaTrigger).length >= supportRules.areaMinTargets ? actor : null
+    return woundedSquadmates(actor).filter(ally => Math.abs(actor.x - ally.x) <= move.reach)
+      .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0]
   }
   for (const actor of actors) if (actors.some(enemy => rivals(actor, enemy) && enemy.abilities.has('intimidate'))) actor.attack *= .9
 
@@ -721,7 +750,9 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const def = key => defender.abilities.has(key)
     let amount = 1
     if (actor.hp <= actor.maxHp / 3 && has({ fire: 'blaze', water: 'torrent', grass: 'overgrow', bug: 'swarm' }[type])) amount *= 1.3
-    if (has('strong-jaw') && /mord|colmillo|tritur/i.test(move.name)) amount *= 1.25
+    if (has('strong-jaw') && move.tags?.includes('bite')) amount *= abilityRules.strongJaw
+    if (has('sharpness') && move.tags?.includes('cut')) amount *= abilityRules.sharpness
+    if (has('berserker') && actor.hp <= actor.maxHp * abilityRules.berserkerThreshold) amount *= abilityRules.berserkerDamage
     if (has('ambush') && type === 'dark' && defender.hp > defender.maxHp * .75) amount *= 1.2
     if (!move.struggle && def('steadfast') && defender.hp <= defender.maxHp * .25) amount *= .95
     if (!move.struggle) {
@@ -749,8 +780,12 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     if (!move.ultimate && !move.struggle && defender.shield > time) return
     if (move.needsSleep && defender.status?.kind !== 'sleep') return
     const type = move.type ?? actor.types[0]
-    const multiplier = effectiveness(actor, defender, move)
-    const matchup = multiplier
+    const matchup = effectiveness(actor, defender, move)
+    if (!matchup && !move.struggle) return false
+    if (defender.ghostUntil > time) {
+      confirmDodge(actor, defender, move, 'ghost')
+      return false
+    }
     if (!move.struggle && (move.power || move.effect)) {
       const absorbs = { fire: 'flash-fire', water: 'water-absorb', electric: 'volt-absorb' }[type]
       if (defender.abilities.has(absorbs)) {
@@ -767,6 +802,12 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       confirmDodge(actor, defender, move, 'evasion')
       return
     }
+    if (defender.abilities.has('ghost-step') && move.power > 0 && !(defender.ghostReady > time) && random() < abilityRules.ghostChance) {
+      defender.ghostUntil = time + abilityRules.ghostDuration
+      defender.ghostReady = time + abilityRules.ghostCooldown
+      confirmDodge(actor, defender, move, 'ghost')
+      return false
+    }
     const reduced = matchup === 0 ? 0 : clamp(matchup, 0.5, 1.6)
     const category = moveDamageClass(move)
     const usesPhysical = category === 'adaptive' ? actor.attack > actor.specialAttack : category === 'physical'
@@ -782,13 +823,13 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       else sleepMultiplier += .1
     }
     const statusLands = matchup && canReceiveStatus(defender, move.effect) && !defender.status && !(move.effect === 'sleep' && sleepBlocked()) &&
-      !defender.types.some(type => immune[move.effect].includes(type)) && random() < move.chance
+      !defender.types.some(type => immune[move.effect].includes(type)) && random() < secondaryChance(actor, move.chance)
     const critical = !!(!move.ultimate && !move.struggle && matchup && move.power && random() < (actor.abilities.has('super-luck') ? .14 : .07))
     const fieldMultiplier = fieldDamage[field?.kind]?.[type] ?? 1
     const solarCharge = ultimate?.actor === defender && ultimate.move.type === 'grass' && ultimate.pulse === 0
     const stab = actor.types.includes(type) ? 1.25 : 1
     const itemMultiplier = type && heldItems[actor.heldItem]?.[2] === type || actor.heldItem === 'wise-glasses' && !usesPhysical ? 1.1 : 1
-    const boost = teamBoosts.get(teamOf(actor))
+    const boost = teamBoosts.get(viewerTeamOf(actor))
     const bossDamage = actor.raidStats ? actor.damageScale * (actor.enteredEnrage || actor.hp <= actor.maxHp * .2 ? 1.25 : 1) :
       actor.boss ? move.ultimate ? 1.28 : 1.24 : 1
     const abilityMultiplier = abilityDamage(actor, defender, move, type, usesPhysical, matchup) * bossDamage *
@@ -796,10 +837,12 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     const variance = move.power && matchup ? .9 + random() * .2 : 1
     const ultimateDamage = Math.min(move.power, 78) * (.65 + actor.level / 100) * statRatio *
       Math.min(matchup, 2) * stab * fieldMultiplier * itemMultiplier * abilityMultiplier * variance
-    const rawDamage = move.ultimate ? Math.min(Math.round(ultimateDamage), Math.floor(defender.maxHp * .6)) : move.struggle ? Math.ceil(damageHealth(defender) * .2 * (actor.raidStats ? bossDamage : 1)) :
+    const rawDamage = move.ultimate ? Math.min(Math.round(ultimateDamage), Math.floor(defender.maxHp * .6)) :
+      move.struggle ? Math.ceil(damageHealth(defender) * .2 * (actor.raidStats ? bossDamage : 1) *
+        (actor.abilities.has('berserker') && actor.hp <= actor.maxHp * abilityRules.berserkerThreshold ? abilityRules.berserkerDamage : 1)) :
       Math.round(move.power * (0.5 + actor.level / 100) * statRatio * reduced * stab *
         (solarCharge ? .7 : 1) * sleepMultiplier * fieldMultiplier * (critical ? 1.45 : 1) * itemMultiplier * abilityMultiplier * variance)
-    const bulwark = actors.some(ally => ally.hp && teamOf(ally) === teamOf(defender) && ally.abilities.has('team-bulwark'))
+    const bulwark = actors.some(ally => ally.hp && sameSquad(ally, defender) && ally.abilities.has('team-bulwark'))
     const reducedDamage = !move.struggle && bulwark ? Math.max(Number(rawDamage > 0), Math.round(rawDamage * .92)) : rawDamage
     let damage = reducedDamage && defender.boss ? Math.max(1,
       Math.round(defender.raidStats ? reducedDamage * defender.damageReceivedScale : reducedDamage / raidPressure)) : reducedDamage
@@ -825,6 +868,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
     let dealt = 0
     if (damage) {
+      damage = redirectDamage(actor, defender, damage, type)
       defender.tookDamage = true
       const inflicted = Math.min(defender.hp, damage)
       dealt = inflicted
@@ -858,7 +902,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       if (!defender.hp || !defender.boss && !channeling) defender.cast = null
       if (!defender.boss) defender.next = Math.max(defender.next, time + .42)
       if (defender.hp) updateForm(defender)
-      if (!defender.boss && move.flinch && !channeling && random() < move.flinch) defender.flinchUntil = time + 1.5
+      if (!defender.boss && move.flinch && !channeling && random() < secondaryChance(actor, move.flinch)) defender.flinchUntil = time + 1.5
     }
     if (move.leech && matchup && defender.hp && !defender.types.includes('grass')) {
       defender.leech = { source: actor.index, next: time + 1, ends: time + 7 }
@@ -877,6 +921,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
     effects.push({ kind: 'hit', type, visual: move.visual, x: defender.x, target: defender.index, damage: dealt, critical,
       bossImpact: Boolean(actor.boss && dealt), at: time, expires: time + .68 })
+    return true
   }
 
   function cast(actor, moveId, force = false) {
@@ -970,11 +1015,16 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       if (move.reviveAlly && !ally.hp) {
         Object.assign(ally, { hp: Math.max(1, Math.round(ally.maxHp * move.reviveAlly)), faintedAt: undefined,
           cast: null, status: null, ongoing: null, leech: null, knockback: 0, rootedUntil: 0, hurtUntil: 0,
-          flinchUntil: 0, exhaustedUntil: 0, dashUntil: 0, next: time + .7 })
+          flinchUntil: 0, exhaustedUntil: 0, dashUntil: 0, ghostUntil: 0, next: time + .7 })
         effects.push({ kind: 'target', visual: 'heal', x: ally.x, at: time, expires: time + 1 })
       } else if (move.teamCleanse) {
-        for (const member of actors) if (member.hp && member.status && teamOf(member) === teamOf(actor)) {
+        for (const member of actors) if (member.hp && member.status && sameSquad(member, actor)) {
           member.status = null
+          effects.push({ kind: 'target', visual: 'heal', x: member.x, at: time, expires: time + .65 })
+        }
+      } else if (move.healTeam) {
+        for (const member of areaHealingTargets(actor, move)) {
+          member.hp = Math.min(member.maxHp, member.hp + Math.round(member.maxHp * move.healTeam))
           effects.push({ kind: 'target', visual: 'heal', x: member.x, at: time, expires: time + .65 })
         }
       } else if (ally.hp && move.healAlly) {
@@ -1039,13 +1089,13 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     if (move.kind === 'guard') {
       if (move.teamBarrier) {
         const until = time + move.duration
-        teamScreens.set(teamOf(actor), until)
-        for (const ally of actors) if (ally.hp && teamOf(ally) === teamOf(actor)) {
+        teamScreens.set(viewerTeamOf(actor), until)
+        for (const ally of actors) if (ally.hp && sameSquad(ally, actor)) {
           ally.teamShield = { kind: move.teamBarrier, hp: Math.ceil(ally.maxHp * .2), until }
         }
         onCombatEvent?.({ kind: 'screen', time, source: actor.index, move: move.name })
       } else if (move.teamBoost) {
-        teamBoosts.set(teamOf(actor), { until: time + move.duration, amount: move.teamBoost })
+        teamBoosts.set(viewerTeamOf(actor), { until: time + move.duration, amount: move.teamBoost })
         onCombatEvent?.({ kind: 'boost', time, source: actor.index, move: move.name })
       } else if (move.blink && cast.target) {
         const away = -Math.sign(cast.target.x - actor.x) || -actor.direction
@@ -1076,7 +1126,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       actor.exhaustedUntil = time + move.recovery
       actor.dashUntil = 0
       effects.push({ kind: 'pierce', visual: move.visual, x: actor.x, direction, at: time, expires: time + .68 })
-      const enemies = actors.filter(enemy => rivals(actor, enemy) && enemy.hp > 0 && (enemy.x - actor.x) * direction >= -24)
+      const enemies = actors.filter(enemy => rivals(actor, enemy) && enemy.hp > 0 &&
+        (enemy.x - actor.x) * direction >= -24 && Math.abs(enemy.x - actor.x) <= move.reach + extraReach(enemy))
       for (const enemy of areaTargets(actor, enemies, actor.x)) hit(actor, enemy, move, direction)
     } else if (move.kind === 'target') {
       const target = cast.target.hp > 0 ? cast.target : actor.boss ? closest(actor) : undefined
@@ -1091,8 +1142,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         } else {
           if (move.teleportBehind && !(actor.rootedUntil > time)) actor.x = bound(target.x + actor.direction * 72, actor)
           effects.push({ kind: 'target', visual: move.visual, type: move.type, origin: actor.x, x: target.x, at: time, expires: time + .52 })
-          hit(actor, target, move, Math.sign(target.x - actor.x) || actor.direction)
-          if (move.displace && !target.boss && target.hp) target.x = bound(target.x + actor.direction * move.displace, target)
+          const landed = hit(actor, target, move, Math.sign(target.x - actor.x) || actor.direction)
+          if (landed && move.displace && !target.boss && target.hp) target.x = bound(target.x + actor.direction * move.displace, target)
           if (move.chain) {
             const nearby = actors.filter(enemy => enemy !== target && enemy.hp && rivals(actor, enemy) && Math.abs(enemy.x - target.x) < 220)
               .sort((a, b) => Math.abs(a.x - target.x) - Math.abs(b.x - target.x))
@@ -1142,14 +1193,14 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
           hazard.affected.has(actor.index) || (hazard.allowedTargets && !hazard.allowedTargets.has(actor.index))) continue
       hazard.affected.add(actor.index)
       if (hazard.kind === 'web') {
-        if (!actor.boss && !actor.types.includes('flying')) {
+        if (!actor.boss && !actor.types.includes('flying') && !actor.abilities.has('levitate')) {
           actor.rootedUntil = time + 2.5
           actor.dashUntil = 0
           actor.cast = null
         }
         continue
       }
-      const damage = Math.min(actor.hp, 4)
+      const damage = redirectDamage(owner, actor, Math.min(actor.hp, 4), 'poison')
       actor.hp -= damage
       creditDamage(owner, actor, damage, 'Espinas')
       if (!actor.hp) actor.faintedAt = time
@@ -1258,7 +1309,6 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         anchor = arena.width / 2
         break
       case 'tornado':
-        if (pulse === move.pulses - 1) enemies.forEach(enemy => { if (!enemy.boss) enemy.knockback = (random() - .5) * 1600 })
         break
       case 'telekinesis':
       case 'web':
@@ -1268,7 +1318,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         if (!pulse) {
           for (const enemy of enemies) {
             if (sleepBlocked()) break
-            if (!canReceiveStatus(enemy, 'sleep') || enemy.types.some(type => immune.sleep.includes(type))) continue
+            if (enemy.ghostUntil > time || !canReceiveStatus(enemy, 'sleep') || enemy.types.some(type => immune.sleep.includes(type))) continue
             enemy.status = { kind: 'sleep', ends: time + 5 }
             enemy.ultimateSleep = true
           }
@@ -1310,7 +1360,9 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       targets = []
     }
     for (const target of targets) {
-      hit(actor, target, { ...move, ...variant, power, count: 1 }, Math.sign(target.x - actor.x) || direction)
+      const landed = hit(actor, target, { ...move, ...variant, power, count: 1 }, Math.sign(target.x - actor.x) || direction)
+      if (!landed) continue
+      if (move.visual === 'tornado' && pulse === move.pulses - 1 && !target.boss) target.knockback = (random() - .5) * 1600
       if (move.visual === 'telekinesis' && target.hp) target.confusion = { attempts: 0 }
       if (move.visual === 'web' && target.hp) target.next = Math.max(target.next, time + .85)
     }
@@ -1338,9 +1390,22 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     }
   }
 
-  function dealChip(actor, fraction, type, visual, source) {
+  function redirectDamage(source, target, damage, type) {
+    const guard = actors.find(ally => ally !== target && ally.hp > 0 && sameSquad(ally, target) && ally.abilities.has('friend-guard'))
+    const amount = guard ? Math.min(guard.hp, Math.round(Math.min(target.hp, damage) * abilityRules.friendGuardShare)) : 0
+    if (!amount) return damage
+    guard.hp -= amount
+    if (!guard.hp) { guard.faintedAt = time; guard.cast = null }
+    creditDamage(source, guard, amount, 'Friend Guard')
+    effects.push({ kind: 'hit', type, x: guard.x, target: guard.index, damage: amount, at: time, expires: time + .68 })
+    return damage - amount
+  }
+
+  function dealChip(actor, fraction, type, visual, source, useMaxHp = false) {
     if (source && !rivals(source, actor)) return
-    const damage = Math.min(actor.hp, Math.max(1, Math.round(damageHealth(actor) * fraction / (actor.boss && !actor.raidStats ? raidPressure : 1))))
+    const hp = useMaxHp ? actor.maxHp : damageHealth(actor)
+    const raw = Math.min(actor.hp, Math.max(1, Math.round(hp * fraction / (!useMaxHp && actor.boss && !actor.raidStats ? raidPressure : 1))))
+    const damage = redirectDamage(source, actor, raw, type)
     actor.hp -= damage
     creditDamage(source, actor, damage, visual)
     if (!actor.hp) actor.faintedAt = time
@@ -1396,6 +1461,18 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       status.severity++
       const fraction = status.kind === 'burn' ? .025 : Math.min(.065, .01 + .005 * status.severity)
       dealChip(actor, fraction, status.kind === 'burn' ? 'fire' : 'poison', status.kind, actors[status.source])
+    }
+  }
+
+  function tickAroma() {
+    const auras = actors.filter(actor => actor.hp > 0 && actor.abilities.has('aroma-fetido'))
+    if (!auras.length) return
+    for (const target of actors) {
+      if (!target.hp || time < (target.nextAromaTick ?? abilityRules.aromaInterval)) continue
+      const source = auras.find(actor => actor.hp > 0 && rivals(actor, target) && Math.abs(actor.x - target.x) <= abilityRules.aromaRange)
+      if (!source) continue
+      target.nextAromaTick = time + abilityRules.aromaInterval
+      dealChip(target, abilityRules.aromaDamage, 'poison', 'Aroma Fétido', source, true)
     }
   }
 
@@ -1490,6 +1567,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     let best
     let bestScore = 0
     let rangedScore = 0
+    let rangedReach = 0
     let meleeScore = 0
     let rangedReady = 0
     let meleeReady = 0
@@ -1499,7 +1577,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
     for (const id of choices) {
       const move = moves[id]
       if (move.kind === 'support') {
-        const priority = move.reviveAlly ? 200 : move.teamCleanse ? 176 : 168
+        const priority = move.reviveAlly ? 200 : move.teamCleanse ? 176 : move.healTeam ? 173 : 168
         if (supportTarget(actor, move) && !(actor.cooldowns[id] > time) && bestScore < priority) { best = id; bestScore = priority }
         continue
       }
@@ -1527,6 +1605,9 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         continue
       }
       const matchup = move.ultimate || move.struggle ? 1 : effectiveness(actor, enemy, move)
+      const category = moveDamageClass(move)
+      const statBias = category === 'physical' ? actor.attack / (actor.specialAttack || 1) :
+        category === 'special' ? actor.specialAttack / (actor.attack || 1) : 1
       if (move.needsSleep && enemy.status?.kind !== 'sleep') continue
       const statusUseful = canReceiveStatus(enemy, move.effect) && !enemy.status && !(move.effect === 'sleep' && sleepBlocked()) &&
         !enemy.types.some(type => immune[move.effect].includes(type))
@@ -1535,8 +1616,11 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         (enemy.status || immune.poison.some(type => enemy.types.includes(type)) ? 10 : 48) :
         (move.power * (move.count ?? 1) + (move.leech && !enemy.leech && !enemy.types.includes('grass') ? 44 : 0) +
         (move.slow && !(enemy.slowUntil > time) ? 24 : 0) +
-        (statusUseful ? 60 * move.chance : 0)) * matchup * fatigue
-      if (isRanged(move)) rangedScore = Math.max(rangedScore, score)
+        (statusUseful ? 60 * secondaryChance(actor, move.chance) : 0)) * matchup * fatigue * clamp(statBias, .85, 1.15)
+      if (isRanged(move) && score > rangedScore) {
+        rangedScore = score
+        rangedReach = moveReach(actor, move)
+      }
       if (move.kind === 'rush') meleeScore = Math.max(meleeScore, score)
       if (!(actor.cooldowns[id] > time)) {
         if (move.kind === 'rush') meleeReady = Math.max(meleeReady, score)
@@ -1566,7 +1650,8 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
         actor.status?.kind !== 'paralysis' && (actor.boss || incoming || castArea || threat || !best || actor.next > time)) {
       return startDash(actor, dashDirection, Boolean(incoming))
     }
-    if (!actor.boss && prefersRange && distance < 265 && (actor.next > time || distance < 125 && !best)) {
+    const kite = clamp(rangedReach * .55, rangeRules.kiteMin, rangeRules.kiteMax)
+    if (!actor.boss && prefersRange && distance < kite && actor.next > time && actor.next - time < rangeRules.kiteWindow) {
       const away = -toward
       const space = away < 0 ? actor.x - actor.margin : arena.width - actor.margin - actor.x
       if (space > 4) return walk(actor, away, dt)
@@ -1576,12 +1661,13 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       else if (cast(actor, best)) return actor.motion
     }
     if (!best && fallback && actor.next <= time && cast(actor, fallback)) return actor.motion
-    if (distance > (actor.boss ? 180 : prefersRange ? 365 : 78)) return walk(actor, toward, dt)
+    if (distance > (actor.boss ? 180 : prefersRange ? Math.max(kite, rangedReach * .8) : rangeRules.meleeChase)) return walk(actor, toward, dt)
     return 'Idle'
   }
 
   return {
     actors, projectiles, effects, knockouts,
+    aromaRange: actor => actor.abilities.has('aroma-fetido') ? abilityRules.aromaRange : 0,
     get time() { return time },
     raid,
     get remaining() { return Math.max(0, roundEnd - time) },
@@ -1598,6 +1684,7 @@ export function createBattle(entries, { auto = true, random = Math.random, hpMul
       if (over) return
       time += dt
       tickField()
+      tickAroma()
       for (let i = effects.length - 1; i >= 0; i--) if (effects[i].expires <= time) effects.splice(i, 1)
       if (ultimate) {
         if (ultimate.actor.hp) advanceUltimate()

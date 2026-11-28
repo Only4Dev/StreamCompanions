@@ -1,0 +1,4 @@
+{
+  "cut": ["air", "aircutter", "claw", "crosschop", "crosspoison", "dragonclaw", "fairyblade", "leaf", "leafblade", "metalclaw", "mindblade", "nightslash", "psychocut", "razorshell", "shadowclaw", "slash", "xscissor"],
+  "bite": ["bite", "crunch", "firefang", "icefang", "poisonfang", "thunderfang"]
+}

@@ -559,6 +559,17 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
           scale = bossDisplayScale(reference, base, fighter.bossScale ?? 4, zoom, floor)
         }
         const top = Math.max(28, y - Math.max(38, (clip?.height ?? 0) * spriteScale(clip, scale)))
+        if (fighter.hp && fighter.aromaRange > 0) {
+          context.save()
+          context.fillStyle = '#a2974840'
+          context.strokeStyle = '#c4ba7290'
+          context.lineWidth = 2
+          context.beginPath()
+          context.ellipse(x, y - 6, fighter.aromaRange, 14 + 3 * Math.sin(renderTime * 4), 0, 0, Math.PI * 2)
+          context.fill()
+          context.stroke()
+          context.restore()
+        }
         if (fighter.hp && fighter.rooted) drawWeb(context, x, y - 6, 41, 21)
         if (fighter.hp && (fighter.physicalBarrier || fighter.specialBarrier)) {
           context.save()
@@ -578,6 +589,11 @@ export function showScene(canvas, kind, catalog, getState, formatTime, { strip =
         if (fighter.hp && fighter.maneuver?.kind === 'dig') drawDigMound(context, x, y, renderTime)
         else if (fighter.hp) {
           context.save()
+          if (fighter.ghost) {
+            context.globalAlpha = .58
+            context.shadowColor = '#bd9cff'
+            context.shadowBlur = 18
+          }
           if (fighter.boss) {
             dynamaxAura(context, x, y, top, time, renderTime)
             context.shadowColor = fighter.enraged ? '#ff8000' : '#ff315e'

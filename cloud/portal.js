@@ -15,7 +15,8 @@ import { webEnglish } from "./web-copy.js"
 import { authorizeUrl, eraseAccount, platformIdentity, providerConfig, sessionKey, signIn, unlinkIdentity } from './auth.js'
 import { nationalDex } from './national-dex.js'
 import { kanto } from './kanto.js'
-import { baseStatsData, equippedMoves, moveCooldown, moveDamageClass, movePp, moves } from '../dev/battle.js'
+import { baseStatsData, equippedMoves, moveCooldown, moveDamageClass, moveElement, movePp, moves } from '../dev/battle.js'
+import { renderMovesWiki } from './move-wiki.js'
 import { ancestralFragmentCost, tmLearn, tmOptions } from '../ui/tm.js'
 import { familyDnaCount, familyRoot, maxDnaBoosters, sharesRegionalBase } from '../ui/evolution.js'
 import { regionalSpecies } from '../ui/regional-species.js'
@@ -29,7 +30,7 @@ function communityTabs(community, language, current, region = 'kanto') {
   const en = language === 'en'
   const tabs = [['dex', 'Pokédex'], ['inventory', en ? 'Inventory' : 'Inventario'], ['shop', en ? 'Shop' : 'Tienda'],
     ['overview', en ? 'Overview' : 'Resumen'], ['team', en ? 'Battle team' : 'Equipo'], ['live', en ? 'Play on the web' : 'Jugar en web'],
-    ['help', en ? 'Help' : 'Ayuda']]
+    ['help', en ? 'Help' : 'Ayuda'], ['wiki', 'Wiki']]
   return '<nav class="tabs community-tabs" aria-label="' + (en ? 'Community' : 'Comunidad') + '">' + tabs.map(([tab, label]) =>
     '<a href="/?' + escape(new URLSearchParams({ community, tab, region })) + '"' + (current === tab ? ' aria-current="page"' : '') +
     '>' + label + '</a>').join('') + '</nav>'
@@ -397,10 +398,9 @@ const helpHint = (label, copy) => '<details class="portal-hint"><summary aria-la
 function moveCard(key, selected, en, unlockLevel = 0, readOnly = false) {
   const move = moves[key]
   const ultimate = Boolean(move.ultimate)
-  const fieldTypes = { rain: 'water', sun: 'fire', electric: 'electric', grass: 'grass' }
-  const type = move.type ?? fieldTypes[move.field] ?? ({ speed: 'psychic', evasion: 'normal', mind: 'psychic' })[move.boost] ?? (ultimate ? move.ultimate : 'normal')
+  const type = moveElement(move)
   const target = move.teamBarrier || move.teamCleanse || move.teamBoost ? (en ? 'Team' : 'Equipo') :
-    move.kind === 'support' ? (en ? 'Ally' : 'Aliado') :
+    move.healTeam ? (en ? 'Team area' : 'Área del equipo') : move.kind === 'support' ? (en ? 'Ally' : 'Aliado') :
     move.field || ['area', 'pierce'].includes(move.kind) ? (en ? 'Area' : 'Área') :
     move.kind === 'guard' ? (en ? 'Self' : 'Propio') : (en ? 'Single target' : 'Un objetivo')
   const effects = {
@@ -420,6 +420,7 @@ function moveCard(key, selected, en, unlockLevel = 0, readOnly = false) {
     move.teamBoost ? (en ? 'Team damage +' : 'Daño del equipo +') + Math.round(move.teamBoost * 100) + '% · ' + move.duration + ' s' :
     move.teamCleanse ? (en ? 'Clears team status conditions' : 'Cura los estados del equipo') :
     move.reviveAlly ? (en ? 'Revives the last fainted ally' : 'Revive al último aliado caído') :
+    move.healTeam ? (en ? 'Heals nearby teammates' : 'Cura a compañeros cercanos') + ' · ' + Math.round(move.healTeam * 100) + '%' :
     move.healAlly ? (en ? 'Restores ally HP' : 'Recupera PS de un aliado') :
     move.hazard === 'web' ? (en ? 'Roots grounded rivals' : 'Inmoviliza a los rivales en tierra') : ''
   const note = support ? '<small>' + support + '</small>' : move.effect || !(move.power > 0) && !ultimate
@@ -434,6 +435,7 @@ function moveCard(key, selected, en, unlockLevel = 0, readOnly = false) {
   return '<' + tag + ' class="move-card' + (unlockLevel ? ' move-locked' : '') + '">' +
     (selectable ? '<input type="checkbox" name="move" value="' + escape(key) + '"' + (selected ? ' checked' : '') + '>' : '') +
     '<span class="move-title">' + typeIcon(type, en) + '<strong>' + escape(move.name) + '</strong></span>' +
+    (move.tags?.includes('support') ? '<small class="move-support">' + (en ? 'Support' : 'Apoyo') + '</small>' : '') +
     '<span class="move-limits">' + (ultimate ? (en ? 'Charge' : 'Carga') : 'CD ' + moveCooldown(move).toLocaleString(en ? 'en' : 'es') + ' s') + ' · PP ' + movePp(move) + '</span>' +
     '<small>' + category + power + ' · ' + target + '</small>' + (unlockLevel ? '<small>' + (en ? 'Unlocks at Lv. ' : 'Se aprende al Nv. ') + unlockLevel + '</small>' : note) + '</' + tag + '>'
 }
@@ -470,7 +472,7 @@ function renderPage(body, status, language, theme, url) {
     '<main><header class="mast"><span class="mark" aria-hidden="true">✦</span>Stream Companions<nav class="web-language" aria-label="' + (language === 'en' ? 'Portal navigation' : 'Navegación del portal') + '"><a href="/">' +
     (language === 'en' ? 'Home' : 'Inicio') + '</a>' + '<a class="help-header" href="?' + escape(new URLSearchParams({
       tab: 'help', ...(url.searchParams.get('community') ? { community: url.searchParams.get('community') } : {})
-    })) + '">' + (language === 'en' ? 'Help' : 'Ayuda') + '</a><a href="/?tab=about">' + aboutCopy[language].about + '</a><a href="/?tab=live">' + (language === 'en' ? 'Live' : 'En directo') + '</a>' + themeLink + languageLinks + '</nav></header>' + body + '<script src="/assets/descriptions.js?v=2" defer></script></main></html>', { status, headers })
+    })) + '">' + (language === 'en' ? 'Help' : 'Ayuda') + '</a><a href="/wiki">Wiki</a><a href="/?tab=about">' + aboutCopy[language].about + '</a><a href="/?tab=live">' + (language === 'en' ? 'Live' : 'En directo') + '</a>' + themeLink + languageLinks + '</nav></header>' + body + '<script src="/assets/descriptions.js?v=2" defer></script></main></html>', { status, headers })
 }
 
 function redirect(location, cookies) {
@@ -976,6 +978,8 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
   const t = text => language === 'en' ? webEnglish[text] ?? text : text
   const theme = (url.searchParams.get('theme') ?? getCookie(request, 'sc_theme')) === 'light' ? 'light' : 'dark'
   const page = (body, status = 200) => renderPage(body, status, language, theme, url)
+  if (request.method === 'GET' && (['/wiki', '/wiki/movimientos'].includes(url.pathname) ||
+      url.pathname === '/' && url.searchParams.get('tab') === 'wiki')) return page(renderMovesWiki(url, language, escape))
   if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('tab') === 'live') {
     const { results } = await env.DB.prepare('SELECT community_id, seen_at, platforms FROM community_stream_status ORDER BY seen_at DESC LIMIT 100').all()
     const community = url.searchParams.get('community')

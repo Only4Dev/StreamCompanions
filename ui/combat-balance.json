@@ -1,0 +1,31 @@
+{
+  "range": {
+    "projectileMax": 480,
+    "targetMax": 540,
+    "pierceMax": 690,
+    "bossRangedBonus": 1.12,
+    "kiteMin": 90,
+    "kiteMax": 210,
+    "kiteWindow": 0.85,
+    "meleeChase": 92
+  },
+  "support": {
+    "singleTrigger": 0.7,
+    "areaTrigger": 0.78,
+    "areaMinTargets": 2
+  },
+  "abilities": {
+    "friendGuardShare": 0.1,
+    "ghostChance": 0.2,
+    "ghostDuration": 3,
+    "ghostCooldown": 8,
+    "aromaDamage": 0.005,
+    "aromaRange": 130,
+    "aromaInterval": 1,
+    "sereneGrace": 2,
+    "sharpness": 1.3,
+    "strongJaw": 1.3,
+    "berserkerThreshold": 0.2,
+    "berserkerDamage": 1.3
+  }
+}

@@ -5,6 +5,21 @@ import { runInNewContext } from 'node:vm'
 import { sessionKey } from './auth.js'
 import { regionalSpecies } from '../ui/regional-species.js'
 import { portal } from './portal.js'
+import { moveBaseReach, moves } from '../dev/battle.js'
+
+test('the public move wiki filters by type and category and reports actual engine range', async () => {
+  const url = new URL('https://example.test/wiki/movimientos?tipo=dark&categoria=special&q=darkpulse')
+  const response = await portal(new Request(url), url, {})
+  assert.equal(response.status, 200)
+  const html = await response.text()
+  assert.match(html, /Pulso Umbrío/)
+  assert.doesNotMatch(html, /Triturar/)
+  assert.match(html, new RegExp('Alcance</dt><dd>' + moveBaseReach(moves.darkpulse) + '</dd>'))
+  const support = new URL('https://example.test/wiki?categoria=support&q=healcircle')
+  const supportHtml = await (await portal(new Request(support), support, {})).text()
+  assert.match(supportHtml, /Círculo Curativo/)
+  assert.match(supportHtml, /Solo afecta al equipo del mismo viewer/)
+})
 
 test('two Twitch sign-in attempts each retain their own flow cookie', async () => {
   const env = { TWITCH_WEB_CLIENT_ID: 'fixture-client', TWITCH_WEB_CLIENT_SECRET: 'fixture-value' }

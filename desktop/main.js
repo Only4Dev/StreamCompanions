@@ -790,11 +790,11 @@ function publicBattle(battle) {
     projectiles: battle.projectiles.map(({ x, origin, end, move, direction, actor }) => ({ x, origin, end, move: { type: move.type, effect: move.effect, visual: move.visual }, direction, actor: { types: actor.types } })),
     actors: battle.actors.map(actor => {
       const { name, ownerName, shiny, hp, maxHp, x, direction, motion, level, types, status, ongoing, boosts, flinchUntil } = actor
-      return { name, ownerName, shiny, ulting: ultimate?.index === actor.index, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, bossHop: actor.boss && actor.dashUntil > battle.time ? Math.sin(Math.PI * Math.min(1, (actor.dashUntil - battle.time) / .24)) * 62 : 0, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying'), status: status?.kind,
+      return { name, ownerName, shiny, ulting: ultimate?.index === actor.index, teamIndex: actor.boss ? 0 : teams.indexOf(actor.team) + 1, bossHop: actor.boss && actor.dashUntil > battle.time ? Math.sin(Math.PI * Math.min(1, (actor.dashUntil - battle.time) / .24)) * 62 : 0, boss: Boolean(actor.boss), bossScale: actor.bossScale, form: actor.bossForm ?? actor.form, appearance: actor.appearance, hp, maxHp, x, direction, motion, level, flying: types.includes('flying') || actor.abilities.has('levitate'), status: status?.kind,
         ongoing: ongoing?.kind, maneuver: battleRules.battleManeuver(actor, battle.time),
         physicalBarrier: actor.teamShield?.hp > 0 && actor.teamShield.until > battle.time && actor.teamShield.kind !== 'special',
         specialBarrier: actor.teamShield?.hp > 0 && actor.teamShield.until > battle.time && actor.teamShield.kind !== 'physical',
-        enraged: Boolean(actor.enteredEnrage), rooted: actor.rootedUntil > battle.time,
+        enraged: Boolean(actor.enteredEnrage), ghost: actor.ghostUntil > battle.time, aromaRange: battle.aromaRange(actor), rooted: actor.rootedUntil > battle.time,
         evasion: boosts.evasion > battle.time, flinched: flinchUntil > battle.time }
     }) }
 }
@@ -992,6 +992,8 @@ const routes = new Map([
   ['/ui/egg-pool.json', ['egg-pool.json', 'application/json']],
   ['/ui/learnsets.json', ['learnsets.json', 'application/json']],
   ['/ui/battle-moves.json', ['battle-moves.json', 'application/json']],
+  ['/ui/combat-balance.json', ['combat-balance.json', 'application/json']],
+  ['/ui/move-tags.json', ['move-tags.json', 'application/json']],
   ['/ui/tmlearn.json', ['tmlearn.json', 'application/json']],
   ['/ui/training.js', ['training.js', 'text/javascript']],
   ['/ui/training.json', ['training.json', 'application/json']],
