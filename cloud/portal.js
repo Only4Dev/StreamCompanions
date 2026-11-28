@@ -338,10 +338,14 @@ const descriptionHint = (trigger, description, label) => {
   if (!description) return trigger
   const id = 'description-' + crypto.randomUUID()
   return '<span class="description-hint"><button type="button" class="description-trigger" aria-label="' + escape(label) +
-    '" aria-describedby="' + id + '">' + trigger + '</button><span class="description-slot"><span id="' + id + '">' +
+    '" aria-expanded="false" aria-controls="' + id + '">' + trigger + '</button><span class="description-slot" hidden><span id="' + id + '">' +
     escape(description) + '</span></span></span>'
 }
-const itemTooltip = (item, en, graphic, label) => descriptionHint(graphic, itemEffect(item, en), label ?? shopItems[item]?.names[Number(en)] ?? item)
+const itemDescription = (item, en, graphic, label) => descriptionHint(graphic, itemEffect(item, en), label ?? shopItems[item]?.names[Number(en)] ?? item)
+
+const abilitySummary = (form, en) => abilityDetails(form, en).map(ability =>
+  '<div class="summary-abilities"><div><strong>' + (en ? 'Ability' : 'Habilidad') + '</strong> – ' +
+  escape(ability.name) + '</div><p>' + escape(ability.effect) + '</p></div>').join('')
 
 const itemIcon = item => '<img class="bag-icon" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/' + item + '.png" alt="" width="30" height="30">'
 function typeIcon(type, en) {
@@ -418,7 +422,7 @@ function renderPage(body, status, language, theme, url) {
     '<main><header class="mast"><span class="mark" aria-hidden="true">✦</span>Stream Companions<nav class="web-language" aria-label="' + (language === 'en' ? 'Portal navigation' : 'Navegación del portal') + '"><a href="/">' +
     (language === 'en' ? 'Home' : 'Inicio') + '</a>' + '<a class="help-header" href="?' + escape(new URLSearchParams({
       tab: 'help', ...(url.searchParams.get('community') ? { community: url.searchParams.get('community') } : {})
-    })) + '">' + (language === 'en' ? 'Help' : 'Ayuda') + '</a><a href="/?tab=about">' + aboutCopy[language].about + '</a><a href="/?tab=live">' + (language === 'en' ? 'Live' : 'En directo') + '</a>' + themeLink + languageLinks + '</nav></header>' + body + '<script src="/assets/descriptions.js" defer></script></main></html>', { status, headers })
+    })) + '">' + (language === 'en' ? 'Help' : 'Ayuda') + '</a><a href="/?tab=about">' + aboutCopy[language].about + '</a><a href="/?tab=live">' + (language === 'en' ? 'Live' : 'En directo') + '</a>' + themeLink + languageLinks + '</nav></header>' + body + '<script src="/assets/descriptions.js?v=2" defer></script></main></html>', { status, headers })
 }
 
 function redirect(location, cookies) {
@@ -649,27 +653,24 @@ async function check() {
 setTimeout(check,500);
 `, {headers:{'Content-Type':'text/javascript; charset=utf-8'}})
   if (request.method === 'GET' && url.pathname === '/assets/descriptions.js') return new Response(`
-let active, timer;
-function clear() {
-  clearTimeout(timer);
-  active?.classList.remove('is-visible');
+let active;
+function setExpanded(trigger, expanded) {
+  trigger.setAttribute('aria-expanded', String(expanded));
+  trigger.nextElementSibling.hidden = !expanded;
+}
+document.addEventListener('click', event => {
+  const trigger = event.target.closest('.description-trigger');
+  const next = trigger === active ? undefined : trigger;
+  if (active) setExpanded(active, false);
+  active = next;
+  if (active) setExpanded(active, true);
+});
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || !active) return;
+  setExpanded(active, false);
+  active.focus();
   active = undefined;
-}
-function open(trigger, delay) {
-  clear();
-  active = trigger.closest('.description-hint');
-  timer = setTimeout(() => active?.classList.add('is-visible'), delay);
-}
-for (const trigger of document.querySelectorAll('.description-trigger')) {
-  trigger.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') open(trigger, 2000); });
-  trigger.addEventListener('pointerleave', event => { if (event.pointerType === 'mouse' && active === trigger.closest('.description-hint')) clear(); });
-  trigger.addEventListener('click', event => {
-    if (active === trigger.closest('.description-hint') && active.classList.contains('is-visible')) clear(); else open(trigger, 0);
-  });
-  trigger.addEventListener('blur', () => { if (active === trigger.closest('.description-hint')) clear(); });
-}
-document.addEventListener('pointerdown', event => { if (!event.target.closest('.description-trigger')) clear(); });
-document.addEventListener('keydown', event => { if (event.key === 'Escape') clear(); });
+});
 `, { headers: { 'Content-Type': 'text/javascript; charset=utf-8' } })
   if (request.method === 'GET' && url.pathname === '/assets/battle-team.js') return new Response(`
 for (const card of document.querySelectorAll('[data-team-card]')) {
@@ -1179,9 +1180,9 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       const itemAction = '/held-item?' + new URLSearchParams({ ...locationParams, pokemon: speciesKey })
       itemFrame = '<button type="button" class="held-frame" popovertarget="choose-held"><strong>' + itemLabel + '</strong>' +
         (current ? '<span>' + itemName(current) + '</span>' : '<span>' + (en ? 'None' : 'Ninguno') + '</span>') + '</button>' +
-        (current ? itemTooltip(current, en, itemIcon(current), itemName(current)) : '') +
+        (current ? itemDescription(current, en, itemIcon(current), itemName(current)) : '') +
         '<div class="held-picker" id="choose-held" popover><h3>' + itemLabel + '</h3><form method="post" action="' + escape(itemAction) + '">' +
-        ['' , ...availableItems].map(item => '<div class="held-choice">' + (item ? itemTooltip(item, en, itemIcon(item), itemName(item)) : '') + '<button name="item" value="' + item + '"' + (current === item ? ' class="chosen"' : '') + '>' +
+        ['' , ...availableItems].map(item => '<div class="held-choice">' + (item ? itemDescription(item, en, itemIcon(item), itemName(item)) : '') + '<button name="item" value="' + item + '"' + (current === item ? ' class="chosen"' : '') + '>' +
           (item ? itemName(item) : (en ? 'None' : 'Ninguno')) + '</button></div>').join('') + '</form></div>'
     }
     const descriptions = {
@@ -1244,7 +1245,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       '"><div><h1>' + escape(speciesKey) + '</h1><p class="summary-meta">#' + String(regionalBase.get(detail.id) ?? detail.id).padStart(3, '0') + ' · Lv. ' + detail.rank +
       detail.types.map(type => typeIcon(type, en)).join('') + '</p>' + (description ? '<p>' + escape(description) + '</p>' : '') +
       (detail.form === detail.id ? '' : '<p>' + (en ? 'Battle form · ' : 'Forma en combate · ') + escape(speciesName(detail.form)) + '</p>') +
-      '<div class="summary-abilities"><strong>' + (en ? 'Abilities' : 'Habilidades') + '</strong>' + abilityDetails(detail.form, en).map(ability => descriptionHint(escape(ability.name), ability.effect, ability.name)).join('') + '</div>' + xpBar + '</div><div class="summary-equipment">' + itemFrame + '</div></div><dl class="battle-stats">' + stats.map(([es, english, key]) => '<div><dt>' + (en ? english : es) +
+      abilitySummary(detail.form, en) + xpBar + '</div><div class="summary-equipment">' + itemFrame + '</div></div><dl class="battle-stats">' + stats.map(([es, english, key]) => '<div><dt>' + (en ? english : es) +
         '</dt><dd>' + Math.round(detail.stats[key]) + '</dd></div>').join('') + '</dl>' + (supportsVitamins ? trainingSection : dnaSection) +
       '<div class="section-with-help"><h2>' + (en ? 'Moveset' : 'Ataques activos') + '</h2>' + helpHint(en ? 'About cooldowns and PP' : 'Sobre recarga y PP', en ? 'CD is the cooldown in seconds after the move finishes. PP is how many times the move can be used per battle. Ultimates use a charge meter.' : 'CD es la recarga en segundos después del ataque. PP indica cuántas veces puedes usarlo por batalla. Los ataques definitivos requieren carga.') + '</div><form class="moveset-form" method="post" action="' + escape(action) +
       '"><fieldset><legend>' + (en ? 'Choose up to four' : 'Elige hasta cuatro') + ' · <output>' + active.length + ' / 4</output></legend><div class="move-options">' +
@@ -1305,7 +1306,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
         const quantityInput = product.ball || product.bulk
           ? quantityField(en, price, Math.min(maxShopQuantity, Math.floor(pokeDollars / price))) : ''
         const graphic = '<img class="bag-icon' + (id === 'poke-egg' ? ' egg-shop-icon' : '') + '" src="' + shopIconUrl(id) + '" alt="" width="30" height="30">'
-        return '<li>' + itemTooltip(id, en, graphic) + '<strong>' + escape(product.names[Number(en)]) + '</strong><span>$' + price + '</span>' +
+        return '<li>' + itemDescription(id, en, graphic + '<strong>' + escape(product.names[Number(en)]) + '</strong>') + '<span>$' + price + '</span>' +
           '<form method="post" data-shop-buy data-shop-product="' + id + '" data-shop-price="' + price + '" action="' + escape(action) + '"' +
           (product.ball ? ' data-shop-ball="' + product.ball + '"' : '') + (featured ? ' data-shop-feature' : '') + '>' +
           (product.ball ? '<span class="shop-count">' + (en ? 'In bag' : 'En la bolsa') + ' <strong data-shop-count>×' + escape(balls[product.ball] ?? 0) + '</strong></span>' : '') + quantityInput + button + '</form>' + (featured ? '<small data-feature-upgrade' + (needsUpdate ? '' : ' hidden') + '>' + reasons.feature + '</small>' : '') + (id === 'master-ball' ? '<small data-shop-master-upgrade' + (available && needsUpdate ? '' : ' hidden') + '>' + escape(reasons.master) + '</small>' : '') +
@@ -1336,19 +1337,19 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     ['normal', 'Poké Ball', 'poke-ball'], ['great', 'Great Ball', 'great-ball'],
     ['ultra', 'Ultra Ball', 'ultra-ball'], ['master', 'Master Ball', 'master-ball']
   ].filter(([id]) => balls[id] > 0)
-    .map(([id, name, icon]) => '<li class="bag-slot">' + itemTooltip(icon, en, itemIcon(icon), name) + '<span>' + name + '</span><strong>×' + escape(balls[id]) + '</strong></li>').join('')
+    .map(([id, name, icon]) => '<li class="bag-slot">' + itemDescription(icon, en, itemIcon(icon), name) + '<span>' + name + '</span><strong>×' + escape(balls[id]) + '</strong></li>').join('')
   const pockets = [ ['balls', language === 'en' ? 'Poké Balls' : 'Poké Balls'],
     ['held', language === 'en' ? 'Held items' : 'Objetos equipables'], ['key', language === 'en' ? 'Consumables' : 'Consumibles'] ]
   const pocket = pockets.some(([id]) => id === url.searchParams.get('pocket')) ? url.searchParams.get('pocket') : 'balls'
   const wallet = '<p class="meta">Pokédólares · <strong>$' + escape(pokeDollars) + '</strong></p>'
   const consumables = [['rare-candy', language === 'en' ? 'Rare Candy' : 'Caramelo Raro', rareCandies],
     ['dowsing-machine', 'Legendary Tracker', legendaryTrackers], ['stardust', 'Shiny Dust', shinyDust], ['protein', en ? 'Vitamin Complex' : 'Complejo de Vitaminas', vitamins]].map(([icon, label, amount]) =>
-    '<li class="bag-slot">' + itemTooltip(({ 'dowsing-machine': 'legendary-tracker', stardust: 'shiny-dust', protein: 'vitamin-complex' })[icon] ?? icon, en, itemIcon(icon), label) + '<span>' + label + '</span><strong>×' + escape(amount) + '</strong></li>').join('')
+    '<li class="bag-slot">' + itemDescription(({ 'dowsing-machine': 'legendary-tracker', stardust: 'shiny-dust', protein: 'vitamin-complex' })[icon] ?? icon, en, itemIcon(icon), label) + '<span>' + label + '</span><strong>×' + escape(amount) + '</strong></li>').join('')
   const inventoryPage = '<section class="sheet"><h2>' + (language === 'en' ? 'Inventory' : 'Inventario') + '</h2>' + wallet + '<nav class="tabs pockets" aria-label="Inventory">' + pockets.map(([id, label]) =>
     '<a href="?' + escape(new URLSearchParams({ community: selected.community_id, tab: 'inventory', pocket: id })) + '"' +
     (id === pocket ? ' aria-current="page"' : '') + '>' + label + '</a>').join('') + '</nav>' +
     (pocket === 'key' ? '<ul class="bag">' + consumables + '</ul>' : pocket === 'held' && availableItems.length ?
-      '<ul class="held-grid">' + availableItems.map(item => '<li>' + itemTooltip(item, en, itemIcon(item), itemName(item)) + '<strong>' + itemName(item) + '</strong>' + '</li>').join('') + '</ul>' :
+      '<ul class="held-grid">' + availableItems.map(item => '<li>' + itemDescription(item, en, itemIcon(item) + '<strong>' + itemName(item) + '</strong>', itemName(item)) + '</li>').join('') + '</ul>' :
       pocket === 'balls' && inventory ? '<ul class="bag">' + inventory + '</ul>' : '<p class="empty">' + t('Tu bolsa está vacía.') + '</p>') + '</section>'
   const seen = new Map()
   const eggAcquired = new Map()
@@ -1390,7 +1391,7 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
       (isNew ? ' data-dex-new="' + dex + '" data-acquired="' + acquired + '"><span class="dex-new">' + (en ? 'NEW' : 'NUEVO') + '</span>' : '>') + '<span class="dex-number">#' +
       String(regionalBase.get(dex) ?? dex).padStart(3, '0') + '</span>' +
       (member ? summaryLink(member, profile, 'dex-entry') : profile) +
-      (owned ? '<small class="dex-ability">' + abilityDetails(dex, en).slice(0, 1).map(ability => descriptionHint(escape(ability.name), ability.effect, ability.name)).join('') + '</small>' : '') +
+      (owned ? '<small class="dex-ability">' + escape(abilityDetails(dex, en)[0]?.name ?? '') + '</small>' : '') +
       '<div class="variants">' + (details || '<span>' + t("Sin capturar") + '</span>') + '</div></li>'
   }).join('') : ''
   const updated = new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'es-PE', {
