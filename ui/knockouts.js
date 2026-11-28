@@ -21,7 +21,6 @@ fitSource()
 
 function renderBoss(boss, language) {
   raid.hidden = !boss
-  source.classList.toggle('dynamax', Boolean(boss))
   fitSource()
   if (!boss) return
   bossName.textContent = boss.name + ' · Dynamax'
@@ -83,8 +82,8 @@ async function refresh() {
     const state = await response.json()
     loaded = true
     active = state.active || state.rows.length > 0
-    render(state.rows, state.language)
     renderBoss(state.boss, state.language)
+    render(state.rows, state.language)
     winner.hidden = !state.winner
     winner.textContent = state.winner ? (state.language === 'en' ? 'Last Winner: ' : 'Último ganador: ') + state.winner : ''
   } catch {
