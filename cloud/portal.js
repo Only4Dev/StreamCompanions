@@ -544,12 +544,11 @@ export async function portal(request, url, env) {
         const sprite = dialog.querySelector('.egg-stage img');
         const tiers = {
           common: { duration: 1450, particles: 7, names: ['Común', 'Common'] },
-          uncommon: { duration: 1680, particles: 11, names: ['Poco común', 'Uncommon'] },
           rare: { duration: 1950, particles: 17, names: ['Raro', 'Rare'] },
           epic: { duration: 2320, particles: 25, names: ['Épico', 'Epic'] },
           legendary: { duration: 2900, particles: 38, names: ['Legendario', 'Legendary'] }
         };
-        const rarity = Object.hasOwn(tiers, hatch.rarity) ? hatch.rarity : 'common';
+        const rarity = hatch.rarity === 'uncommon' ? 'rare' : Object.hasOwn(tiers, hatch.rarity) ? hatch.rarity : 'common';
         const tier = tiers[rarity];
         const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
         dialog.dataset.rarity = rarity;
@@ -1527,8 +1526,8 @@ for (const card of document.querySelectorAll('[data-team-card]')) {
     const eggDialog = section === 'eggs' ? hatchDialog(en) : ''
     const legendaryOdds = new Intl.NumberFormat(language, { style: 'percent', maximumFractionDigits: 8 }).format(legendaryEggChance)
     const eggOdds = section === 'eggs' ? '<p class="meta">' + (en
-      ? 'First-stage Pokémon only. Legendary hatch chance per egg: ' + legendaryOdds
-      : 'Solo Pokémon en primera etapa. Probabilidad legendaria por huevo: ' + legendaryOdds) + '</p>' : ''
+      ? 'First-stage Pokémon only. Base legendary chance: ' + legendaryOdds + '. Increases after 100 misses and is guaranteed on egg 200.'
+      : 'Solo Pokémon en primera etapa. Probabilidad legendaria base: ' + legendaryOdds + '. Aumenta tras 100 intentos sin legendario y se garantiza en el huevo 200.') + '</p>' : ''
     shopPage = '<section class="sheet"><h2>' + shopLabel + '</h2><p>Pokédólares · <strong data-shop-wallet="' + escape(pokeDollars) + '">$' + escape(pokeDollars) + '</strong></p>' + shopTabs + eggOdds +
       (url.searchParams.has('repriced') ? '<p role="status">' + (en ? 'The price changed. Check it before buying again.' : 'El precio cambió. Revísalo antes de volver a comprar.') + '</p>' : '') +
       (purchaseWarning ? '<p role="status" class="empty">' + escape(purchaseWarning) + '</p>' : '') +

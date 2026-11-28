@@ -10,7 +10,7 @@ import { completeKickLink, kickDevice, kickWebhook, seal, startKickLink } from '
 import { arenaShopItems, heldItems } from '../ui/held-items.js'
 import { isFirstStage } from '../ui/evolution.js'
 import { battleSpecies } from '../dev/battle.js'
-import { eggPoolTier } from '../ui/egg-rules.js'
+import { eggRarities } from '../ui/egg-rules.js'
 import { eggRarity, specialEncounterTag } from '../ui/capture-rates.js'
 import { validTraining } from '../ui/training.js'
 import { featuredShopItems, normalizeShopPrices } from '../ui/shop.js'
@@ -120,6 +120,11 @@ function viewerWrites(db, device, viewers) {
     const legendaryTrackers = viewer.legendaryTrackers ?? 0
     const shinyDust = viewer.shinyDust ?? 0
     const vitamins = viewer.vitamins ?? 0
+    const eggPity = viewer.eggPity
+    if (eggPity !== undefined && (!eggPity || Array.isArray(eggPity) || Object.keys(eggPity).length !== 3 ||
+        !['rare', 'epic', 'legendary'].every(tier => Number.isSafeInteger(eggPity[tier]) && eggPity[tier] >= 0))) {
+      return json({ error: 'invalid egg pity' }, 400)
+    }
     const training = viewer.training ?? {}
     if (!training || Array.isArray(training) || typeof training !== 'object' || Object.entries(training).some(([id,row]) => !/^\d{1,5}$/.test(id) || !validTraining(row))) return json({error:'invalid training'},400)
     const pokeDollars = viewer.pokeDollars ?? 0
@@ -156,7 +161,7 @@ function viewerWrites(db, device, viewers) {
       'WHERE excluded.revision > viewer_progress.revision'
     ).bind(device.community_id, viewer.id, viewer.revision,
         JSON.stringify({ displayName: viewer.displayName, balls, collection: viewer.collection, heldItems: [...new Set(items)], rareCandies, pokeDollars, dnaBoosters, ...(legendaryTrackers ? { legendaryTrackers } : {}), ...(shinyDust ? { shinyDust } : {}), ...(vitamins ? { vitamins } : {}), ...(Object.keys(training).length ? { training } : {}),
-          ...(Object.keys(dexAcquired).length ? { dexAcquired } : {}), log: log.slice(-8).map(({ at, platform, action, result, capture }) => ({
+          ...(eggPity ? { eggPity } : {}), ...(Object.keys(dexAcquired).length ? { dexAcquired } : {}), log: log.slice(-8).map(({ at, platform, action, result, capture }) => ({
             at, platform, action, result, ...(capture ? { capture: { ball: capture.ball, remaining: capture.remaining, pokemon: capture.pokemon } } : {})
           })), metrics: { wins: metrics.wins, losses: metrics.losses, summonMinutes: metrics.summonMinutes } }), Date.now(), viewer.id, generation, generation, viewer.id, device.key_hash))
     writes.push(db.prepare('INSERT OR IGNORE INTO erasure_devices SELECT ?, viewer_id FROM erased_viewers WHERE viewer_id = ?')
@@ -275,8 +280,15 @@ async function deviceShop(request, db, events) {
     if (order.item === 'poke-egg' && receipt.result === 'purchased' || hatch !== undefined) {
       const row = battleSpecies(hatch?.id)
       const special = row && specialEncounterTag(hatch.id, Boolean(row[5]))
-      const customized = hatch?.rules === 4 && row && isFirstStage(hatch.id) && (special === 'legendary' ? hatch.rarity === 'legendary' : !special && ['common','uncommon','rare','epic'].includes(hatch.rarity))
-      const expected = customized ? hatch.rarity : hatch?.rules === 4 ? null : hatch?.rules === 3 ? eggPoolTier(hatch.id, special) : special === 'legendary' ? 'legendary' : !special && row ? eggRarity(hatch.id) : null
+      let expected
+      if (hatch?.rules === 5) {
+        if (row && isFirstStage(hatch.id) && eggRarities.includes(hatch.rarity)) expected = hatch.rarity
+      } else if (hatch?.rules === 3 || hatch?.rules === 4) {
+        if (row && isFirstStage(hatch.id)) {
+          if (special === 'legendary') expected = 'legendary'
+          else if (!special && ['common', 'uncommon', 'rare', 'epic'].includes(hatch.rarity)) expected = hatch.rarity
+        }
+      } else expected = special === 'legendary' ? 'legendary' : !special && row ? eggRarity(hatch.id) : null
       if (order.item !== 'poke-egg' || !row || row[0] !== hatch.id || !expected ||
           ((hatch.rules === 2 || special === 'legendary') && !isFirstStage(hatch.id)) ||
           typeof hatch.name !== 'string' || !Object.hasOwn(receipt.viewer?.collection ?? {}, hatch.name) ||

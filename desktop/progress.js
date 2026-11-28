@@ -61,7 +61,7 @@ export function openProgress(path) {
           const metrics = { wins, losses, summonMinutes: Math.floor(summonSeconds / 60) }
           queue.run(id, JSON.stringify({ ...(progress.viewerGenerations?.[id] ? { generation: progress.viewerGenerations[id] } : {}), displayName: viewer.displayName ?? '', balls: viewer.balls, collection, metrics,
             heldItems: viewer.heldItems ?? [], rareCandies: viewer.rareCandies ?? 0, ...(viewer.legendaryTrackers ? { legendaryTrackers: viewer.legendaryTrackers } : {}), ...(viewer.shinyDust ? { shinyDust: viewer.shinyDust } : {}), ...(viewer.vitamins ? { vitamins: viewer.vitamins } : {}), ...(viewer.training ? { training: viewer.training } : {}), pokeDollars: viewer.pokeDollars ?? 0,
-            dnaBoosters: viewer.dnaBoosters ?? {}, ...(viewer.dexAcquired ? { dexAcquired: viewer.dexAcquired } : {}), ...(viewer.log?.length ? { log: viewer.log.slice(-8).map(({at,platform,action,result})=>({at,platform,action,result})) } : {}) }))
+            dnaBoosters: viewer.dnaBoosters ?? {}, ...(viewer.eggPity ? { eggPity: viewer.eggPity } : {}), ...(viewer.dexAcquired ? { dexAcquired: viewer.dexAcquired } : {}), ...(viewer.log?.length ? { log: viewer.log.slice(-8).map(({at,platform,action,result})=>({at,platform,action,result})) } : {}) }))
         }
       })
       last = snapshot

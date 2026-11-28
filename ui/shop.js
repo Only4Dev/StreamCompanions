@@ -5,7 +5,6 @@ export const shopIconUrl = item => 'https://raw.githubusercontent.com/PokeAPI/sp
   (item === 'poke-egg' ? 'pokemon/egg.png' : 'items/' + (shopItems[item]?.icon ?? item) + '.png')
 
 export const featuredShopItems = ['poke-egg', 'legendary-tracker', 'shiny-dust', 'vitamin-complex']
-export const eggRarities = ['common', 'uncommon', 'rare', 'epic']
 export { legendaryEggChance } from './egg-rules.js'
 
 export const shopItems = {

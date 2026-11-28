@@ -7,8 +7,8 @@ import { evolutionChildren, evolutionParent, familyDnaCount, familyRoot, isFirst
 import { defaultSummonXpPerSecond, level, maxLevel, maxXp, xpAtLevel } from '../ui/levels.js'
 import { captureCategories, catchChance, catchDifficulty, normalizeCapturePercentages, specialEncounterTag } from '../ui/capture-rates.js'
 import { heldItems } from '../ui/held-items.js'
-import { eggPool, parseEggPool } from '../ui/egg-rules.js'
-import { eggRarities, normalizeShopPrices, shopItems, validShopPrice, validShopQuantity } from '../ui/shop.js'
+import { eggPool, eggProbabilities, eggRarities, nextEggPity, parseEggPool } from '../ui/egg-rules.js'
+import { normalizeShopPrices, shopItems, validShopPrice, validShopQuantity } from '../ui/shop.js'
 
 export const creatures = ['Brasa', 'Musgo', 'Gota']
 
@@ -34,19 +34,15 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
   }
   updateEncounterPools()
   const trackers = catalog.filter(item => specialTags.get(item.name) === 'legendary')
-  let eggChoices, eggWeight, legendaryEggPool, legendaryEggChance, customEggPool
+  let eggChoices, eggWeights
   function updateEggPool(input, custom = false) {
     const rules = parseEggPool(input)
-    const choices = eggRarities.map(rarity => ({ rarity, weight: rules.weights[rarity],
-      pool: catalog.filter(item => rules.tierFor(item.id, specialTags.get(item.name)) === rarity) }))
+    const choices = ['legendary', ...eggRarities.slice(0, -1)].map(rarity => ({ rarity, weight: rules.weights[rarity],
+      pool: catalog.filter(item => rules.tierFor(item.id) === rarity) }))
       .filter(choice => choice.pool.length && choice.weight > 0)
-    const weight = choices.reduce((sum, tier) => sum + tier.weight, 0)
-    if (custom && !weight) throw new Error('No eligible Pokémon in regular egg tiers')
+    if (custom && !choices.length) throw new Error('No eligible Pokémon in egg tiers')
     eggChoices = choices
-    eggWeight = weight
-    legendaryEggChance = rules.legendaryChance
-    legendaryEggPool = trackers.filter(item => rules.tierFor(item.id, 'legendary') === 'legendary')
-    customEggPool = custom
+    eggWeights = Object.fromEntries(eggRarities.map(rarity => [rarity, choices.find(choice => choice.rarity === rarity)?.weight ?? 0]))
   }
   updateEggPool(eggPool)
   const recentCaptures = []
@@ -475,7 +471,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         else if (product.held && viewer.heldItems?.includes(item)) result = 'owned'
         else if (product.dna && dna + quantity > maxDnaBoosters) result = 'maxed'
         else if ((viewer.pokeDollars ?? 0) < charge) result = 'funds'
-        else if (item === 'poke-egg' && !eggWeight) result = 'unavailable'
+        else if (item === 'poke-egg' && !eggChoices.length) result = 'unavailable'
         else {
           viewer.pokeDollars -= charge
           if (product.ball) viewer.balls[product.ball] = (viewer.balls[product.ball] ?? 0) + quantity
@@ -488,11 +484,10 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
           else if (item === 'shiny-dust') viewer.shinyDust = (viewer.shinyDust ?? 0) + 1
           else if (item === 'legendary-tracker') viewer.legendaryTrackers = (viewer.legendaryTrackers ?? 0) + 1
           else if (item === 'poke-egg') {
-            const roll = random()
-            let regularRoll = (legendaryEggPool.length ? Math.max(0, (roll - legendaryEggChance) / (1 - legendaryEggChance)) : roll) * eggWeight
-            const { rarity, pool } = legendaryEggPool.length && roll < legendaryEggChance
-              ? { rarity: 'legendary', pool: legendaryEggPool }
-              : eggChoices.find(choice => (regularRoll -= choice.weight) < 0) ?? eggChoices.at(-1)
+            let roll = random()
+            const chances = eggProbabilities(eggWeights, viewer.eggPity)
+            const { rarity, pool } = eggChoices.find(choice => (roll -= chances[choice.rarity]) < 0) ??
+              eggChoices.findLast(choice => chances[choice.rarity] > 0)
             const pokemon = pool[Math.floor(random() * pool.length)]
             const duplicate = Object.hasOwn(viewer.collection, pokemon.name)
             const xp = familyXp(viewer, pokemon.name)
@@ -504,7 +499,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
               ;(viewer.dexAcquired ??= {})[pokemon.name] = now()
             }
             shareFamily(viewer, pokemon.name, xp + earned)
-            hatch = { id: pokemon.id, name: pokemon.name, rarity, duplicate, xp: earned, rules: customEggPool ? 4 : 3, ...(duplicate && earned > 0 ? { levelUp: true } : {}) }
+            viewer.eggPity = nextEggPity(viewer.eggPity, rarity)
+            hatch = { id: pokemon.id, name: pokemon.name, rarity, duplicate, xp: earned, rules: 5, ...(duplicate && earned > 0 ? { levelUp: true } : {}) }
           } else (viewer.heldItems ??= []).push(item)
           result = 'purchased'
         }
@@ -685,6 +681,7 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         target.shinyFamilies = [...new Set([...(target.shinyFamilies ?? []), ...(source.shinyFamilies ?? [])])]
         for (const root of target.shinyFamilies) syncShinyUnlocks(target, root)
         target.vitamins = Math.max(target.vitamins ?? 0, source.vitamins ?? 0)
+        target.eggPity ??= source.eggPity
         target.training = { ...source.training, ...target.training }
         target.shinyDust = Math.max(target.shinyDust ?? 0, source.shinyDust ?? 0)
         target.legendaryTrackers = Math.max(target.legendaryTrackers ?? 0, source.legendaryTrackers ?? 0)
@@ -740,8 +737,8 @@ export function createGame({ now = Date.now, random = Math.random, streamStarter
         erasedViewers: [...erasedViewers],
         viewerGenerations: Object.fromEntries(viewerGenerations),
         shopReceipts: Object.fromEntries(shopReceipts),
-        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, vitamins, training, pokeDollars, dnaBoosters, log, dexAcquired }]) =>
-          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, vitamins, training, pokeDollars, dnaBoosters, log, dexAcquired }]))
+        viewers: Object.fromEntries([...viewers].map(([id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, vitamins, eggPity, training, pokeDollars, dnaBoosters, log, dexAcquired }]) =>
+          [id, { balls, collection, displayName, metrics, heldItems, rareCandies, legendaryTrackers, shinyDust, shinyFamilies, vitamins, eggPity, training, pokeDollars, dnaBoosters, log, dexAcquired }]))
       }
     },
     recordBattle(participants, winner, speciesKey, performances = []) {

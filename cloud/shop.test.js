@@ -261,12 +261,13 @@ test('a signed-in viewer can submit one shop order while their device is online'
   assert.equal((await device('POST', { viewers: [{ id: ticket, result: 'purchased', viewer: { ...orderViewer, revision: 5, pokeDollars: 15000, legendaryTrackers: 1 } }] })).status, 200)
   const legendaryEgg = crypto.randomUUID()
   db.prepare("INSERT INTO shop_orders (id, community_id, viewer_id, item, created_at) VALUES (?, 'stream', 'twitch:1', 'poke-egg', ?)").run(legendaryEgg, Date.now())
-  const hatchedLegend = { id: 150, name: 'Mewtwo', rarity: 'legendary', duplicate: false, xp: 0, rules: 2 }
+  const hatchedLegend = { id: 150, name: 'Mewtwo', rarity: 'legendary', duplicate: false, xp: 0, rules: 5 }
   const legendaryViewer = { ...orderViewer, revision: 6, pokeDollars: 10000, legendaryTrackers: 1,
-    collection: { Rattata: 0, Mewtwo: 0, Raticate: 0 } }
+    collection: { Rattata: 0, Mewtwo: 0, Raticate: 0 }, eggPity: { rare: 0, epic: 0, legendary: 0 } }
   const finishEgg = hatch => device('POST', { viewers: [{ id: legendaryEgg, result: 'purchased', viewer: legendaryViewer, hatch }] })
   assert.equal((await finishEgg({ id: 20, name: 'Raticate', rarity: 'uncommon', duplicate: false, xp: 0, rules: 2 })).status, 400)
   assert.equal((await finishEgg(hatchedLegend)).status, 200)
+  assert.deepEqual(JSON.parse(db.prepare("SELECT payload FROM viewer_progress WHERE viewer_id = 'twitch:1'").get().payload).eggPity, legendaryViewer.eggPity)
   const selectTeam = (pokemon1) => worker.fetch(new Request(base + '/battle-team?community=stream', {
     method: 'POST', headers: { ...cookie, Origin: base },
     body: new URLSearchParams({ pokemon0: 'Rattata', support0: 'pollenpuff', pokemon1 })

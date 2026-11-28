@@ -157,12 +157,13 @@ test('streamer grants persist with inventory and reject invalid changes', () => 
   assert.equal(viewer.legendaryTrackers, 2)
 })
 
-test('the legendary hatch threshold is 0.001% and eggs exclude evolved species', () => {
+test('the base legendary hatch threshold is 0.5% and eggs exclude evolved species', () => {
   const catalog = [
     { id: 19, name: 'Rattata' }, { id: 20, name: 'Raticate' }, { id: 10114, name: 'Alolan Exeggutor' },
-    { id: 150, name: 'Mewtwo', legendary: true }, { id: 790, name: 'Cosmoem', legendary: true }, { id: 151, name: 'Mew' }
+    { id: 150, name: 'Mewtwo', legendary: true }, { id: 790, name: 'Cosmoem', legendary: true }, { id: 151, name: 'Mew' },
+    { id: 1, name: 'Bulbasaur' }, { id: 147, name: 'Dratini' }
   ]
-  for (const [roll, expected] of [[.000009999, 'Mewtwo'], [.00001, 'Rattata']]) {
+  for (const [roll, expected] of [[.004999, 'Mewtwo'], [.005, 'Rattata']]) {
     const draws = [roll, .9999]
     const game = createGame({ catalog, now: () => 0, random: () => draws.shift() ?? .5,
       progress: { viewers: { A: { collection: {}, pokeDollars: 5000 } } } })
@@ -211,11 +212,11 @@ test('a Poké Egg hatches only a regular base species and keeps its receipt acro
   const catalog = [{ id: 150, name: 'Mewtwo', legendary: true }, { id: 151, name: 'Mew' },
     { id: 793, name: 'Nihilego' }, { id: 984, name: 'Great Tusk' },
     { id: 19, name: 'Rattata' }, { id: 20, name: 'Raticate' }]
-  const options = { catalog, now: () => 0, random: () => .99 }
+  const options = { catalog, now: () => 0, random: () => .5 }
   const game = createGame({ ...options, progress: { viewers: { A: { collection: {}, pokeDollars: 11000 } } } })
   const order = { id: 'egg', viewerId: 'A', item: 'poke-egg', price: 5000 }
   assert.equal(game.fulfillOrder(order), 'purchased')
-  assert.deepEqual(game.shopHatch('egg'), { id: 19, name: 'Rattata', rarity: 'common', duplicate: false, xp: 0, rules: 3 })
+  assert.deepEqual(game.shopHatch('egg'), { id: 19, name: 'Rattata', rarity: 'common', duplicate: false, xp: 0, rules: 5 })
   const restarted = createGame({ ...options, progress: game.progress() })
   restarted.acknowledgeOrders(['egg'])
   const replay = createGame({ ...options, progress: restarted.progress() })
